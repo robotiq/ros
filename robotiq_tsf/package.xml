@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robotiq_tsf</name>
+  <version>1.0.0</version>
+  <description>ROS 2 Jazzy tactile sensing package for the Robotiq TSF-85.</description>
+
+  <maintainer email="jean-philippe.roberge@etsmtl.ca">Jean-Philippe Roberge</maintainer>
+  <maintainer email="jenkwia@example.com">Jen Kwia</maintainer>
+
+  <author email="jean-philippe.roberge@etsmtl.ca">Jean-Philippe Roberge</author>
+  <author email="jenkwia@example.com">Jen Kwia</author>
+
+  <license>BSD-3-Clause</license>
+
+  <url type="website">https://github.com/ets-laboratory/tactilesensors4</url>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <build_export_depend>rosidl_default_generators</build_export_depend>
+  <build_export_depend>std_msgs</build_export_depend>
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>ament_index_cpp</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <exec_depend>OpenCV</exec_depend>
+  <exec_depend>libusb-1.0</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
