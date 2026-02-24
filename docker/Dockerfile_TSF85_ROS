@@ -1,0 +1,38 @@
+FROM ros:noetic-ros-base
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+RUN apt-get update && apt-get install -y tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# Only install what you use
+RUN apt-get update && apt-get install -y \
+        ros-noetic-rosserial \
+        ros-noetic-plotjuggler-ros \
+        python3-pip \
+   #     bash-completion \
+        terminator \
+        ros-noetic-cv-bridge \
+    && rm -rf /var/lib/apt/lists/*
+
+# optional: remove pip packages unless they are really needed
+# RUN pip install flask flask-ask-sdk ask-sdk
+
+# Use root or create user—your choice.
+RUN mkdir -p /root/noetic_ws/src
+COPY robotiq_tsf /root/noetic_ws/src/robotiq_tsf
+
+
+# Build the workspace
+RUN /bin/bash -lc "source /opt/ros/noetic/setup.bash && \
+    cd /root/noetic_ws && \
+    catkin_make"
+
+# Source the workspace for future shells
+RUN echo 'source /opt/ros/noetic/setup.bash' >> /root/.bashrc && \
+    echo 'source /root/noetic_ws/devel/setup.bash' >> /root/.bashrc
+
+WORKDIR /root/noetic_ws
+
+ENTRYPOINT ["/bin/bash"]
