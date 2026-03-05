@@ -34,6 +34,7 @@ setup_xhost
 
 echo "[3/6] Applying udev rules..."
 apply_udev_rule
+sudo udevadm settle
 
 echo "[4/6] Setting sensor permissions..."
 set_sensor_permissions
@@ -54,8 +55,9 @@ echo "[6/6] Detecting sensor devices..."
 DEVICE_ARGS=()
 while IFS= read -r device; do
   if [[ -n "${device}" ]]; then
-    echo "  Found sensor device: ${device}"
-    DEVICE_ARGS+=("--device=${device}")
+    real_device="$(readlink -f "${device}")"
+    echo "  Found sensor device: ${device} -> ${real_device}"
+    DEVICE_ARGS+=("--device=${real_device}:${device}")
   fi
 done < <(find_sensor_devices)
 
