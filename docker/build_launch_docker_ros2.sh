@@ -34,6 +34,7 @@ setup_xhost
 
 echo "[3/6] Applying udev rules..."
 apply_udev_rule
+#wait for udev node to be created
 sudo udevadm settle
 
 echo "[4/6] Setting sensor permissions..."
