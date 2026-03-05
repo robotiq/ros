@@ -80,6 +80,7 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "robotiq_tsf/msg/quaternion.hpp"
 #include "robotiq_tsf/msg/sensor.hpp"
 #include "robotiq_tsf/msg/static_data.hpp"
+#include "robotiq_tsf/msg/timestamp.hpp"
 #include "robotiq_tsf/srv/tactile_sensors.hpp"
 #include "robotiq_tsf/MadgwickAHRS.h"
 #include "robotiq_tsf/MadgwickAHRS2.h"
@@ -119,6 +120,7 @@ rclcpp::Publisher<msg::Gyroscope>::SharedPtr g_gyro_pub;
 rclcpp::Publisher<msg::Magnetometer>::SharedPtr g_mag_pub;
 rclcpp::Publisher<msg::EulerAngle>::SharedPtr g_euler_pub;
 rclcpp::Publisher<msg::Quaternion>::SharedPtr g_quat_pub;
+rclcpp::Publisher<msg::Timestamp>::SharedPtr g_timestamp_pub;
 rclcpp::Service<srv::TactileSensors>::SharedPtr g_service;
 
 #define READ_DATA_PERIOD_MS 1
@@ -140,7 +142,6 @@ int BIASCalculationIterator=0;
 float norm_bias1=0,norm_bias2=0;
 float ax1_bias=0,ay1_bias=0,az1_bias=0,ax2_bias=0,ay2_bias=0,az2_bias=0;
 float gx1_bias=0,gy1_bias=0,gz1_bias=0,gx2_bias=0,gy2_bias=0,gz2_bias=0;
-float mx1_bias=0,my1_bias=0,mz1_bias=0,mx2_bias=0,my2_bias=0,mz2_bias=0; // For future implementation (magnetometers are not currently acquired)
 
 enum UsbPacketSpecial
 {
@@ -162,7 +163,8 @@ enum UsbSensorType
     USB_SENSOR_TYPE_ACCELEROMETER = 0x30,
     USB_SENSOR_TYPE_GYROSCOPE = 0x40,
     USB_SENSOR_TYPE_MAGNETOMETER = 0x50,
-    USB_SENSOR_TYPE_TEMPERATURE = 0x60
+    USB_SENSOR_TYPE_TEMPERATURE = 0x60,
+    USB_SENSOR_TYPE_TIMESTAMP = 0x70
 };
 
 struct UsbPacket
@@ -182,6 +184,7 @@ struct FingerData
     int16_t gyroscope[3];
     int16_t magnetometer[3];
     int16_t temperature;
+    uint16_t timestamp;
 };
 
 struct Fingers
@@ -253,6 +256,7 @@ int main(int argc, char **argv)
     g_gyro_pub = g_node->create_publisher<msg::Gyroscope>("TactileSensor/Gyroscope", sensor_qos);
     g_mag_pub = g_node->create_publisher<msg::Magnetometer>("TactileSensor/Magnetometer", sensor_qos);
     g_quat_pub = g_node->create_publisher<msg::Quaternion>("TactileSensor/Quaternion", orientation_qos);
+    g_timestamp_pub = g_node->create_publisher<msg::Timestamp>("TactileSensor/Timestamp", sensor_qos);
 
     std::string device = g_node->get_parameter("device").as_string();
     bool cliDeviceOverride = false;
@@ -363,6 +367,9 @@ int main(int argc, char **argv)
                                 fingers.finger[1].magnetometer,
                                 sizeof(fingers.finger[1].magnetometer));
 
+                    sensors_data.timestamp.values[0] = fingers.finger[0].timestamp;
+                    sensors_data.timestamp.values[1] = fingers.finger[1].timestamp;
+
                     if (BIASCalculationIterator > BIASCalculationIterations)
                     {
                         ax1 = fingers.finger[0].accelerometer[0] * aRes - ax1_bias;
@@ -378,11 +385,12 @@ int main(int argc, char **argv)
                         gy2 = fingers.finger[1].gyroscope[1] * gRes - gy2_bias;
                         gz2 = fingers.finger[1].gyroscope[2] * gRes - gz2_bias;
 
+                        // Madgwick IMU update: gyro in rad/s, accel in g (normalised internally)
                         constexpr float deg_to_rad = static_cast<float>(M_PI / 180.0f);
-                        MadgwickAHRSupdate(gx1 * deg_to_rad, gy1 * deg_to_rad, gz1 * deg_to_rad,
-                                           ax1, ay1, az1, 0.0f, 0.0f, 0.0f);
-                        MadgwickAHRSupdate2(gx2 * deg_to_rad, gy2 * deg_to_rad, gz2 * deg_to_rad,
-                                            ax2, ay2, az2, 0.0f, 0.0f, 0.0f);
+                        MadgwickAHRSupdateIMU(gx1 * deg_to_rad, gy1 * deg_to_rad, gz1 * deg_to_rad,
+                                              ax1, ay1, az1);
+                        MadgwickAHRSupdateIMU2(gx2 * deg_to_rad, gy2 * deg_to_rad, gz2 * deg_to_rad,
+                                               ax2, ay2, az2);
 
                         const float q0_local = q0;
                         const float q1_local = q1;
@@ -434,36 +442,6 @@ int main(int argc, char **argv)
                         quaternions.data[1].values[1] = q1new_local;
                         quaternions.data[1].values[2] = q2new_local;
                         quaternions.data[1].values[3] = q3new_local;
-
-                        auto normalize_bias = [](float &ax, float &ay, float &az, float norm)
-                        {
-                            const float sum = ax + ay + az;
-                            if (std::fabs(sum) > 1e-6f)
-                            {
-                                ax *= norm / sum;
-                                ay *= norm / sum;
-                                az *= norm / sum;
-                            }
-                        };
-
-                        ax1_bias += ax1;
-                        ay1_bias += ay1;
-                        az1_bias += az1;
-                        ax2_bias += ax2;
-                        ay2_bias += ay2;
-                        az2_bias += az2;
-                        gx1_bias += gx1;
-                        gy1_bias += gy1;
-                        gz1_bias += gz1;
-                        gx2_bias += gx2;
-                        gy2_bias += gy2;
-                        gz2_bias += gz2;
-
-                        norm_bias1 = sqrtf(pow(ax1_bias, 2) + pow(ay1_bias, 2) + pow(az1_bias, 2)) - 1;
-                        norm_bias2 = sqrtf(pow(ax2_bias, 2) + pow(ay2_bias, 2) + pow(az2_bias, 2)) - 1;
-                        normalize_bias(ax1_bias, ay1_bias, az1_bias, norm_bias1);
-                        normalize_bias(ax2_bias, ay2_bias, az2_bias, norm_bias2);
-                        BIASCalculationIterator++;
                     }
                     else if (BIASCalculationIterator == BIASCalculationIterations)
                     {
@@ -520,7 +498,7 @@ int main(int argc, char **argv)
                         g_static_pub->publish(sensors_data.staticdata);
                         g_accel_pub->publish(sensors_data.accelerometer);
                         g_gyro_pub->publish(sensors_data.gyroscope);
-                        g_mag_pub->publish(sensors_data.magnetometer);
+                        g_timestamp_pub->publish(sensors_data.timestamp);
 
                         if (BIASCalculationIterator > BIASCalculationIterations)
                         {
@@ -731,6 +709,9 @@ static bool parseSensors(UsbPacket *packet, Fingers *fingers, msg::Sensor *senso
         case USB_SENSOR_TYPE_TEMPERATURE:
             i += extractUint16((uint16_t *)&fingers->finger[f].temperature, 1, sensorData, sensorDataBytes);
             break;
+        case USB_SENSOR_TYPE_TIMESTAMP:
+            i += extractUint16(&fingers->finger[f].timestamp, 1, sensorData, sensorDataBytes);
+            break;
         default:
             // Unknown sensor, we can't continue parsing anything from here on
             return sawDynamic;
@@ -875,6 +856,19 @@ static bool deviceMatchesKnownSensor(const std::string &device_path)
 
 static std::string autoDetectSensorDevice()
 {
+    // Prefer udev symlinks created by sensor_install.sh
+    {
+        glob_t glob_result{};
+        const int glob_ret = glob("/dev/rq_tsf85_*", 0, nullptr, &glob_result);
+        if (glob_ret == 0 && glob_result.gl_pathc > 0)
+        {
+            std::string found = glob_result.gl_pathv[0];
+            globfree(&glob_result);
+            return found;
+        }
+        globfree(&glob_result);
+    }
+
     const char *patterns[] = {"/dev/ttyACM*", "/dev/ttyUSB*"};
     for (const char *pattern : patterns)
     {

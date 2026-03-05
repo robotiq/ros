@@ -31,6 +31,7 @@ set(MSG_FILES
   "msg/Sensor.msg"
   "msg/StaticData.msg"
   "msg/Taxels.msg"
+  "msg/Timestamp.msg"
 )
 
 set(SRV_FILES
