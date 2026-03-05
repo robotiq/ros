@@ -23,6 +23,29 @@ Also check out these community-maintained ROS drivers for Robotiq products.
 | [rq_fts_ros2_driver](https://github.com/panagelak/rq_fts_ros2_driver) | ROS 2 driver for the Robotiq force-torque sensor | ROS 2 Humble |
 | [ros2_RobotiqGripper_UR](https://github.com/IFRA-Cranfield/ros2_RobotiqGripper_UR) | ROS 2 driver for Robotiq grippers on UR robots | ROS 2 Humble |
 
+## TSF-85
+
+Launch the sensor node:
+
+```bash
+ros2 run robotiq_tsf poll_data_node
+```
+
+The node publishes on the following topics:
+
+| Topic | Message Type | Description |
+|---|---|---|
+| `TactileSensor/StaticData` | `robotiq_tsf/StaticData` | Taxel pressure data — two fingers, each with 28 `uint16` values |
+| `TactileSensor/Dynamic` | `robotiq_tsf/Dynamic` | Dynamic force data — two fingers, each with one `int16` value |
+| `TactileSensor/Accelerometer` | `robotiq_tsf/Accelerometer` | Raw accelerometer — two readings of `[x, y, z]` `int16` |
+| `TactileSensor/Gyroscope` | `robotiq_tsf/Gyroscope` | Raw gyroscope — two readings of `[x, y, z]` `int16` |
+| `TactileSensor/Magnetometer` | `robotiq_tsf/Magnetometer` | Raw magnetometer — two readings of `[x, y, z]` `int16` |
+| `TactileSensor/EulerAngle` | `robotiq_tsf/EulerAngle` | Fused orientation — two readings of `[roll, pitch, yaw]` `float32` |
+| `TactileSensor/Quaternion` | `robotiq_tsf/Quaternion` | Fused orientation — two readings of `[w, x, y, z]` `float64` |
+| `TactileSensor/Timestamp` | `robotiq_tsf/Timestamp` | Per-finger firmware timestamp — two `uint16` values |
+
+> Note: `EulerAngle` and `Quaternion` are only published after the IMU bias calibration period completes at startup.
+
 ## Docker
 
 The `docker/` folder provides scripts to build and run the TSF-85 driver inside a Docker container. Clone with submodules to pull in the required utilities:
