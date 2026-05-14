@@ -2,6 +2,17 @@ ROS packages for Robotiq grippers and sensors.
 
 ## Packages
 
+```bash
+git clone --recurse-submodules https://github.com/robotiq/ros.git
+```
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init
+```
+
+
 | Package | Description | ROS Version |
 |---|---|---|
 | [robotiq_tsf](robotiq_tsf/) | TSF-85 tactile sensor driver | ROS 2 Jazzy ([main](https://github.com/robotiq/ROS_Packages/tree/main)) / ROS 1 Noetic ([noetic](https://github.com/robotiq/ROS_Packages/tree/noetic)) |
@@ -49,15 +60,6 @@ The node publishes on the following topics:
 
 The `docker/` folder provides scripts to build and run the TSF-85 driver inside a Docker container. Clone with submodules to pull in the required utilities:
 
-```bash
-git clone --recurse-submodules https://github.com/robotiq/ros.git
-```
-
-If you already cloned without `--recurse-submodules`:
-
-```bash
-git submodule update --init
-```
 
 | Script | Description |
 |---|---|
