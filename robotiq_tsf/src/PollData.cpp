@@ -80,6 +80,7 @@ rosrun tactilesensors PollData [-device PATH_TO_DEV]
 #include "robotiq_tsf/msg/timestamp.hpp"
 #include "robotiq_tsf/srv/tactile_sensors.hpp"
 #include "robotiq_tsf/MadgwickAHRS.h"
+#include "robotiq_tsf/serial_port.hpp"
 
 #include <algorithm>
 #include <array>
@@ -666,33 +667,13 @@ bool OpenAndConfigurePort(int *USB, char const * TheDevice)
         return false;
     }
 
-    /**** Configure Port ****/
-    struct termios tty;
-    memset(&tty, 0, sizeof tty);
-    if ( tcgetattr ( (*USB), &tty ) != 0 ) {
-        cout << "Error " << errno << " from tcgetattr: " << strerror(errno) << endl;
-        return false;
-    }
-
-    /* Set Baud Rate */
-    cfsetospeed (&tty, (speed_t)B115200);
-    cfsetispeed (&tty, (speed_t)B115200);
-
-    /* Setting other Port Stuff */
-    tty.c_cflag     &=  ~PARENB;            // Make 8n1
-    tty.c_cflag     &=  ~CSTOPB;
-    tty.c_cflag     &=  ~CSIZE;
-    tty.c_lflag     &=  ~ICANON;            // Remove canonical mode
-    tty.c_cflag     |=  CS8;
-    tty.c_cflag     &=  ~CRTSCTS;           // no flow control
-    tty.c_cc[VMIN]   =  0;        // read doesn't block
-    tty.c_cc[VTIME]  =  0;       // 0.0 seconds read timeout between each byte max
-    tty.c_cflag     |=  CREAD | CLOCAL;     // turn on READ & ignore ctrl lines
-
-    /* Flush Port, then applies attributes */
-    tcflush( (*USB), TCIFLUSH );
-    if ( tcsetattr ( (*USB), TCSANOW, &tty ) != 0) {
-        cout << "Error " << errno << " from tcsetattr" << endl;
+    // Configure the port: raw mode + 115200 8N1 + non-blocking. Raw mode is
+    // essential — a freshly re-enumerated tty defaults to cooked line discipline
+    // (ICRNL/IXON), which mangles the binary sensor stream and makes the taxels
+    // read as rail-to-rail garbage ("flashing red"). See serial_port.hpp.
+    if (!robotiq_tsf::configureSensorTty(*USB))
+    {
+        cout << "Error " << errno << " configuring " << TheDevice << ": " << strerror(errno) << endl;
         return false;
     }
     return true;

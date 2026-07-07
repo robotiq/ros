@@ -71,6 +71,17 @@ target_link_libraries(${PROJECT_NAME}_algorithms
     ${OpenCV_LIBRARIES}
 )
 
+# Serial-port helpers (raw-mode tty setup). Dependency-free so the unit tests
+# can link it without pulling in OpenCV/ROS.
+add_library(${PROJECT_NAME}_serial
+  src/serial_port.cpp
+)
+target_include_directories(${PROJECT_NAME}_serial
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
 add_executable(poll_data_node src/PollData.cpp)
 target_include_directories(poll_data_node
   PRIVATE
@@ -78,6 +89,7 @@ target_include_directories(poll_data_node
 )
 target_link_libraries(poll_data_node
   ${PROJECT_NAME}_algorithms
+  ${PROJECT_NAME}_serial
   ${cpp_typesupport_target}
   ${LIBUSB_LIBRARIES}
   ${OpenCV_LIBRARIES}
@@ -109,7 +121,7 @@ ament_target_dependencies(tactile_total_sum_node
   ament_index_cpp
 )
 
-install(TARGETS ${PROJECT_NAME}_algorithms
+install(TARGETS ${PROJECT_NAME}_algorithms ${PROJECT_NAME}_serial
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
@@ -149,7 +161,7 @@ ament_export_dependencies(
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(${PROJECT_NAME}_algorithms)
+ament_export_libraries(${PROJECT_NAME}_algorithms ${PROJECT_NAME}_serial)
 
 if(BUILD_TESTING)
   add_subdirectory(test)
