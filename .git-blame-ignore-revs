@@ -1,0 +1,7 @@
+# Revisions to ignore in `git blame` — bulk, mechanical reformatting commits
+# with no functional change. GitHub honors this file automatically; locally run:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# robotiq_tsf: clang-format the whole package to the new .clang-format
+fb691c20c2ad272e26125e39be736bba64d8939e
