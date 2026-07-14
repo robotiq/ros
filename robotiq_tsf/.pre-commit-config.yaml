@@ -1,0 +1,19 @@
+# clang-format enforcement for the robotiq_tsf package.
+#
+# Mirrors grippers/.pre-commit-config.yaml but scoped to C/C++ formatting only.
+# clang-format walks up per-file and picks up robotiq_tsf/.clang-format (a copy
+# of the monorepo/grippers Google-based style). Pinned to v19 to match the
+# clang-format-19 mandated by the Robotiq C++ conventions.
+#
+# To use locally:
+#
+#     pre-commit run --config robotiq_tsf/.pre-commit-config.yaml -a
+#
+repos:
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.1
+    hooks:
+      - id: clang-format
+        files: ^robotiq_tsf/.*\.(c|cc|cxx|cpp|h|hpp|hxx|ipp)$
+        # -i arg is included by default by the hook
+        args: ["-fallback-style=none"]

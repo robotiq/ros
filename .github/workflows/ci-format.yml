@@ -1,25 +1,27 @@
-# pre-commit (black, flake8, codespell, clang-format, whitespace/eol hooks)
-# over the vendored gripper tree, using grippers/.pre-commit-config.yaml.
+# pre-commit formatting checks, one job per package that carries its own config.
 #
-# Scoping: this repo is multi-package, but only grippers/ carries a pre-commit
-# config, so we restrict the run to grippers/** files. pre-commit runs hooks
-# from the git root, so flake8 wouldn't find grippers/.flake8 on its own — we
-# place it at the root for the run (clang-format finds grippers/.clang-format
-# by walking up per-file, so it needs no such help).
-name: Format (grippers)
+# - grippers/: black, flake8, codespell, clang-format, whitespace/eol hooks over
+#   the vendored gripper tree, using grippers/.pre-commit-config.yaml. pre-commit
+#   runs hooks from the git root, so flake8 wouldn't find grippers/.flake8 on its
+#   own — we place it at the root for the run (clang-format finds
+#   grippers/.clang-format by walking up per-file, so it needs no such help).
+# - robotiq_tsf/: clang-format only, using robotiq_tsf/.pre-commit-config.yaml
+#   (clang-format walks up to robotiq_tsf/.clang-format per-file).
+name: Format
 
 on:
   pull_request:
     paths:
       - "grippers/**"
+      - "robotiq_tsf/**"
       - ".github/workflows/ci-format.yml"
   push:
     branches: [main]
   workflow_dispatch:
 
 jobs:
-  pre-commit:
-    name: Format
+  grippers:
+    name: Format (grippers)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -36,5 +38,25 @@ jobs:
           mapfile -t files < <(git ls-files grippers)
           pre-commit run \
             --config grippers/.pre-commit-config.yaml \
+            --files "${files[@]}" \
+            --show-diff-on-failure
+
+  robotiq_tsf:
+    name: Format (robotiq_tsf)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run clang-format on robotiq_tsf/
+        run: |
+          python -m pip install --upgrade pre-commit
+          # Restrict to tracked files under robotiq_tsf/ (paths are relative to
+          # the git root, which is where pre-commit runs hooks from). The hook's
+          # own `files:` filter narrows this to C/C++ sources.
+          mapfile -t files < <(git ls-files robotiq_tsf)
+          pre-commit run \
+            --config robotiq_tsf/.pre-commit-config.yaml \
             --files "${files[@]}" \
             --show-diff-on-failure
