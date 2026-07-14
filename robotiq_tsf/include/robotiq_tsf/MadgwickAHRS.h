@@ -10,33 +10,32 @@
 #ifndef ROBOTIQ_TSF_MADGWICK_AHRS_H
 #define ROBOTIQ_TSF_MADGWICK_AHRS_H
 
-class MadgwickFilter {
+class MadgwickFilter
+{
 public:
-    explicit MadgwickFilter(float beta = 0.041f);
+  explicit MadgwickFilter(float beta = 0.041f);
 
-    void reset();
-    void setBeta(float beta);
-    void setAccelGate(float lo, float hi);
+  void reset();
+  void setBeta(float beta);
+  void setAccelGate(float lo, float hi);
 
-    // Seed the quaternion so the gravity vector in the body frame matches the
-    // supplied accelerometer reading (any units; only the direction is used).
-    // Yaw is set to zero. Use the calibration-time accel mean.
-    void initFromAccel(float ax, float ay, float az);
+  // Seed the quaternion so the gravity vector in the body frame matches the
+  // supplied accelerometer reading (any units; only the direction is used).
+  // Yaw is set to zero. Use the calibration-time accel mean.
+  void initFromAccel(float ax, float ay, float az);
 
-    // gyro in rad/s, accel in any consistent unit (normalised internally),
-    // dt in seconds (use the measured interval between samples).
-    void updateIMU(float gx, float gy, float gz,
-                   float ax, float ay, float az,
-                   float dt);
+  // gyro in rad/s, accel in any consistent unit (normalised internally),
+  // dt in seconds (use the measured interval between samples).
+  void updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt);
 
-    void getQuaternion(float &q0, float &q1, float &q2, float &q3) const;
-    void getEulerDeg(float &roll, float &pitch, float &yaw) const;
+  void getQuaternion(float& q0, float& q1, float& q2, float& q3) const;
+  void getEulerDeg(float& roll, float& pitch, float& yaw) const;
 
 private:
-    float q0_, q1_, q2_, q3_;
-    float beta_;
-    float accel_gate_lo_;   // expected |a| ≈ 1.0 g when stationary
-    float accel_gate_hi_;
+  float q0_, q1_, q2_, q3_;
+  float beta_;
+  float accel_gate_lo_;  // expected |a| ≈ 1.0 g when stationary
+  float accel_gate_hi_;
 };
 
 // --- quaternion-math helpers (free functions) ---------------------------------
@@ -51,7 +50,7 @@ void quatNormalize(float q[4]);
 void quatFromAxisX(float angle_rad, float out[4]);
 void quatFromAxisY(float angle_rad, float out[4]);
 void quatFromAxisZ(float angle_rad, float out[4]);
-void quatToEulerDeg(const float q[4], float &roll, float &pitch, float &yaw);
-void quatToEulerRad(const float q[4], float &roll, float &pitch, float &yaw);
+void quatToEulerDeg(const float q[4], float& roll, float& pitch, float& yaw);
+void quatToEulerRad(const float q[4], float& roll, float& pitch, float& yaw);
 
-#endif // ROBOTIQ_TSF_MADGWICK_AHRS_H
+#endif  // ROBOTIQ_TSF_MADGWICK_AHRS_H
