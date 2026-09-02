@@ -236,7 +236,12 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
         monkeypatch.setenv("ROS_DISTRO", distro)
     context = LaunchContext()
     context.launch_configurations.update(
-        {"sim_isaac": "false", "sim_gazebo": "false", **launch_arguments}
+        {
+            "sim_isaac": "false",
+            "sim_gazebo": "false",
+            "gripper_joint": JOINT,
+            **launch_arguments,
+        }
     )
 
     spawned = {}
@@ -246,8 +251,12 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
         if action.condition is not None and not action.condition.evaluate(context):
             continue
         cmd = [perform_substitutions(context, part) for part in action.cmd]
-        spawned[cmd[1]] = Path(cmd[cmd.index("--param-file") + 1]).name
+        spawned[cmd[1]] = Path(cmd[cmd.index("--param-file") + 1]).read_text()
     return spawned
+
+
+def resolved(config, joint=JOINT):
+    return config.read_text().replace(JOINT_PLACEHOLDER, joint)
 
 
 @requires_launch
@@ -267,15 +276,15 @@ def test_launch_spawns_per_plugin(
     # and the activation controller only exists where its GPIO does.
     hardware = spawned_controllers(distro, monkeypatch)
     assert hardware == {
-        "joint_state_broadcaster": hardware_config.name,
-        "robotiq_gripper_controller": hardware_config.name,
-        "robotiq_activation_controller": hardware_config.name,
+        "joint_state_broadcaster": resolved(hardware_config),
+        "robotiq_gripper_controller": resolved(hardware_config),
+        "robotiq_activation_controller": resolved(hardware_config),
     }
 
     simulated = spawned_controllers(distro, monkeypatch, **{sim_argument: "true"})
     assert simulated == {
-        "joint_state_broadcaster": sim_config.name,
-        "robotiq_gripper_controller": sim_config.name,
+        "joint_state_broadcaster": resolved(sim_config),
+        "robotiq_gripper_controller": resolved(sim_config),
     }
 
 
