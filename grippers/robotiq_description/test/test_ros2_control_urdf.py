@@ -61,6 +61,12 @@ MODELS = {
 
 MOCK_PLUGIN = "mock_components/GenericSystem"
 REAL_PLUGIN = "robotiq_driver/RobotiqGripperHardwareInterface"
+ISAAC_PLUGIN = "topic_based_ros2_control/TopicBasedSystem"
+GAZEBO_PLUGIN = "gz_ros2_control/GazeboSimSystem"
+SIM_ARGS = {ISAAC_PLUGIN: "sim_isaac:=true", GAZEBO_PLUGIN: "sim_gazebo:=true"}
+
+# Every 2F finger joint except the driven knuckle follows it through <mimic>.
+MIMIC_JOINT_COUNT = 5
 
 # Exported by the driver at runtime; needed from the URDF under mock hardware.
 EXTRA_MOCK_COMMAND_INTERFACES = {"set_gripper_max_velocity", "set_gripper_max_effort"}
@@ -194,3 +200,60 @@ def test_baudrate_reaches_the_driver(model):
 
     assert hardware_param(expand(model, False), "baudrate") == "115200"
     assert hardware_param(expand(model, True), "baudrate") is None
+
+
+@requires_xacro
+@pytest.mark.parametrize("model,joint", MODELS.items())
+@pytest.mark.parametrize("plugin,sim_arg", SIM_ARGS.items())
+def test_sim_plugins_declare_only_the_position_command(model, joint, plugin, sim_arg):
+    # Neither simulated plugin knows the driver's set_gripper_max_* interfaces;
+    # config/robotiq_controllers.sim.yaml therefore claims none, and the URDF must
+    # not declare them either or the plugin rejects the joint.
+    ros2_control = expand(model, False, sim_arg)
+    assert plugin_of(ros2_control) == plugin
+    assert command_interfaces_of(ros2_control, joint) == {"position"}
+
+
+@requires_xacro
+@pytest.mark.parametrize("model,joint", MODELS.items())
+@pytest.mark.parametrize("sim_arg", SIM_ARGS.values())
+def test_sim_plugins_declare_no_reactivate_gpio(model, joint, sim_arg):
+    # robotiq_control.launch.py skips robotiq_activation_controller under sim_*;
+    # this is the URDF side of that agreement.
+    assert expand(model, False, sim_arg).find("gpio") is None
+    assert expand(model, False).find("gpio[@name='reactivate_gripper']") is not None
+    assert expand(model, True).find("gpio[@name='reactivate_gripper']") is not None
+
+
+@requires_xacro
+@pytest.mark.parametrize("model,joint", MODELS.items())
+def test_sim_isaac_declares_the_mimic_joints_as_state_only(model, joint):
+    # TopicBasedSystem reports only the joints declared here, and the simulator
+    # owns the mimic joints, so they must be declared for /joint_states to carry
+    # them, but with no command interface: only the knuckle is driven.
+    ros2_control = expand(model, False, "sim_isaac:=true")
+    mimic = joints_of(ros2_control) - {joint}
+    assert len(mimic) == MIMIC_JOINT_COUNT
+    for name in mimic:
+        assert command_interfaces_of(ros2_control, name) == set()
+        assert state_interfaces_of(ros2_control, name) == {"position", "velocity"}
+
+
+@requires_xacro
+@pytest.mark.parametrize("model", MODELS)
+def test_isaac_topics_reach_the_plugin(model):
+    # Same three-file chain as baudrate: a half-forwarded argument only shows up
+    # as a simulator that never hears a command.
+    ros2_control = expand(
+        model,
+        False,
+        "sim_isaac:=true",
+        "isaac_joint_commands:=/sim/cmd",
+        "isaac_joint_states:=/sim/state",
+    )
+    assert hardware_param(ros2_control, "joint_commands_topic") == "/sim/cmd"
+    assert hardware_param(ros2_control, "joint_states_topic") == "/sim/state"
+
+    default = expand(model, False, "sim_isaac:=true")
+    assert hardware_param(default, "joint_commands_topic") == "/isaac_joint_commands"
+    assert hardware_param(default, "joint_states_topic") == "/isaac_joint_states"
