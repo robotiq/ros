@@ -1,0 +1,37 @@
+# Controller configuration for the simulated hardware plugins the description
+# can select: `sim_isaac:=true` (topic_based_ros2_control/TopicBasedSystem) and
+# `sim_gazebo:=true` (gz_ros2_control/GazeboSimSystem). Selected by
+# launch/robotiq_control.launch.py whenever either argument is set; see
+# config/robotiq_controllers.yaml for the hardware and mock config it replaces,
+# and robotiq_controllers.sim.humble.yaml for the Humble variant.
+#
+# It differs from robotiq_controllers.yaml only where the simulated plugins
+# export something different from the driver, so the controller can activate:
+#
+# - No `robotiq_activation_controller`. The `reactivate_gripper` GPIO it claims is
+#   declared for the driver and the mock only (2f_85.ros2_control.xacro); under a
+#   simulated plugin there is nothing to reactivate.
+# - No `max_effort_interface` / `max_velocity_interface`. Both plugins expose the
+#   standard position/velocity/effort interfaces only, never the driver's
+#   `set_gripper_max_*`, and a claimed interface that does not exist stops the
+#   controller from activating. Goal effort/velocity are accepted and ignored.
+# - Stall detection tuned for a plugin fed over a topic rather than a serial
+#   link: a goal needs longer than 0.05 s to show up as joint motion, and
+#   simulated joint velocities carry more noise than the driver's.
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    robotiq_gripper_controller:
+      type: parallel_gripper_action_controller/GripperActionController
+
+robotiq_gripper_controller:
+  ros__parameters:
+    joint: $(var gripper_joint)
+
+    state_interfaces: ["position", "velocity"]
+    allow_stalling: true
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.05
+    goal_tolerance: 0.02

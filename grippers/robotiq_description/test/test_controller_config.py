@@ -54,11 +54,20 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 # both models; robotiq_control.launch.py resolves it via ParameterFile.
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 
+# The simulated plugins (sim_isaac / sim_gazebo) export neither the
+# set_gripper_max_* command interfaces nor the reactivate_gripper GPIO, so they
+# get a config of their own per distro, selected by the same launch file.
+JAZZY_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.yaml"
+HUMBLE_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.humble.yaml"
+SIM_CONFIGS = (JAZZY_SIM_CONFIG, HUMBLE_SIM_CONFIG)
+SIM_OF = {JAZZY_CONFIG: JAZZY_SIM_CONFIG, HUMBLE_CONFIG: HUMBLE_SIM_CONFIG}
+
 # Names exported by robotiq_driver's hardware interface for the joint it is
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
 # which asserts the hardware exports exactly these.
 JOINT = "robotiq_85_left_knuckle_joint"
 GRIPPER_JOINTS = (JOINT, "finger_joint")
+UPDATE_RATE_HZ = 500
 
 
 def exported_command_interfaces(joint):
@@ -76,6 +85,9 @@ EXPECTED_CONTROLLER_TYPES = {
     JAZZY_CONFIG: "parallel_gripper_action_controller/GripperActionController",
     HUMBLE_CONFIG: "position_controllers/GripperActionController",
 }
+EXPECTED_CONTROLLER_TYPES.update(
+    {SIM_OF[config]: plugin for config, plugin in EXPECTED_CONTROLLER_TYPES.items()}
+)
 
 
 def load_launch_module():
@@ -123,7 +135,7 @@ def test_humble_config_claims_no_unsupported_interfaces():
     assert "max_velocity_interface" not in params
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
+@pytest.mark.parametrize("config", ALL_CONFIGS + SIM_CONFIGS)
 def test_joint_is_left_to_the_launch(config):
     # Hardcoding the 2F-85 joint here is why a 2F-140 launch used to fail to
     # activate robotiq_gripper_controller.
@@ -175,7 +187,7 @@ def test_launch_forwards_the_gripper_model_to_xacro():
     assert "gripper_model:=2f_140" in rendered
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
+@pytest.mark.parametrize("config", ALL_CONFIGS + SIM_CONFIGS)
 def test_controller_type_matches_distro(config):
     controllers = load(config)["controller_manager"]["ros__parameters"]
     assert (
@@ -200,6 +212,48 @@ def test_launch_selects_the_config_for_the_distro(distro, expected):
     assert (CONFIG_DIR / selected).is_file()
 
 
+@pytest.mark.parametrize("config", SIM_CONFIGS)
+def test_sim_configs_claim_no_driver_only_command_interfaces(config):
+    # TopicBasedSystem and GazeboSimSystem export the standard joint interfaces
+    # only; claiming set_gripper_max_* here is why the sim paths never activated.
+    params = gripper_controller_params(config)
+    assert "max_effort_interface" not in params
+    assert "max_velocity_interface" not in params
+
+
+@pytest.mark.parametrize("config", SIM_CONFIGS)
+def test_sim_configs_spawn_no_activation_controller(config):
+    # No reactivate_gripper GPIO is declared under sim_isaac / sim_gazebo (see
+    # 2f_85.ros2_control.xacro), so the controller would have nothing to claim.
+    controllers = load(config)["controller_manager"]["ros__parameters"]
+    assert set(controllers) == {
+        "update_rate",
+        "joint_state_broadcaster",
+        "robotiq_gripper_controller",
+    }
+    assert controllers["update_rate"] == UPDATE_RATE_HZ
+    assert "robotiq_activation_controller" not in load(config)
+
+
+@pytest.mark.parametrize("config", ALL_CONFIGS)
+def test_sim_config_keeps_the_action_surface_of_its_distro(config):
+    # Same controller name, type, joint and goal tolerance as the hardware config
+    # for that distro: an action client must not notice which plugin is behind.
+    hardware = gripper_controller_params(config)
+    sim = gripper_controller_params(SIM_OF[config])
+    assert sim["joint"] == hardware["joint"]
+    assert sim["goal_tolerance"] == hardware["goal_tolerance"]
+    assert sim["allow_stalling"] == hardware["allow_stalling"]
+    assert (
+        load(SIM_OF[config])["controller_manager"]["ros__parameters"][
+            "robotiq_gripper_controller"
+        ]
+        == load(config)["controller_manager"]["ros__parameters"][
+            "robotiq_gripper_controller"
+        ]
+    )
+
+
 @pytest.mark.parametrize("config", ALL_CONFIGS)
 def test_controller_names_and_update_rate_are_identical_across_distros(config):
     # The controller names are the action/service namespaces users depend on
@@ -212,7 +266,7 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
         "robotiq_gripper_controller",
         "robotiq_activation_controller",
     }
-    assert controllers["update_rate"] == 500
+    assert controllers["update_rate"] == UPDATE_RATE_HZ
     assert (
         controllers["robotiq_activation_controller"]["type"]
         == "robotiq_controllers/RobotiqActivationController"

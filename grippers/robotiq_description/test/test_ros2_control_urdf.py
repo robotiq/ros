@@ -52,6 +52,7 @@ import yaml
 PKG_DIR = Path(__file__).parents[1]
 URDF_DIR = PKG_DIR / "urdf"
 CONFIG = PKG_DIR / "config" / "robotiq_controllers.yaml"
+SIM_CONFIG = PKG_DIR / "config" / "robotiq_controllers.sim.yaml"
 
 # Top-level xacro -> the joint carrying the gripper's position command.
 MODELS = {
@@ -257,3 +258,19 @@ def test_isaac_topics_reach_the_plugin(model):
     default = expand(model, False, "sim_isaac:=true")
     assert hardware_param(default, "joint_commands_topic") == "/isaac_joint_commands"
     assert hardware_param(default, "joint_states_topic") == "/isaac_joint_states"
+
+
+@requires_xacro
+@pytest.mark.parametrize("sim_arg", SIM_ARGS.values())
+def test_sim_controller_config_claims_only_what_the_sim_urdf_declares(sim_arg):
+    # The sim counterpart of test_gripper_controller_config_interfaces_exist_under_mock.
+    params = yaml.safe_load(SIM_CONFIG.read_text())["robotiq_gripper_controller"][
+        "ros__parameters"
+    ]
+    joint = MODELS["robotiq_2f_85_gripper.urdf.xacro"]
+    ros2_control = expand("robotiq_2f_85_gripper.urdf.xacro", False, sim_arg)
+
+    assert params["joint"] == "$(var gripper_joint)"
+    assert "max_effort_interface" not in params
+    assert "max_velocity_interface" not in params
+    assert set(params["state_interfaces"]) <= state_interfaces_of(ros2_control, joint)

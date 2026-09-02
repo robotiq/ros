@@ -1,0 +1,25 @@
+# Humble controller configuration for the simulated hardware plugins
+# (`sim_isaac:=true` / `sim_gazebo:=true`). Same controller as
+# robotiq_controllers.humble.yaml — Humble's stock
+# position_controllers/GripperActionController, since parallel_gripper_controller
+# only arrived in Jazzy — with the two departures robotiq_controllers.sim.yaml
+# explains: no activation controller (no reactivate GPIO to claim) and stall
+# detection tuned for a plugin fed over a topic.
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    robotiq_gripper_controller:
+      type: position_controllers/GripperActionController
+
+robotiq_gripper_controller:
+  ros__parameters:
+    joint: $(var gripper_joint)
+
+    max_effort: 50.0
+
+    allow_stalling: true
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.05
+    goal_tolerance: 0.02
