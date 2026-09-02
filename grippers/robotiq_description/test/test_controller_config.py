@@ -41,11 +41,16 @@ from pathlib import Path
 
 import pytest
 import yaml
+from launch import LaunchContext
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
 JAZZY_CONFIG = CONFIG_DIR / "robotiq_controllers.yaml"
 HUMBLE_CONFIG = CONFIG_DIR / "robotiq_controllers.humble.yaml"
 ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
+
+# The configs name the joint through this launch placeholder so one file serves
+# both models; robotiq_control.launch.py resolves it via ParameterFile.
+JOINT_PLACEHOLDER = "$(var gripper_joint)"
 
 # Names exported by robotiq_driver's hardware interface. Kept in sync by
 # robotiq_driver's test_robotiq_gripper_hardware_interface, which asserts the
@@ -80,8 +85,18 @@ def load(config):
         return yaml.safe_load(f)
 
 
-def gripper_controller_params(config):
-    return load(config)["robotiq_gripper_controller"]["ros__parameters"]
+def gripper_controller_params(config, joint=JOINT):
+    params = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    return {
+        k: v.replace(JOINT_PLACEHOLDER, joint) if isinstance(v, str) else v
+        for k, v in params.items()
+    }
+
+
+def perform(substitution, **launch_configurations):
+    context = LaunchContext()
+    context.launch_configurations.update(launch_configurations)
+    return substitution.perform(context)
 
 
 def test_max_effort_interface_is_exported():
@@ -105,6 +120,33 @@ def test_humble_config_claims_no_unsupported_interfaces():
 @pytest.mark.parametrize("config", ALL_CONFIGS)
 def test_joint_matches_exported_interfaces(config):
     assert gripper_controller_params(config)["joint"] == JOINT
+
+
+@pytest.mark.parametrize("config", ALL_CONFIGS)
+def test_joint_is_left_to_the_launch(config):
+    # Hardcoding the 2F-85 joint here is why a 2F-140 launch used to fail to
+    # activate robotiq_gripper_controller.
+    raw = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    assert raw["joint"] == JOINT_PLACEHOLDER
+    assert JOINT not in yaml.safe_dump(raw)
+
+
+def test_launch_description_builds():
+    # Import errors in the launch file only surface when `ros2 launch` runs it.
+    load_launch_module().generate_launch_description()
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("/opt/share/urdf/robotiq_2f_85_gripper.urdf.xacro", JOINT),
+        ("/opt/share/urdf/robotiq_2f_140_gripper.urdf.xacro", "finger_joint"),
+        ("/home/me/my_cell.urdf.xacro", JOINT),
+    ],
+)
+def test_launch_defaults_the_joint_from_the_model(model, expected):
+    launch_module = load_launch_module()
+    assert perform(launch_module.default_gripper_joint(), model=model) == expected
 
 
 @pytest.mark.parametrize("config", ALL_CONFIGS)

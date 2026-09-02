@@ -27,7 +27,7 @@ controller_manager:
 
 robotiq_gripper_controller:
   ros__parameters:
-    joint: robotiq_85_left_knuckle_joint
+    joint: $(var gripper_joint)
 
     max_effort: 50.0   # TODO tune
 

@@ -157,10 +157,12 @@ def test_gripper_controller_config_interfaces_exist_under_mock():
     params = yaml.safe_load(CONFIG.read_text())["robotiq_gripper_controller"][
         "ros__parameters"
     ]
-    claimed = {params["max_effort_interface"], params["max_velocity_interface"]}
-
     ros2_control = expand("robotiq_2f_85_gripper.urdf.xacro", use_fake_hardware=True)
     joint = MODELS["robotiq_2f_85_gripper.urdf.xacro"]
+    claimed = {
+        params[k].replace("$(var gripper_joint)", joint)
+        for k in ("max_effort_interface", "max_velocity_interface")
+    }
     available = {
         f"{joint}/{name}" for name in command_interfaces_of(ros2_control, joint)
     }
