@@ -27,6 +27,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import launch
+from launch.actions import OpaqueFunction
 from launch.substitution import Substitution
 from launch.substitutions import (
     Command,
@@ -34,20 +35,61 @@ from launch.substitutions import (
     LaunchConfiguration,
     PathJoinSubstitution,
 )
-from launch.conditions import IfCondition
+from launch.conditions import (
+    IfCondition,
+    UnlessCondition,
+    evaluate_condition_expression,
+)
 import launch_ros
 from launch_ros.parameter_descriptions import ParameterFile
 import os
 
 # Humble has no parallel_gripper_controller package, so it needs its own
-# controller config. See both config/robotiq_controllers*.yaml.
+# controller config, and the simulated plugin (sim_isaac) exports a different
+# interface set from the driver and the mock, so it needs its own too.
+# See config/robotiq_controllers*.yaml.
 JAZZY_CONTROLLERS_FILE = "robotiq_controllers.yaml"
 HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
+JAZZY_SIM_CONTROLLERS_FILE = "robotiq_controllers.sim.yaml"
+HUMBLE_SIM_CONTROLLERS_FILE = "robotiq_controllers.sim.humble.yaml"
 
 
-def controllers_file_for_distro(distro):
-    """Return the controller config file name to load on ROS distro `distro`."""
-    return HUMBLE_CONTROLLERS_FILE if distro == "humble" else JAZZY_CONTROLLERS_FILE
+def controllers_file_for_distro(distro, simulated=False):
+    """Return the controller config file name for ROS distro `distro`.
+
+    `simulated` selects the config for the sim_isaac hardware plugin.
+    """
+    if distro == "humble":
+        return HUMBLE_SIM_CONTROLLERS_FILE if simulated else HUMBLE_CONTROLLERS_FILE
+    return JAZZY_SIM_CONTROLLERS_FILE if simulated else JAZZY_CONTROLLERS_FILE
+
+
+class ControllersFile(Substitution):
+    def __init__(self, distro, simulated):
+        super().__init__()
+        self.distro = distro
+        self.simulated = simulated
+
+    def perform(self, context):
+        simulated = evaluate_condition_expression(context, [self.simulated])
+        return controllers_file_for_distro(self.distro, simulated)
+
+
+# The xacro emits one <plugin> per flag that is set, and ros2_control_node
+# accepts only one, so two flags would fail late and obscurely.
+HARDWARE_FLAGS = ("use_fake_hardware", "sim_isaac")
+
+
+def reject_conflicting_hardware_flags(context):
+    enabled = [
+        flag
+        for flag in HARDWARE_FLAGS
+        if evaluate_condition_expression(context, [LaunchConfiguration(flag)])
+    ]
+    if len(enabled) > 1:
+        raise RuntimeError(
+            f"{' and '.join(enabled)} both select a hardware plugin; set at most one"
+        )
 
 
 class ParameterFilePath(Substitution):
@@ -95,6 +137,15 @@ def xacro_command():
             " ",
             "baudrate:=",
             LaunchConfiguration("baudrate"),
+            " ",
+            "sim_isaac:=",
+            LaunchConfiguration("sim_isaac"),
+            " ",
+            "isaac_joint_commands:=",
+            LaunchConfiguration("isaac_joint_commands"),
+            " ",
+            "isaac_joint_states:=",
+            LaunchConfiguration("isaac_joint_states"),
         ]
     )
 
@@ -166,6 +217,29 @@ def generate_launch_description():
             description="Use ros2_control mock (fake) hardware instead of a real gripper",
         )
     )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="sim_isaac",
+            default_value="false",
+            description="Drive a simulator over topic_based_ros2_control instead of a real gripper",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="isaac_joint_commands",
+            default_value="/isaac_joint_commands",
+            description="sim_isaac only: JointState topic the simulator takes commands on",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="isaac_joint_states",
+            default_value="/isaac_joint_states",
+            description="sim_isaac only: JointState topic the simulator publishes",
+        )
+    )
+
+    simulated = LaunchConfiguration("sim_isaac")
 
     robot_description_param = {
         "robot_description": launch_ros.parameter_descriptions.ParameterValue(
@@ -173,7 +247,7 @@ def generate_launch_description():
         )
     }
 
-    controllers_file = controllers_file_for_distro(os.environ.get("ROS_DISTRO"))
+    controllers_file = ControllersFile(os.environ.get("ROS_DISTRO"), simulated)
     initial_joint_controllers = ParameterFile(
         PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
         allow_substs=True,
@@ -210,7 +284,7 @@ def generate_launch_description():
     # then dies with "parameter 'joint' is not initialized". --param-file has been
     # a spawner option since Humble, and each node reads only its own section of
     # the file, so this is correct on every supported distro.
-    def spawner(controller_name):
+    def spawner(controller_name, condition=None):
         return launch_ros.actions.Node(
             package="controller_manager",
             executable="spawner",
@@ -221,13 +295,19 @@ def generate_launch_description():
                 "--param-file",
                 ParameterFilePath(initial_joint_controllers),
             ],
+            condition=condition,
         )
 
     joint_state_broadcaster_spawner = spawner("joint_state_broadcaster")
     robotiq_gripper_controller_spawner = spawner("robotiq_gripper_controller")
-    robotiq_activation_controller_spawner = spawner("robotiq_activation_controller")
+    # The reactivate_gripper GPIO this controller claims is declared for the
+    # driver and the mock only; the simulated plugin has nothing to reactivate.
+    robotiq_activation_controller_spawner = spawner(
+        "robotiq_activation_controller", condition=UnlessCondition(simulated)
+    )
 
     nodes = [
+        OpaqueFunction(function=reject_conflicting_hardware_flags),
         control_node,
         robot_state_publisher_node,
         joint_state_broadcaster_spawner,
