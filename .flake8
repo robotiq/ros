@@ -7,4 +7,5 @@ select = E,F,W,C,B590
 # Ignore W503 - Line break occurred before a binary operator - because this error is introduced by Black formatter.
 # Ignore E203 - whitespace before ':' - because Black includes spaces in formatting slice expressions.
 # Ignore E501 - line too long - in favor of B590, which is more forgiving of long strings and comments that would be silly to break up.
-extend-ignore = W503, E203, E501
+# Ignore E704 - multiple statements on one line (def) - because Black puts `...`-only stubs (Protocol methods) on one line.
+extend-ignore = W503, E203, E501, E704
