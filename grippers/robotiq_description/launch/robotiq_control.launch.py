@@ -27,6 +27,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import launch
+from launch.substitution import Substitution
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -35,6 +36,7 @@ from launch.substitutions import (
 )
 from launch.conditions import IfCondition
 import launch_ros
+from launch_ros.parameter_descriptions import ParameterFile
 import os
 
 # Humble has no parallel_gripper_controller package, so it needs its own
@@ -46,6 +48,55 @@ HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
 def controllers_file_for_distro(distro):
     """Return the controller config file name to load on ROS distro `distro`."""
     return HUMBLE_CONTROLLERS_FILE if distro == "humble" else JAZZY_CONTROLLERS_FILE
+
+
+class ParameterFilePath(Substitution):
+    def __init__(self, parameter_file):
+        super().__init__()
+        self.parameter_file = parameter_file
+
+    def perform(self, context):
+        return str(self.parameter_file.evaluate(context))
+
+
+# Joint carrying the position command, per gripper_model. The launch argument
+# is restricted to these keys, so an unknown model fails at launch instead of
+# as a controller that never activates.
+GRIPPER_JOINTS = {
+    "2f_85": "robotiq_85_left_knuckle_joint",
+    "2f_140": "finger_joint",
+}
+
+
+class DefaultGripperJoint(Substitution):
+    def __init__(self, gripper_model):
+        super().__init__()
+        self.gripper_model = gripper_model
+
+    def perform(self, context):
+        return GRIPPER_JOINTS[self.gripper_model.perform(context)]
+
+
+def xacro_command():
+    return Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            LaunchConfiguration("model"),
+            " ",
+            "gripper_model:=",
+            LaunchConfiguration("gripper_model"),
+            " ",
+            "use_fake_hardware:=",
+            LaunchConfiguration("use_fake_hardware"),
+            " ",
+            "com_port:=",
+            LaunchConfiguration("com_port"),
+            " ",
+            "baudrate:=",
+            LaunchConfiguration("baudrate"),
+        ]
+    )
 
 
 def generate_launch_description():
@@ -81,6 +132,21 @@ def generate_launch_description():
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
+            name="gripper_model",
+            default_value="2f_85",
+            choices=sorted(GRIPPER_JOINTS),
+            description="Gripper the description and the controller are built for",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="gripper_joint",
+            default_value=DefaultGripperJoint(LaunchConfiguration("gripper_model")),
+            description="Joint the gripper controller drives; defaults from gripper_model",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
             name="com_port",
             default_value="/dev/ttyUSB0",
             description="Port for communicating with Robotiq hardware",
@@ -101,32 +167,16 @@ def generate_launch_description():
         )
     )
 
-    robot_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            LaunchConfiguration("model"),
-            " ",
-            "use_fake_hardware:=",
-            LaunchConfiguration("use_fake_hardware"),
-            " ",
-            "com_port:=",
-            LaunchConfiguration("com_port"),
-            " ",
-            "baudrate:=",
-            LaunchConfiguration("baudrate"),
-        ]
-    )
-
     robot_description_param = {
         "robot_description": launch_ros.parameter_descriptions.ParameterValue(
-            robot_description_content, value_type=str
+            xacro_command(), value_type=str
         )
     }
 
     controllers_file = controllers_file_for_distro(os.environ.get("ROS_DISTRO"))
-    initial_joint_controllers = PathJoinSubstitution(
-        [description_pkg_share, "config", controllers_file]
+    initial_joint_controllers = ParameterFile(
+        PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
+        allow_substs=True,
     )
 
     control_node = launch_ros.actions.Node(
@@ -169,7 +219,7 @@ def generate_launch_description():
                 "--controller-manager",
                 "/controller_manager",
                 "--param-file",
-                initial_joint_controllers,
+                ParameterFilePath(initial_joint_controllers),
             ],
         )
 
