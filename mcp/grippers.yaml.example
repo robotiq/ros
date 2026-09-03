@@ -6,7 +6,7 @@
 # same way.
 #
 # tactile: ros   optional; TSF-85 pads read from robotiq_tsf under the same
-#                namespace. Only for models whose datasheet has a tactile block.
+#                namespace. Only for models whose datasheet names a tactile_model.
 
 - name: left
   model: robotiq_2f_85

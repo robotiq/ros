@@ -100,3 +100,8 @@ def test_a_closed_tolerance_outside_the_stroke_is_rejected(tolerance_mm):
 def test_the_fingers_have_met_within_the_closed_tolerance():
     assert STROKE_2F_85.fingers_met(1.4)
     assert not STROKE_2F_85.fingers_met(1.6)
+
+
+def test_the_fingers_are_open_within_the_closed_tolerance_of_the_stop():
+    assert STROKE_2F_85.fingers_open(83.6)
+    assert not STROKE_2F_85.fingers_open(83.4)
