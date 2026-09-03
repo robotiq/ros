@@ -1,6 +1,7 @@
 from gripper_mcp.mock_tactile_backend import (
     REST_COUNTS,
     TAXEL_MAX_COUNTS,
+    TOUCH_COUNTS,
     TSF_85_LAYOUT,
     MockTactileBackend,
 )
@@ -39,8 +40,10 @@ def test_closing_fully_on_nothing_leaves_every_taxel_at_rest():
     assert all_resting(backend(CRUSHED_MM, None).read_tactile())
 
 
-def test_fingers_exactly_at_the_object_read_no_pressure_yet():
-    assert all_resting(backend(JUST_TOUCHING_MM, OBJECT_WIDTH_MM).read_tactile())
+def test_fingers_exactly_at_the_object_register_a_light_touch():
+    reading = backend(JUST_TOUCHING_MM, OBJECT_WIDTH_MM).read_tactile()
+
+    assert reading.pads[0].taxels[CENTRE_INDEX] == REST_COUNTS + TOUCH_COUNTS
 
 
 def test_closing_past_the_object_raises_the_taxels():
