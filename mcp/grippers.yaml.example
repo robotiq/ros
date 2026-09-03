@@ -4,6 +4,9 @@
 # robotiq_gripper_controller runs under. Without hardware, launch the driver on
 # ros2_control's fake hardware (use_fake_hardware) and point an entry at it the
 # same way.
+#
+# tactile: ros   optional; TSF-85 pads read from robotiq_tsf under the same
+#                namespace. Only for models whose datasheet has a tactile block.
 
 - name: left
   model: robotiq_2f_85
