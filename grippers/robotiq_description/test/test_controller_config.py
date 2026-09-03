@@ -54,15 +54,20 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 # both models; robotiq_control.launch.py resolves it via ParameterFile.
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 
-# Names exported by robotiq_driver's hardware interface. Kept in sync by
-# robotiq_driver's test_robotiq_gripper_hardware_interface, which asserts the
-# hardware exports exactly these.
+# Names exported by robotiq_driver's hardware interface for the joint it is
+# given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
+# which asserts the hardware exports exactly these.
 JOINT = "robotiq_85_left_knuckle_joint"
-EXPORTED_COMMAND_INTERFACES = {
-    f"{JOINT}/position",
-    f"{JOINT}/set_gripper_max_velocity",
-    f"{JOINT}/set_gripper_max_effort",
-}
+GRIPPER_JOINTS = (JOINT, "finger_joint")
+
+
+def exported_command_interfaces(joint):
+    return {
+        f"{joint}/position",
+        f"{joint}/set_gripper_max_velocity",
+        f"{joint}/set_gripper_max_effort",
+    }
+
 
 # Plugin the launch expects per distro. Humble's stock controller takes a
 # control_msgs/GripperCommand goal, matching PickNik's humble branch; Jazzy and
@@ -101,14 +106,13 @@ def perform(substitution, **launch_configurations):
     return substitution.perform(context)
 
 
-def test_max_effort_interface_is_exported():
-    params = gripper_controller_params(JAZZY_CONFIG)
-    assert params["max_effort_interface"] in EXPORTED_COMMAND_INTERFACES
-
-
-def test_max_velocity_interface_is_exported():
-    params = gripper_controller_params(JAZZY_CONFIG)
-    assert params["max_velocity_interface"] in EXPORTED_COMMAND_INTERFACES
+@pytest.mark.parametrize("joint", GRIPPER_JOINTS)
+def test_claimed_interfaces_follow_the_joint(joint):
+    # The two extra interfaces are named "<joint>/<interface>", so they must
+    # track whichever joint the launch resolves, not the 2F-85's.
+    params = gripper_controller_params(JAZZY_CONFIG, joint)
+    claimed = {params["max_effort_interface"], params["max_velocity_interface"]}
+    assert claimed <= exported_command_interfaces(joint)
 
 
 def test_humble_config_claims_no_unsupported_interfaces():
@@ -117,11 +121,6 @@ def test_humble_config_claims_no_unsupported_interfaces():
     params = gripper_controller_params(HUMBLE_CONFIG)
     assert "max_effort_interface" not in params
     assert "max_velocity_interface" not in params
-
-
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_joint_matches_exported_interfaces(config):
-    assert gripper_controller_params(config)["joint"] == JOINT
 
 
 @pytest.mark.parametrize("config", ALL_CONFIGS)

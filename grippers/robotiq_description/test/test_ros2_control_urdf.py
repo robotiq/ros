@@ -150,15 +150,15 @@ def test_mock_publishes_the_same_joints_as_hardware(model, joint):
 
 
 @requires_xacro
-def test_gripper_controller_config_interfaces_exist_under_mock():
+@pytest.mark.parametrize("model,joint", MODELS.items())
+def test_gripper_controller_config_interfaces_exist_under_mock(model, joint):
     # Ties config/robotiq_controllers.yaml to the mock URDF: these two parameters
     # name "<joint>/<interface>" pairs the controller claims, and an unmatched name
     # is why the controller used to fail to activate with use_fake_hardware:=true.
     params = yaml.safe_load(CONFIG.read_text())["robotiq_gripper_controller"][
         "ros__parameters"
     ]
-    ros2_control = expand("robotiq_2f_85_gripper.urdf.xacro", use_fake_hardware=True)
-    joint = MODELS["robotiq_2f_85_gripper.urdf.xacro"]
+    ros2_control = expand(model, use_fake_hardware=True)
     claimed = {
         params[k].replace("$(var gripper_joint)", joint)
         for k in ("max_effort_interface", "max_velocity_interface")
