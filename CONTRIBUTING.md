@@ -2,7 +2,10 @@
 
 Thanks for your interest in improving this repository. Robotiq maintains these
 packages, and outside contributions are welcome — bug reports, fixes and
-features all land the same way: as a pull request from your fork.
+features all land the same way: as a pull request. Robotiq members have write
+access and push a branch to this repository; everyone else works from a fork.
+Please do not fork if you are a member: a fork PR cannot be based on another
+in-repo branch, so stacked changes end up showing each other's commits.
 
 ## Before you start
 
@@ -20,8 +23,10 @@ features all land the same way: as a pull request from your fork.
 Both the grippers and tactile_sensors SDKs arrive as submodules, so clone recursively:
 
 ```bash
-git clone --recurse-submodules https://github.com/<you>/ros.git
+git clone --recurse-submodules https://github.com/robotiq/ros.git
 ```
+
+Replace `robotiq` with your GitHub user if you are working from a fork.
 
 If you already cloned without them: `git submodule update --init`.
 
