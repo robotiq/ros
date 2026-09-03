@@ -28,6 +28,7 @@ class GripperInfo(BaseModel):
     gripper_name: str
     model: str
     backend: Backend
+    max_opening_mm: float = Field(description="Fully open, in millimetres")
     description: str
 
 

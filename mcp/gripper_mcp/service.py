@@ -65,6 +65,7 @@ class GripperService:
                 gripper_name=name,
                 model=config.model,
                 backend=self._backends[name].name,
+                max_opening_mm=self._specs[config.model].stroke.max_opening_mm,
                 description=config.description,
             )
             for name, config in self._configs.items()
