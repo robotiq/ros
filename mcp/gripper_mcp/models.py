@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Backend = Literal["ros", "mock"]
-TactileSource = Literal["mock"]
+TactileSource = Literal["ros", "mock"]
 
 GraspVerdict = Literal["held", "no_contact", "closed_on_nothing"]
 
@@ -81,21 +81,33 @@ class GripperHealth(BaseModel):
 
 
 class TactileTareResult(BaseModel):
-    robot_name: str
-    samples: int = Field(description="Readings averaged into the new baseline")
+    gripper_name: str
+    samples: int = Field(description="Distinct frames averaged into the new baseline")
     rest_counts_mean: float = Field(description="Mean raw count across every taxel")
+    noise_floor: float = Field(
+        description="Peak contact_signal the rest frames showed against the baseline"
+    )
+    threshold: float = Field(
+        description="Contact threshold from now on: the datasheet floor or "
+        "noise_margin x noise_floor, whichever is higher"
+    )
     tactile_backend: TactileSource
     measured_at: datetime = Field(description="UTC, timezone-aware")
 
 
 class TactileReadingResult(BaseModel):
-    robot_name: str
+    gripper_name: str
     contact: bool = Field(description="contact_signal is at or above threshold")
     contact_signal: float = Field(
         description="Baseline-subtracted pressure over both pads: 0.0 rest, 1.0 full scale"
     )
-    threshold: float = Field(description="Signal at or above which contact is declared")
-    pad_signals: dict[str, float] = Field(description="Same scale, per pad")
+    threshold: float = Field(
+        description="Signal at or above which contact is declared; set at tare as the "
+        "datasheet floor or noise_margin x the measured rest noise, whichever is higher"
+    )
+    pad_signals: dict[str, float] = Field(
+        description="Per pad, as a fraction of that pad's own ceiling (1.0 = saturated)"
+    )
     peak_taxel_counts: float = Field(
         description="Largest single-taxel rise, raw counts"
     )
@@ -104,7 +116,7 @@ class TactileReadingResult(BaseModel):
 
 
 class GraspVerification(BaseModel):
-    robot_name: str
+    gripper_name: str
     verdict: GraspVerdict
     object_held: bool = Field(description="True only for verdict held")
     opening_mm: float

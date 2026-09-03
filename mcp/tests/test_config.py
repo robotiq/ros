@@ -232,3 +232,15 @@ def test_a_tactile_datasheet_with_no_samples_to_average_is_rejected(tmp_path):
 
     with pytest.raises(ValidationError, match="baseline_samples"):
         load_tactile_spec(sheet)
+
+
+def test_a_tactile_datasheet_whose_margin_would_lower_the_noise_is_rejected(tmp_path):
+    sheet = tmp_path / "robotiq_tsf_85.yaml"
+    sheet.write_text(
+        (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml")
+        .read_text()
+        .replace("noise_margin: 2.0", "noise_margin: 0.5")
+    )
+
+    with pytest.raises(ValidationError, match="noise_margin"):
+        load_tactile_spec(sheet)

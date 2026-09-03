@@ -82,6 +82,7 @@ class TactileSpec(StrictModel):
     pads: list[str]
     full_scale_counts: float = Field(gt=0.0)
     contact_threshold: float
+    noise_margin: float = Field(ge=1.0)
     baseline_samples: int = Field(gt=0)
 
     @property
