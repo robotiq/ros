@@ -12,6 +12,7 @@ from pathlib import Path
 from fastmcp import FastMCP
 
 from gripper_mcp.backend import GripperBackend
+from gripper_mcp.contact_grasp import grasp_until_contact
 from gripper_mcp.config import (
     SPEC_DIR,
     GripperConfig,
@@ -22,6 +23,7 @@ from gripper_mcp.config import (
 from gripper_mcp.mock_backend import MockGripperBackend
 from gripper_mcp.mock_tactile_backend import MockTactileBackend
 from gripper_mcp.models import (
+    ContactGraspResult,
     GraspVerification,
     GripperHealth,
     GripperInfo,
@@ -45,8 +47,10 @@ INSTRUCTIONS = (
     "opening (85.0 on a 2F-85, 140.0 on a 2F-140). On a grasp, reached_goal=false "
     "with stalled=true means the fingers stopped on an object: that is SUCCESS, not "
     "a failure. Read the outcome field, it already says which. Grippers listed with "
-    "a tactile source have TSF-85 pads: gripper_verify_grasp confirms a hold from "
-    "touch, gripper_read_tactile reads the pads, gripper_tare_tactile re-zeroes them."
+    "a tactile source have TSF-85 pads: gripper_grasp_until_contact closes until "
+    "first touch (use it for fragile or soft objects), gripper_verify_grasp confirms "
+    "a hold from touch, gripper_read_tactile reads the pads, gripper_tare_tactile "
+    "re-zeroes them."
 )
 
 READ_ONLY = {
@@ -104,6 +108,8 @@ def build_tactile(
             f"Gripper '{config.name}' asks for tactile pads, but model "
             f"'{config.model}' has no tactile block in its datasheet."
         )
+    if config.tactile == "ros":
+        return build_ros_tactile(config, spec)
     return MockTactileBackend(
         read_opening_mm=lambda: knuckle_rad_to_opening_mm(
             gripper.read_state().position_rad, spec.geometry
@@ -111,6 +117,17 @@ def build_tactile(
         object_width_mm=config.object_width_mm,
         layout=spec.tactile.layout,
     )
+
+
+def build_ros_tactile(config: GripperConfig, spec: GripperModelSpec) -> TactileBackend:
+    try:
+        from gripper_mcp.ros_tactile_backend import RosTactileBackend
+    except ImportError as error:
+        raise RuntimeError(
+            f"Gripper '{config.name}' uses the ros tactile source, which needs a "
+            f"sourced ROS 2 install with rclpy and robotiq_tsf: {error}"
+        ) from error
+    return RosTactileBackend(config.name, config.namespace, spec.tactile.layout)
 
 
 def build_services(
@@ -144,7 +161,7 @@ def build_services(
 def build_mcp(grippers: GripperService, tactile: TactileService) -> FastMCP:
     mcp = FastMCP("robotiq_gripper_mcp", instructions=INSTRUCTIONS)
     register_gripper_tools(mcp, grippers)
-    register_tactile_tools(mcp, tactile)
+    register_tactile_tools(mcp, grippers, tactile)
     return mcp
 
 
@@ -279,7 +296,9 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
         return service.get_health(robot_name)
 
 
-def register_tactile_tools(mcp: FastMCP, service: TactileService) -> None:
+def register_tactile_tools(
+    mcp: FastMCP, grippers: GripperService, service: TactileService
+) -> None:
     @mcp.tool(
         name="gripper_read_tactile",
         annotations=READ_ONLY,
@@ -342,6 +361,46 @@ def register_tactile_tools(mcp: FastMCP, service: TactileService) -> None:
     )
     def gripper_verify_grasp(robot_name: str) -> GraspVerification:
         return service.verify_grasp(robot_name)
+
+    @mcp.tool(
+        name="gripper_grasp_until_contact",
+        annotations={**CLOSES, "idempotent_hint": False},
+        description=describe(
+            """
+        Close one gripper until its pads feel something, then stop.
+
+        Use this instead of gripper_grasp for anything fragile, soft or thin.
+        The gripper's own object detection is a motor stall, so it only fires on
+        real mechanical resistance; foam, a paper cup or a cable can be fully
+        squashed while gripper_grasp still reports nothing. The pads register
+        first touch instead. Closes in small steps, reading the pads between
+        steps, under a hard timeout.
+
+        outcome="contact_detected" is SUCCESS even though the fingers never
+        reached the commanded opening. "closed_without_contact": nothing in the
+        jaws. "stalled_before_contact": the fingers stopped but the pads stayed
+        quiet, so the gripper is obstructed outside the pads or the sensor is
+        not reporting; do NOT treat it as a grasp. "incomplete": the timeout
+        hit first.
+
+        Args:
+            robot_name: Name of the gripper (see gripper_list_grippers).
+            threshold: Contact signal at which to stop, 1.0 = every taxel at
+                full scale. Omit for the model's default, just above the noise
+                floor. Raise it to grip more firmly.
+            max_effort_n: Grip force ceiling in newtons for each step. Omit
+                for the model's default.
+            """
+        ),
+    )
+    def gripper_grasp_until_contact(
+        robot_name: str,
+        threshold: float | None = None,
+        max_effort_n: float | None = None,
+    ) -> ContactGraspResult:
+        return grasp_until_contact(
+            grippers, service, robot_name, threshold, max_effort_n
+        )
 
 
 def main() -> None:

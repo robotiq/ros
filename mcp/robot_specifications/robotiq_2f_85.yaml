@@ -42,3 +42,11 @@ tactile:
 
   # Matches the tactile SDK's findBaseline(), which averages 1000 samples.
   baseline_samples: 1000
+
+  # Closing increment between tactile reads during gripper_grasp_until_contact.
+  # The sensor updates at 60 Hz; stepping faster than it reports gains nothing.
+  step_mm: 2.0
+
+  # Hard wall-clock ceiling on a contact grasp. A safety limit: it is the one
+  # tool that issues repeated motion from inside a single call.
+  contact_timeout_s: 5.0

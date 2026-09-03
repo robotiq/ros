@@ -47,6 +47,9 @@ class TactileService:
         self._specs = specs
         self._baselines: dict[str, TactileBaseline] = {}
 
+    def spec_of(self, robot_name: str) -> TactileSpec:
+        return self._source(robot_name)[1]
+
     def tare(self, robot_name: str) -> TactileTareResult:
         tactile, spec = self._source(robot_name)
         baseline = self._capture_baseline(robot_name, tactile, spec)
