@@ -1,13 +1,16 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="robotiq_gripper">
     <!-- parameters -->
-    <xacro:arg name="model" default="2f_85" />
+    <!-- gripper_model selects the macro (2f_85 / 2f_140). xacro args are
+         first-declaration-wins, so each wrapper must declare it BEFORE
+         including this file, or the default below silently wins. -->
+    <xacro:arg name="gripper_model" default="2f_85" />
     <xacro:arg name="use_fake_hardware" default="true" />
     <xacro:arg name="com_port" default="/dev/ttyUSB0" />
     <xacro:arg name="baudrate" default="115200" />
 
     <!-- Import macros -->
-    <xacro:include filename="$(find robotiq_description)/urdf/robotiq_$(arg model)_macro.urdf.xacro" />
+    <xacro:include filename="$(find robotiq_description)/urdf/robotiq_$(arg gripper_model)_macro.urdf.xacro" />
 
     <link name="world" />
     <xacro:robotiq_gripper name="RobotiqGripperHardwareInterface" prefix="" parent="world" use_fake_hardware="$(arg use_fake_hardware)" com_port="$(arg com_port)" baudrate="$(arg baudrate)">
