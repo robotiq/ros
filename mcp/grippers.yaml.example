@@ -1,0 +1,25 @@
+# Cell wiring: which grippers the server exposes, and where each one's driver
+# lives. Copy to grippers.yaml and edit. Every entry needs a name (what agents
+# pass as robot_name) and a model (a file in robot_specifications/).
+#
+# backend: ros   talks to robotiq_gripper_controller under `namespace`
+#          mock  pure-Python stand-in; object_width_mm puts a virtual object
+#                between the fingers so a close stalls on it
+
+- name: left
+  model: robotiq_2f_85
+  backend: ros
+  namespace: /left
+  description: Robotiq 2F-85 on the left arm
+
+- name: right
+  model: robotiq_2f_140
+  backend: ros
+  namespace: /right
+  description: Robotiq 2F-140 on the right arm
+
+- name: bench
+  model: robotiq_2f_85
+  backend: mock
+  object_width_mm: 40.0
+  description: Mock 2F-85 holding a 40 mm virtual cube
