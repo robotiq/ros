@@ -70,12 +70,13 @@ repos:
         args: ["-fallback-style=none"]
 
   # The repo is versioned as a whole; VERSION is the authoritative copy and
-  # every package.xml has to agree with it. See dev/version.py.
+  # every package.xml and mcp/pyproject.toml have to agree with it. See
+  # dev/version.py.
   - repo: local
     hooks:
       - id: version-consistency
-        name: package.xml versions match VERSION
+        name: version copies match VERSION
         entry: dev/version.py --check
         language: system
-        files: '(^VERSION$|package\.xml$)'
+        files: '(^VERSION$|package\.xml$|pyproject\.toml$)'
         pass_filenames: false
