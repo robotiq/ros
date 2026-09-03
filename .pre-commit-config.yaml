@@ -22,7 +22,7 @@
 
 # Only lint the trees we own; keep the extern/ submodule and vendored
 # third-party sources out.
-files: '^(grippers/|robotiq_tsf/|docker/|\.github/|[^/]+$)'
+files: '^(grippers/|robotiq_tsf/|mcp/|docker/|\.github/|[^/]+$)'
 exclude: '^robotiq_tsf/third_party/'
 
 repos:
