@@ -3,8 +3,9 @@
 # robotiq_controllers.humble.yaml — Humble's stock
 # position_controllers/GripperActionController, since parallel_gripper_controller
 # only arrived in Jazzy — with the two departures robotiq_controllers.sim.yaml
-# explains: no activation controller (no reactivate GPIO to claim) and stall
-# detection tuned for a plugin fed over a topic.
+# explains: no activation controller (no reactivate GPIO to claim) and a stall
+# that aborts rather than succeeds (a simulator without joint velocities would
+# otherwise pass every failed grasp).
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
@@ -19,7 +20,7 @@ robotiq_gripper_controller:
 
     max_effort: 50.0
 
-    allow_stalling: true
+    allow_stalling: false
     stall_timeout: 0.5
     stall_velocity_threshold: 0.05
     goal_tolerance: 0.02

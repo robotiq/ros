@@ -333,11 +333,14 @@ def test_sim_configs_spawn_no_activation_controller(config):
 def test_sim_config_keeps_the_action_surface_of_its_distro(config):
     # Same controller name, type, joint and goal tolerance as the hardware config
     # for that distro: an action client must not notice which plugin is behind.
+    # Stall handling is the one deliberate difference: a simulator that publishes
+    # no velocities would otherwise pass every failed grasp as a successful stall.
     hardware = gripper_controller_params(config)
     sim = gripper_controller_params(SIM_OF[config])
     assert sim["joint"] == hardware["joint"]
     assert sim["goal_tolerance"] == hardware["goal_tolerance"]
-    assert sim["allow_stalling"] == hardware["allow_stalling"]
+    assert hardware["allow_stalling"] is True
+    assert sim["allow_stalling"] is False
     assert (
         load(SIM_OF[config])["controller_manager"]["ros__parameters"][
             "robotiq_gripper_controller"

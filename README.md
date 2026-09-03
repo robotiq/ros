@@ -267,7 +267,8 @@ This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, and `rob
 simulator that exchanges `sensor_msgs/JointState` on two topics — Isaac Sim is the usual one, hence
 the argument names). That plugin exports only the standard joint interfaces, so the launch loads
 `config/robotiq_controllers.sim.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
-stall detection is tuned for a loop that runs over a topic) and skips `robotiq_activation_controller`,
+a stall aborts the goal rather than succeeding, since a simulator that publishes no joint velocities
+would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
 whose `reactivate_gripper` GPIO only the driver and the mock declare. `TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
 joint names (`robotiq_85_left_knuckle_joint` and the five mimic joints, with your `prefix`), or

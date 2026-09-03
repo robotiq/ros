@@ -14,8 +14,12 @@
 #   standard position/velocity/effort interfaces only, never the driver's
 #   `set_gripper_max_*`, and a claimed interface that does not exist stops the
 #   controller from activating. Goal effort/velocity are accepted and ignored.
-# - Stall detection tuned for a plugin fed over a topic rather than a serial
-#   link: a goal needs longer than 0.05 s to show up as joint motion, and
+# - A stall aborts the goal instead of succeeding. A simulator that publishes no
+#   joint velocities leaves the velocity state at 0, which reads as "stalled"
+#   from the first cycle, so allow_stalling would report every out-of-tolerance
+#   goal as succeeded. The client decides whether an aborted, stalled goal means
+#   an object was gripped. The stall window itself is wider than the driver's:
+#   a goal needs longer than 0.05 s to show up as motion over a topic, and
 #   simulated joint velocities carry more noise than the driver's.
 controller_manager:
   ros__parameters:
@@ -30,7 +34,7 @@ robotiq_gripper_controller:
     joint: $(var gripper_joint)
 
     state_interfaces: ["position", "velocity"]
-    allow_stalling: true
+    allow_stalling: false
     stall_timeout: 0.5
     stall_velocity_threshold: 0.05
     goal_tolerance: 0.02
