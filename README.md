@@ -6,6 +6,7 @@ ROS packages for Robotiq grippers and sensors.
 |---|---|---|
 | [robotiq_tsf](robotiq_tsf/) | TSF-85 tactile sensor driver | ROS 2 Humble / Jazzy / Lyrical ([main](https://github.com/robotiq/ros/tree/main)) / ROS 1 Noetic ([noetic](https://github.com/robotiq/ros/tree/noetic)) |
 | [grippers](grippers/) | ROS 2 `ros2_control` driver for Robotiq 2F adaptive grippers (2F-85, 2F-140), on the [Robotiq C++ SDK](https://github.com/Robotiq/grippers) | ROS 2 Humble / Jazzy / Lyrical |
+| [mcp](mcp/) | MCP server exposing the 2F grippers to LLM agents, on the `grippers/` driver (plain Python project, not an ament package) | Python 3.12 + a sourced ROS 2 install |
 
 ## Supported ROS 2 distros
 
