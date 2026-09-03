@@ -271,8 +271,14 @@ a stall aborts the goal rather than succeeding, since a simulator that publishes
 would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
 whose `reactivate_gripper` GPIO only the driver and the mock declare. `TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
-joint names (`robotiq_85_left_knuckle_joint` and the five mimic joints, with your `prefix`), or
-nothing moves. The plugin is not a dependency of this package — build
+six joint names for the model you launch, each with your `prefix`, or nothing moves:
+
+| `gripper_model` | driven joint | mimic joints |
+|---|---|---|
+| `2f_85` | `robotiq_85_left_knuckle_joint` | `robotiq_85_right_knuckle_joint`, `robotiq_85_left_inner_knuckle_joint`, `robotiq_85_right_inner_knuckle_joint`, `robotiq_85_left_finger_tip_joint`, `robotiq_85_right_finger_tip_joint` |
+| `2f_140` | `finger_joint` | `right_outer_knuckle_joint`, `left_inner_knuckle_joint`, `right_inner_knuckle_joint`, `left_inner_finger_joint`, `right_inner_finger_joint` |
+
+The plugin is not a dependency of this package — build
 [topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) yourself.
 The `ros2_control` xacros also carry a `sim_gazebo` parameter (`gz_ros2_control/GazeboSimSystem`)
 for cells that embed the gripper macro in their own Gazebo description; this launch does not wire
