@@ -133,11 +133,12 @@ In the combined launch the pad frames are TF-mounted on the gripper fingertip li
 ROS 2 `ros2_control` driver for Robotiq 2F adaptive grippers, under [`grippers/`](grippers/).
 
 Descriptions ship for the **2F-85** and the **2F-140**; `robotiq_control.launch.py` defaults to the
-2F-85, so pass `model:=$(ros2 pkg prefix robotiq_description)/share/robotiq_description/urdf/robotiq_2f_140_gripper.urdf.xacro`
-for a 2F-140. The controller configs take the driven joint from the `gripper_joint` launch argument,
-which defaults to the 2F-85's `robotiq_85_left_knuckle_joint`, or to `finger_joint` when the model
-path names a 2F-140; set it explicitly for a custom description. Hardware validation to date is on a
-2F-85 — the 2F-140 description ships untested against hardware.
+2F-85, so pass `gripper_model:=2f_140` for a 2F-140. That argument selects the gripper macro in the
+xacro and the joint the controller drives (`robotiq_85_left_knuckle_joint` or `finger_joint`); a
+custom description keeps `model:=<path>` and sets `gripper_joint` explicitly. The controller configs
+in `config/` write that joint as `$(var gripper_joint)`, which only the launch resolves — loaded
+directly into your own `ros2_control_node` they are not valid as they stand. Hardware validation to
+date is on a 2F-85 — the 2F-140 description ships untested against hardware.
 
 The driver itself is model-agnostic: it needs a serial link and the `gripper_closed_position` of
 whatever is attached. A **Hand-E** therefore works once you supply a URDF for it, but no Hand-E
