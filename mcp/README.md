@@ -44,8 +44,17 @@ MCP client at it. The `mock` backend needs no ROS and no gripper: `object_width_
 in the wiring puts a virtual object between the fingers so `gripper_grasp` has
 something to stop on.
 
-The `ros` backend, which talks to `robotiq_gripper_controller`, is not in this
-build yet.
+## With the driver
+
+The `ros` backend talks to `robotiq_gripper_controller` through rclpy: it sends
+`gripper_cmd` goals and reads `joint_states` under the gripper's `namespace`
+from `grippers.yaml`. Source your ROS 2 install before starting the server so
+`rclpy` and `control_msgs` import; the action type follows the distro the way
+the launch file does (`ParallelGripperCommand` on Jazzy and later,
+`GripperCommand` on Humble). A goal the controller aborts on a stall comes back
+as `stalled: true`, which the service reads as a grasp: this is what the sim
+controller configs (`allow_stalling: false`) produce when the fingers meet an
+object.
 
 ## Configuration
 
