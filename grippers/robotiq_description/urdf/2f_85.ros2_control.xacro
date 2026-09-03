@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+    <xacro:include filename="$(find robotiq_description)/urdf/2f_common.ros2_control.xacro" />
+
     <xacro:macro name="robotiq_gripper_ros2_control" params="
         name
         prefix
@@ -20,36 +22,20 @@
 
         <ros2_control name="${name}" type="system">
             <!-- Plugins -->
-            <hardware>
-
-                <!-- Set use_dummy to true to connect to a dummy driver for testing purposes. -->
-                <param name="use_dummy">false</param>
-
-                <xacro:if value="${sim_isaac}">
-                    <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
-                    <param name="joint_commands_topic">${isaac_joint_commands}</param>
-                    <param name="joint_states_topic">${isaac_joint_states}</param>
-                    <param name="trigger_joint_command_threshold">0.02</param>
-                </xacro:if>
-                <xacro:if value="${sim_gazebo}">
-                    <plugin>gz_ros2_control/GazeboSimSystem</plugin>
-                </xacro:if>
-                <xacro:if value="${use_fake_hardware}">
-                    <plugin>mock_components/GenericSystem</plugin>
-                    <param name="mock_sensor_commands">${mock_sensor_commands}</param>
-                    <param name="state_following_offset">0.0</param>
-                </xacro:if>
-                <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_isaac}">
-                    <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
-                    <param name="gripper_closed_position">${gripper_closed_position}</param>
-                    <param name="COM_port">${com_port}</param>
-                    <param name="baudrate">${baudrate}</param>
-                    <param name="gripper_speed_multiplier">${gripper_speed_multiplier}</param>
-                    <param name="gripper_force_multiplier">${gripper_force_multiplier}</param>
-                    <param name="gripper_max_speed">${gripper_max_speed}</param>
-                    <param name="gripper_max_force">${gripper_max_force}</param>
-                </xacro:unless>
-            </hardware>
+            <xacro:robotiq_2f_hardware
+                sim_gazebo="${sim_gazebo}"
+                sim_isaac="${sim_isaac}"
+                isaac_joint_commands="${isaac_joint_commands}"
+                isaac_joint_states="${isaac_joint_states}"
+                use_fake_hardware="${use_fake_hardware}"
+                mock_sensor_commands="${mock_sensor_commands}"
+                com_port="${com_port}"
+                baudrate="${baudrate}"
+                gripper_speed_multiplier="${gripper_speed_multiplier}"
+                gripper_force_multiplier="${gripper_force_multiplier}"
+                gripper_max_speed="${gripper_max_speed}"
+                gripper_max_force="${gripper_max_force}"
+                gripper_closed_position="${gripper_closed_position}"/>
 
             <!-- Joint interfaces -->
             <!-- With Gazebo or Hardware, they handle mimic joints, so we only need this command interface activated -->
@@ -78,36 +64,11 @@
             </joint>
             <!-- When simulating we need to include the rest of the gripper joints -->
             <xacro:if value="${sim_isaac or sim_gazebo}">
-                <joint name="${prefix}robotiq_85_right_knuckle_joint">
-                    <xacro:unless value="${sim_gazebo}">
-                        <state_interface name="position"/>
-                        <state_interface name="velocity"/>
-                    </xacro:unless>
-                </joint>
-                <joint name="${prefix}robotiq_85_left_inner_knuckle_joint">
-                    <xacro:unless value="${sim_gazebo}">
-                        <state_interface name="position"/>
-                        <state_interface name="velocity"/>
-                    </xacro:unless>
-                </joint>
-                <joint name="${prefix}robotiq_85_right_inner_knuckle_joint">
-                    <xacro:unless value="${sim_gazebo}">
-                        <state_interface name="position"/>
-                        <state_interface name="velocity"/>
-                    </xacro:unless>
-                </joint>
-                <joint name="${prefix}robotiq_85_left_finger_tip_joint">
-                    <xacro:unless value="${sim_gazebo}">
-                        <state_interface name="position"/>
-                        <state_interface name="velocity"/>
-                    </xacro:unless>
-                </joint>
-                <joint name="${prefix}robotiq_85_right_finger_tip_joint">
-                    <xacro:unless value="${sim_gazebo}">
-                        <state_interface name="position"/>
-                        <state_interface name="velocity"/>
-                    </xacro:unless>
-                </joint>
+                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_right_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_left_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_right_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_left_finger_tip_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_right_finger_tip_joint" sim_gazebo="${sim_gazebo}"/>
             </xacro:if>
 
             <!-- Only add this with fake hardware mode -->

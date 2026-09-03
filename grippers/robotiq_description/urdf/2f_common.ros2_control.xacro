@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- One <hardware> block shared by every 2F model. The joint names and
+         the per-model defaults stay in 2f_85.ros2_control.xacro /
+         2f_140.ros2_control.xacro. -->
+    <xacro:macro name="robotiq_2f_hardware" params="
+        sim_gazebo
+        sim_isaac
+        isaac_joint_commands
+        isaac_joint_states
+        use_fake_hardware
+        mock_sensor_commands
+        com_port
+        baudrate
+        gripper_speed_multiplier
+        gripper_force_multiplier
+        gripper_max_speed
+        gripper_max_force
+        gripper_closed_position">
+
+        <hardware>
+
+            <!-- Set use_dummy to true to connect to a dummy driver for testing purposes. -->
+            <param name="use_dummy">false</param>
+
+            <xacro:if value="${sim_isaac}">
+                <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
+                <param name="joint_commands_topic">${isaac_joint_commands}</param>
+                <param name="joint_states_topic">${isaac_joint_states}</param>
+                <param name="trigger_joint_command_threshold">0.02</param>
+            </xacro:if>
+            <xacro:if value="${sim_gazebo}">
+                <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+            </xacro:if>
+            <xacro:if value="${use_fake_hardware}">
+                <plugin>mock_components/GenericSystem</plugin>
+                <param name="mock_sensor_commands">${mock_sensor_commands}</param>
+                <param name="state_following_offset">0.0</param>
+            </xacro:if>
+            <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_isaac}">
+                <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
+                <param name="gripper_closed_position">${gripper_closed_position}</param>
+                <param name="COM_port">${com_port}</param>
+                <param name="baudrate">${baudrate}</param>
+                <param name="gripper_speed_multiplier">${gripper_speed_multiplier}</param>
+                <param name="gripper_force_multiplier">${gripper_force_multiplier}</param>
+                <param name="gripper_max_speed">${gripper_max_speed}</param>
+                <param name="gripper_max_force">${gripper_max_force}</param>
+            </xacro:unless>
+        </hardware>
+    </xacro:macro>
+
+    <!-- A mimic joint the simulator owns: declared so /joint_states carries it,
+         but never commanded. Gazebo derives mimic joints itself, so it gets no
+         state interfaces either. -->
+    <xacro:macro name="robotiq_2f_sim_mimic_joint" params="name sim_gazebo">
+        <joint name="${name}">
+            <xacro:unless value="${sim_gazebo}">
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+            </xacro:unless>
+        </joint>
+    </xacro:macro>
+
+</robot>
