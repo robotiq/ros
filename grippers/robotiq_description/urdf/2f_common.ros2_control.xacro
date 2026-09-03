@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <!-- The <hardware> block is the same for every 2F model: only the joint
-         names and the per-model defaults differ, and those stay in
-         2f_85.ros2_control.xacro / 2f_140.ros2_control.xacro. -->
+    <!-- One <hardware> block shared by every 2F model. The joint names and
+         the per-model defaults stay in 2f_85.ros2_control.xacro /
+         2f_140.ros2_control.xacro. -->
     <xacro:macro name="robotiq_2f_hardware" params="
         sim_gazebo
         sim_isaac
