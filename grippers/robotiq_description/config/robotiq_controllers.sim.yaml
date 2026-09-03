@@ -1,17 +1,16 @@
-# Controller configuration for the simulated hardware plugins the description
-# can select: `sim_isaac:=true` (topic_based_ros2_control/TopicBasedSystem) and
-# `sim_gazebo:=true` (gz_ros2_control/GazeboSimSystem). Selected by
-# launch/robotiq_control.launch.py whenever either argument is set; see
+# Controller configuration for the simulated hardware plugin the description
+# can select: `sim_isaac:=true` (topic_based_ros2_control/TopicBasedSystem).
+# Selected by launch/robotiq_control.launch.py whenever that argument is set; see
 # config/robotiq_controllers.yaml for the hardware and mock config it replaces,
 # and robotiq_controllers.sim.humble.yaml for the Humble variant.
 #
-# It differs from robotiq_controllers.yaml only where the simulated plugins
-# export something different from the driver, so the controller can activate:
+# It differs from robotiq_controllers.yaml only where the simulated plugin
+# exports something different from the driver, so the controller can activate:
 #
 # - No `robotiq_activation_controller`. The `reactivate_gripper` GPIO it claims is
 #   declared for the driver and the mock only (2f_85.ros2_control.xacro); under a
 #   simulated plugin there is nothing to reactivate.
-# - No `max_effort_interface` / `max_velocity_interface`. Both plugins expose the
+# - No `max_effort_interface` / `max_velocity_interface`. The plugin exposes the
 #   standard position/velocity/effort interfaces only, never the driver's
 #   `set_gripper_max_*`, and a claimed interface that does not exist stops the
 #   controller from activating. Goal effort/velocity are accepted and ignored.

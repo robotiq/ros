@@ -1,5 +1,5 @@
-# Humble controller configuration for the simulated hardware plugins
-# (`sim_isaac:=true` / `sim_gazebo:=true`). Same controller as
+# Humble controller configuration for the simulated hardware plugin
+# (`sim_isaac:=true`). Same controller as
 # robotiq_controllers.humble.yaml — Humble's stock
 # position_controllers/GripperActionController, since parallel_gripper_controller
 # only arrived in Jazzy — with the two departures robotiq_controllers.sim.yaml

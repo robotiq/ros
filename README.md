@@ -257,24 +257,25 @@ ros2 launch robotiq_description robotiq_control.launch.py                    # r
 ros2 launch robotiq_description robotiq_control.launch.py use_fake_hardware:=true   # ros2_control mock
 ros2 launch robotiq_description robotiq_control.launch.py launch_rviz:=true         # + RViz visualization
 ros2 launch robotiq_description robotiq_control.launch.py baudrate:=<rate>
-ros2 launch robotiq_description robotiq_control.launch.py sim_gazebo:=true        # gz_ros2_control
 ros2 launch robotiq_description robotiq_control.launch.py sim_isaac:=true \
   isaac_joint_commands:=/isaac_joint_commands isaac_joint_states:=/isaac_joint_states  # topic_based_ros2_control
 ```
 
 This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, and `robotiq_activation_controller`.
 
-`sim_gazebo` and `sim_isaac` swap the hardware plugin for `gz_ros2_control/GazeboSimSystem` or
-`topic_based_ros2_control/TopicBasedSystem` (any simulator that exchanges `sensor_msgs/JointState`
-on two topics — Isaac Sim is the usual one, hence the argument names). Both plugins export only the
-standard joint interfaces, so the launch loads `config/robotiq_controllers.sim.yaml` for them
-(per-goal `effort`/`velocity` are accepted and ignored; stall detection is tuned for a loop that
-runs over a topic) and skips `robotiq_activation_controller`, whose `reactivate_gripper` GPIO only
-the driver and the mock declare. `TopicBasedSystem` matches joints to the simulator's `JointState`
-**by name**, so the simulator must publish this description's joint names (`robotiq_85_left_knuckle_joint`
-and the five mimic joints, with your `prefix`), or nothing moves. Neither plugin is a dependency of
-this package — install `ros-$ROS_DISTRO-gz-ros2-control` or build
+`sim_isaac` swaps the hardware plugin for `topic_based_ros2_control/TopicBasedSystem` (any
+simulator that exchanges `sensor_msgs/JointState` on two topics — Isaac Sim is the usual one, hence
+the argument names). That plugin exports only the standard joint interfaces, so the launch loads
+`config/robotiq_controllers.sim.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
+stall detection is tuned for a loop that runs over a topic) and skips `robotiq_activation_controller`,
+whose `reactivate_gripper` GPIO only the driver and the mock declare. `TopicBasedSystem` matches
+joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
+joint names (`robotiq_85_left_knuckle_joint` and the five mimic joints, with your `prefix`), or
+nothing moves. The plugin is not a dependency of this package — build
 [topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) yourself.
+The `ros2_control` xacros also carry a `sim_gazebo` parameter (`gz_ros2_control/GazeboSimSystem`)
+for cells that embed the gripper macro in their own Gazebo description; this launch does not wire
+it, since Gazebo hosts its own `controller_manager`.
 
 ### Commanding the gripper
 

@@ -54,9 +54,9 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 # both models; robotiq_control.launch.py resolves it via ParameterFile.
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 
-# The simulated plugins (sim_isaac / sim_gazebo) export neither the
-# set_gripper_max_* command interfaces nor the reactivate_gripper GPIO, so they
-# get a config of their own per distro, selected by the same launch file.
+# The simulated plugin (sim_isaac) exports neither the set_gripper_max_* command
+# interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
+# distro, selected by the same launch file.
 JAZZY_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.yaml"
 HUMBLE_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.humble.yaml"
 SIM_CONFIGS = (JAZZY_SIM_CONFIG, HUMBLE_SIM_CONFIG)
@@ -183,7 +183,6 @@ def test_launch_forwards_the_gripper_model_to_xacro():
         com_port="/dev/null",
         baudrate="115200",
         sim_isaac="false",
-        sim_gazebo="false",
         isaac_joint_commands="/isaac_joint_commands",
         isaac_joint_states="/isaac_joint_states",
     )
@@ -238,7 +237,6 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
     context.launch_configurations.update(
         {
             "sim_isaac": "false",
-            "sim_gazebo": "false",
             "gripper_joint": JOINT,
             **launch_arguments,
         }
@@ -268,10 +266,7 @@ def resolved(config, joint=JOINT):
         (None, JAZZY_CONFIG, JAZZY_SIM_CONFIG),
     ],
 )
-@pytest.mark.parametrize("sim_argument", ["sim_isaac", "sim_gazebo"])
-def test_launch_spawns_per_plugin(
-    distro, hardware_config, sim_config, sim_argument, monkeypatch
-):
+def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypatch):
     # Every spawner must be handed the same config the controller_manager loaded,
     # and the activation controller only exists where its GPIO does.
     hardware = spawned_controllers(distro, monkeypatch)
@@ -281,7 +276,7 @@ def test_launch_spawns_per_plugin(
         "robotiq_activation_controller": resolved(hardware_config),
     }
 
-    simulated = spawned_controllers(distro, monkeypatch, **{sim_argument: "true"})
+    simulated = spawned_controllers(distro, monkeypatch, sim_isaac="true")
     assert simulated == {
         "joint_state_broadcaster": resolved(sim_config),
         "robotiq_gripper_controller": resolved(sim_config),
@@ -290,8 +285,8 @@ def test_launch_spawns_per_plugin(
 
 @pytest.mark.parametrize("config", SIM_CONFIGS)
 def test_sim_configs_claim_no_driver_only_command_interfaces(config):
-    # TopicBasedSystem and GazeboSimSystem export the standard joint interfaces
-    # only; claiming set_gripper_max_* here is why the sim paths never activated.
+    # TopicBasedSystem exports the standard joint interfaces only; claiming
+    # set_gripper_max_* here is why the sim path never activated.
     params = gripper_controller_params(config)
     assert "max_effort_interface" not in params
     assert "max_velocity_interface" not in params
@@ -299,7 +294,7 @@ def test_sim_configs_claim_no_driver_only_command_interfaces(config):
 
 @pytest.mark.parametrize("config", SIM_CONFIGS)
 def test_sim_configs_spawn_no_activation_controller(config):
-    # No reactivate_gripper GPIO is declared under sim_isaac / sim_gazebo (see
+    # No reactivate_gripper GPIO is declared under sim_isaac (see
     # 2f_85.ros2_control.xacro), so the controller would have nothing to claim.
     controllers = load(config)["controller_manager"]["ros__parameters"]
     assert set(controllers) == {

@@ -33,16 +33,19 @@ from launch.substitutions import (
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
-    PythonExpression,
 )
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import (
+    IfCondition,
+    UnlessCondition,
+    evaluate_condition_expression,
+)
 import launch_ros
 from launch_ros.parameter_descriptions import ParameterFile
 import os
 
 # Humble has no parallel_gripper_controller package, so it needs its own
-# controller config, and the simulated plugins (sim_isaac / sim_gazebo) export a
-# different interface set from the driver and the mock, so they need theirs.
+# controller config, and the simulated plugin (sim_isaac) exports a different
+# interface set from the driver and the mock, so it needs its own too.
 # See config/robotiq_controllers*.yaml.
 JAZZY_CONTROLLERS_FILE = "robotiq_controllers.yaml"
 HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
@@ -53,11 +56,22 @@ HUMBLE_SIM_CONTROLLERS_FILE = "robotiq_controllers.sim.humble.yaml"
 def controllers_file_for_distro(distro, simulated=False):
     """Return the controller config file name for ROS distro `distro`.
 
-    `simulated` selects the config for the sim_isaac / sim_gazebo hardware plugins.
+    `simulated` selects the config for the sim_isaac hardware plugin.
     """
     if distro == "humble":
         return HUMBLE_SIM_CONTROLLERS_FILE if simulated else HUMBLE_CONTROLLERS_FILE
     return JAZZY_SIM_CONTROLLERS_FILE if simulated else JAZZY_CONTROLLERS_FILE
+
+
+class ControllersFile(Substitution):
+    def __init__(self, distro, simulated):
+        super().__init__()
+        self.distro = distro
+        self.simulated = simulated
+
+    def perform(self, context):
+        simulated = evaluate_condition_expression(context, [self.simulated])
+        return controllers_file_for_distro(self.distro, simulated)
 
 
 class ParameterFilePath(Substitution):
@@ -108,9 +122,6 @@ def xacro_command():
             " ",
             "sim_isaac:=",
             LaunchConfiguration("sim_isaac"),
-            " ",
-            "sim_gazebo:=",
-            LaunchConfiguration("sim_gazebo"),
             " ",
             "isaac_joint_commands:=",
             LaunchConfiguration("isaac_joint_commands"),
@@ -197,13 +208,6 @@ def generate_launch_description():
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="sim_gazebo",
-            default_value="false",
-            description="Drive Gazebo over gz_ros2_control instead of a real gripper",
-        )
-    )
-    args.append(
-        launch.actions.DeclareLaunchArgument(
             name="isaac_joint_commands",
             default_value="/isaac_joint_commands",
             description="sim_isaac only: JointState topic the simulator takes commands on",
@@ -217,16 +221,7 @@ def generate_launch_description():
         )
     )
 
-    # "True"/"False": a PythonExpression is a string, and IfCondition reads both.
-    simulated = PythonExpression(
-        [
-            "'",
-            LaunchConfiguration("sim_isaac"),
-            "'.lower() in ('true', '1') or '",
-            LaunchConfiguration("sim_gazebo"),
-            "'.lower() in ('true', '1')",
-        ]
-    )
+    simulated = LaunchConfiguration("sim_isaac")
 
     robot_description_param = {
         "robot_description": launch_ros.parameter_descriptions.ParameterValue(
@@ -234,18 +229,7 @@ def generate_launch_description():
         )
     }
 
-    distro = os.environ.get("ROS_DISTRO")
-    controllers_file = PythonExpression(
-        [
-            "'",
-            controllers_file_for_distro(distro, simulated=True),
-            "' if ",
-            simulated,
-            " else '",
-            controllers_file_for_distro(distro),
-            "'",
-        ]
-    )
+    controllers_file = ControllersFile(os.environ.get("ROS_DISTRO"), simulated)
     initial_joint_controllers = ParameterFile(
         PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
         allow_substs=True,
@@ -299,7 +283,7 @@ def generate_launch_description():
     joint_state_broadcaster_spawner = spawner("joint_state_broadcaster")
     robotiq_gripper_controller_spawner = spawner("robotiq_gripper_controller")
     # The reactivate_gripper GPIO this controller claims is declared for the
-    # driver and the mock only; the simulated plugins have nothing to reactivate.
+    # driver and the mock only; the simulated plugin has nothing to reactivate.
     robotiq_activation_controller_spawner = spawner(
         "robotiq_activation_controller", condition=UnlessCondition(simulated)
     )

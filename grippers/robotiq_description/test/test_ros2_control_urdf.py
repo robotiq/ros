@@ -63,8 +63,7 @@ MODELS = {
 MOCK_PLUGIN = "mock_components/GenericSystem"
 REAL_PLUGIN = "robotiq_driver/RobotiqGripperHardwareInterface"
 ISAAC_PLUGIN = "topic_based_ros2_control/TopicBasedSystem"
-GAZEBO_PLUGIN = "gz_ros2_control/GazeboSimSystem"
-SIM_ARGS = {ISAAC_PLUGIN: "sim_isaac:=true", GAZEBO_PLUGIN: "sim_gazebo:=true"}
+SIM_ARG = "sim_isaac:=true"
 
 # Every 2F finger joint except the driven knuckle follows it through <mimic>.
 MIMIC_JOINT_COUNT = 5
@@ -205,23 +204,21 @@ def test_baudrate_reaches_the_driver(model):
 
 @requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
-@pytest.mark.parametrize("plugin,sim_arg", SIM_ARGS.items())
-def test_sim_plugins_declare_only_the_position_command(model, joint, plugin, sim_arg):
-    # Neither simulated plugin knows the driver's set_gripper_max_* interfaces;
+def test_sim_plugin_declares_only_the_position_command(model, joint):
+    # The simulated plugin does not know the driver's set_gripper_max_* interfaces;
     # config/robotiq_controllers.sim.yaml therefore claims none, and the URDF must
     # not declare them either or the plugin rejects the joint.
-    ros2_control = expand(model, False, sim_arg)
-    assert plugin_of(ros2_control) == plugin
+    ros2_control = expand(model, False, SIM_ARG)
+    assert plugin_of(ros2_control) == ISAAC_PLUGIN
     assert command_interfaces_of(ros2_control, joint) == {"position"}
 
 
 @requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
-@pytest.mark.parametrize("sim_arg", SIM_ARGS.values())
-def test_sim_plugins_declare_no_reactivate_gpio(model, joint, sim_arg):
-    # robotiq_control.launch.py skips robotiq_activation_controller under sim_*;
+def test_sim_plugin_declares_no_reactivate_gpio(model, joint):
+    # robotiq_control.launch.py skips robotiq_activation_controller under sim_isaac;
     # this is the URDF side of that agreement.
-    assert expand(model, False, sim_arg).find("gpio") is None
+    assert expand(model, False, SIM_ARG).find("gpio") is None
     assert expand(model, False).find("gpio[@name='reactivate_gripper']") is not None
     assert expand(model, True).find("gpio[@name='reactivate_gripper']") is not None
 
@@ -261,14 +258,13 @@ def test_isaac_topics_reach_the_plugin(model):
 
 
 @requires_xacro
-@pytest.mark.parametrize("sim_arg", SIM_ARGS.values())
-def test_sim_controller_config_claims_only_what_the_sim_urdf_declares(sim_arg):
+@pytest.mark.parametrize("model,joint", MODELS.items())
+def test_sim_controller_config_claims_only_what_the_sim_urdf_declares(model, joint):
     # The sim counterpart of test_gripper_controller_config_interfaces_exist_under_mock.
     params = yaml.safe_load(SIM_CONFIG.read_text())["robotiq_gripper_controller"][
         "ros__parameters"
     ]
-    joint = MODELS["robotiq_2f_85_gripper.urdf.xacro"]
-    ros2_control = expand("robotiq_2f_85_gripper.urdf.xacro", False, sim_arg)
+    ros2_control = expand(model, False, SIM_ARG)
 
     assert params["joint"] == "$(var gripper_joint)"
     assert "max_effort_interface" not in params
