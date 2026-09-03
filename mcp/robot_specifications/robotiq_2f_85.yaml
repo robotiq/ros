@@ -21,3 +21,24 @@ defaults:
   # Same value the controller configs in robotiq_description ship with.
   max_effort_n: 50.0
   motion_timeout_s: 10.0
+
+# TSF-85 tactile fingers, when fitted. Omit this block for a model with no
+# tactile option; a gripper without pads leaves `tactile` unset in grippers.yaml.
+# The 7x4 grid per pad is what robotiq_tsf publishes (Taxels: uint16[28]).
+tactile:
+  rows: 7
+  cols: 4
+  pads: [left, right]
+
+  # Signal 1.0 means every taxel on both pads is at the working ceiling:
+  # 56 taxels x 110 counts. Tuned against the Isaac Sim twin's tactile
+  # extension (hottest taxel ~106, no-contact floor ~0.0003 of full scale).
+  # Unverified against a physical TSF-85; re-measure before trusting it there.
+  full_scale_counts: 6200.0
+
+  # Contact is declared at or above this signal. Deliberately just above the
+  # noise floor: the point is to notice FIRST touch, not a firm grip.
+  contact_threshold: 0.02
+
+  # Matches the tactile SDK's findBaseline(), which averages 1000 samples.
+  baseline_samples: 1000
