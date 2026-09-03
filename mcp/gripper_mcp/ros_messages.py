@@ -58,3 +58,13 @@ def timed_out(position_rad: float, timeout_s: float, stage: str) -> BackendMotio
         timed_out=True,
         detail=f"No {stage} from the controller within {timeout_s:.1f} s.",
     )
+
+
+def advertised_type(names_and_types, action_name: str, known: dict) -> str | None:
+    for name, type_names in names_and_types:
+        if name != action_name:
+            continue
+        for type_name in type_names:
+            if type_name in known:
+                return type_name
+    return None

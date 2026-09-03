@@ -49,9 +49,10 @@ something to stop on.
 The `ros` backend talks to `robotiq_gripper_controller` through rclpy: it sends
 `gripper_cmd` goals and reads `joint_states` under the gripper's `namespace`
 from `grippers.yaml`. Source your ROS 2 install before starting the server so
-`rclpy` and `control_msgs` import; the action type follows the distro the way
-the launch file does (`ParallelGripperCommand` on Jazzy and later,
-`GripperCommand` on Humble). A goal the controller aborts on a stall comes back
+`rclpy` and `control_msgs` import. The action type is whatever the running
+controller advertises (`ParallelGripperCommand` from Jazzy's controller,
+`GripperCommand` from Humble's), read off the graph rather than guessed from
+the distro. A goal the controller aborts on a stall comes back
 as `stalled: true`, which the service reads as a grasp: this is what the sim
 controller configs (`allow_stalling: false`) produce when the fingers meet an
 object.

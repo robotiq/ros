@@ -2,10 +2,16 @@ from gripper_mcp.ros_messages import (
     STATUS_ABORTED,
     STATUS_CANCELED,
     STATUS_SUCCEEDED,
+    advertised_type,
     motion_from_result,
     refused,
     timed_out,
 )
+
+ACTION = "/left/robotiq_gripper_controller/gripper_cmd"
+PARALLEL = "control_msgs/action/ParallelGripperCommand"
+HUMBLE = "control_msgs/action/GripperCommand"
+KNOWN = {PARALLEL: object(), HUMBLE: object()}
 
 HALFWAY_RAD = 0.4
 
@@ -65,3 +71,21 @@ def test_a_timeout_names_the_stage_and_the_budget():
     assert motion.timed_out is True
     assert "result" in motion.detail
     assert "10.0 s" in motion.detail
+
+
+def test_the_action_type_is_whatever_the_server_advertises():
+    graph = [("/left/joint_states", ["sensor_msgs/msg/JointState"]), (ACTION, [HUMBLE])]
+
+    assert advertised_type(graph, ACTION, KNOWN) == HUMBLE
+
+
+def test_a_server_under_another_namespace_does_not_count():
+    graph = [("/right/robotiq_gripper_controller/gripper_cmd", [PARALLEL])]
+
+    assert advertised_type(graph, ACTION, KNOWN) is None
+
+
+def test_an_unknown_action_type_is_not_picked():
+    graph = [(ACTION, ["some_pkg/action/Other"])]
+
+    assert advertised_type(graph, ACTION, KNOWN) is None
