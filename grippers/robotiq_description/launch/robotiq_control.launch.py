@@ -33,7 +33,6 @@ from launch.substitutions import (
     FindExecutable,
     LaunchConfiguration,
     PathJoinSubstitution,
-    PythonExpression,
 )
 from launch.conditions import IfCondition
 import launch_ros
@@ -60,12 +59,42 @@ class ParameterFilePath(Substitution):
         return str(self.parameter_file.evaluate(context))
 
 
-def default_gripper_joint():
-    return PythonExpression(
+# Joint carrying the position command, per gripper_model. The launch argument
+# is restricted to these keys, so an unknown model fails at launch instead of
+# as a controller that never activates.
+GRIPPER_JOINTS = {
+    "2f_85": "robotiq_85_left_knuckle_joint",
+    "2f_140": "finger_joint",
+}
+
+
+class DefaultGripperJoint(Substitution):
+    def __init__(self, gripper_model):
+        super().__init__()
+        self.gripper_model = gripper_model
+
+    def perform(self, context):
+        return GRIPPER_JOINTS[self.gripper_model.perform(context)]
+
+
+def xacro_command():
+    return Command(
         [
-            "'finger_joint' if '2f_140' in '",
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
             LaunchConfiguration("model"),
-            "' else 'robotiq_85_left_knuckle_joint'",
+            " ",
+            "gripper_model:=",
+            LaunchConfiguration("gripper_model"),
+            " ",
+            "use_fake_hardware:=",
+            LaunchConfiguration("use_fake_hardware"),
+            " ",
+            "com_port:=",
+            LaunchConfiguration("com_port"),
+            " ",
+            "baudrate:=",
+            LaunchConfiguration("baudrate"),
         ]
     )
 
@@ -103,9 +132,17 @@ def generate_launch_description():
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
+            name="gripper_model",
+            default_value="2f_85",
+            choices=sorted(GRIPPER_JOINTS),
+            description="Gripper the description and the controller are built for",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
             name="gripper_joint",
-            default_value=default_gripper_joint(),
-            description="Joint the gripper controller drives; defaults from the model",
+            default_value=DefaultGripperJoint(LaunchConfiguration("gripper_model")),
+            description="Joint the gripper controller drives; defaults from gripper_model",
         )
     )
     args.append(
@@ -130,26 +167,9 @@ def generate_launch_description():
         )
     )
 
-    robot_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            LaunchConfiguration("model"),
-            " ",
-            "use_fake_hardware:=",
-            LaunchConfiguration("use_fake_hardware"),
-            " ",
-            "com_port:=",
-            LaunchConfiguration("com_port"),
-            " ",
-            "baudrate:=",
-            LaunchConfiguration("baudrate"),
-        ]
-    )
-
     robot_description_param = {
         "robot_description": launch_ros.parameter_descriptions.ParameterValue(
-            robot_description_content, value_type=str
+            xacro_command(), value_type=str
         )
     }
 

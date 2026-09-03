@@ -42,6 +42,8 @@ from pathlib import Path
 import pytest
 import yaml
 from launch import LaunchContext
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
 JAZZY_CONFIG = CONFIG_DIR / "robotiq_controllers.yaml"
@@ -137,16 +139,41 @@ def test_launch_description_builds():
 
 
 @pytest.mark.parametrize(
-    "model,expected",
-    [
-        ("/opt/share/urdf/robotiq_2f_85_gripper.urdf.xacro", JOINT),
-        ("/opt/share/urdf/robotiq_2f_140_gripper.urdf.xacro", "finger_joint"),
-        ("/home/me/my_cell.urdf.xacro", JOINT),
-    ],
+    "gripper_model,expected",
+    [("2f_85", JOINT), ("2f_140", "finger_joint")],
 )
-def test_launch_defaults_the_joint_from_the_model(model, expected):
+def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model, expected):
     launch_module = load_launch_module()
-    assert perform(launch_module.default_gripper_joint(), model=model) == expected
+    joint = launch_module.DefaultGripperJoint(LaunchConfiguration("gripper_model"))
+    assert perform(joint, gripper_model=gripper_model) == expected
+
+
+def test_launch_restricts_gripper_model_to_the_known_joints():
+    launch_module = load_launch_module()
+    description = launch_module.generate_launch_description()
+    declared = {
+        action.name: action
+        for action in description.entities
+        if isinstance(action, DeclareLaunchArgument)
+    }
+    assert declared["gripper_model"].choices == sorted(launch_module.GRIPPER_JOINTS)
+
+
+def test_launch_forwards_the_gripper_model_to_xacro():
+    # The xacro-level gripper_model selects the macro, so the launch-level one
+    # has to reach it or the two could name different grippers.
+    launch_module = load_launch_module()
+    command = launch_module.xacro_command()
+    context = LaunchContext()
+    context.launch_configurations.update(
+        model="/x/gripper.urdf.xacro",
+        gripper_model="2f_140",
+        use_fake_hardware="true",
+        com_port="/dev/null",
+        baudrate="115200",
+    )
+    rendered = "".join(s.perform(context) for s in command.command)
+    assert "gripper_model:=2f_140" in rendered
 
 
 @pytest.mark.parametrize("config", ALL_CONFIGS)
