@@ -1,15 +1,16 @@
 1.1.0
 
-# Authoritative version for the whole repository. Every package.xml below
-# carries a copy, because ament, rosdep and bloom parse that version
-# statically and it cannot reference a variable:
+# Authoritative version for the whole repository. Every file below carries
+# a copy, because ament, rosdep, bloom and Python packaging tools parse the
+# version statically and it cannot reference a variable:
 #
 #   grippers/robotiq_controllers/package.xml
 #   grippers/robotiq_description/package.xml
 #   grippers/robotiq_driver/package.xml
 #   grippers/robotiq_hardware_tests/package.xml
+#   mcp/pyproject.toml
 #   robotiq_tsf/package.xml
 #
 # Bump with `dev/version.py --set X.Y.Z`, which rewrites this file and every
-# package.xml above. A pre-commit hook fails if they drift, or if this list
-# stops matching the packages in the repo.
+# copy above. A pre-commit hook fails if they drift, or if this list stops
+# matching the files in the repo.
