@@ -1,0 +1,15 @@
+# Robotiq 2F-140 datasheet. See robotiq_2f_85.yaml for what each field means.
+
+model: robotiq_2f_140
+
+command_joint: finger_joint
+
+geometry:
+  max_opening_mm: 140.0
+  min_opening_mm: 0.0
+  knuckle_rad_open: 0.0
+  knuckle_rad_closed: 0.7
+
+defaults:
+  max_effort_n: 50.0
+  motion_timeout_s: 10.0

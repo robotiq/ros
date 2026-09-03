@@ -1,0 +1,23 @@
+# Robotiq 2F-85 datasheet. One file per gripper model, the same on every host;
+# cell wiring (which grippers exist, their ROS namespace) lives in grippers.yaml.
+# Supporting another Robotiq model is adding one file here, no code.
+
+model: robotiq_2f_85
+
+# The joint robotiq_gripper_controller commands, as named by robotiq_description.
+command_joint: robotiq_85_left_knuckle_joint
+
+geometry:
+  max_opening_mm: 85.0
+  min_opening_mm: 0.0
+
+  # The command joint's range from the URDF (limit lower/upper). 0 is OPEN.
+  # The opening is mapped onto it linearly; the real linkage is a four-bar, so
+  # mid-stroke openings are approximate.
+  knuckle_rad_open: 0.0
+  knuckle_rad_closed: 0.8
+
+defaults:
+  # Same value the controller configs in robotiq_description ship with.
+  max_effort_n: 50.0
+  motion_timeout_s: 10.0
