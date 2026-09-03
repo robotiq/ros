@@ -21,7 +21,7 @@
 # Robotiq C++ conventions.
 
 # Only lint the trees we own; keep the extern/ submodule out.
-files: '^(grippers/|robotiq_tsf/|docker/|\.github/|[^/]+$)'
+files: '^(grippers/|robotiq_tsf/|mcp/|docker/|\.github/|[^/]+$)'
 
 repos:
   # Standard hooks
