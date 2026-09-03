@@ -170,6 +170,29 @@ def test_launch_restricts_gripper_model_to_the_known_joints():
     assert declared["gripper_model"].choices == sorted(launch_module.GRIPPER_JOINTS)
 
 
+@pytest.mark.parametrize(
+    "use_fake_hardware,sim_isaac",
+    [("false", "false"), ("true", "false"), ("false", "true")],
+)
+def test_launch_accepts_at_most_one_hardware_flag(use_fake_hardware, sim_isaac):
+    launch_module = load_launch_module()
+    context = LaunchContext()
+    context.launch_configurations.update(
+        use_fake_hardware=use_fake_hardware, sim_isaac=sim_isaac
+    )
+    launch_module.reject_conflicting_hardware_flags(context)
+
+
+def test_launch_rejects_fake_hardware_together_with_sim_isaac():
+    # Both flags set makes the xacro emit two <plugin> elements while the launch
+    # picks the sim config; neither half can work, so fail before anything starts.
+    launch_module = load_launch_module()
+    context = LaunchContext()
+    context.launch_configurations.update(use_fake_hardware="true", sim_isaac="true")
+    with pytest.raises(RuntimeError, match="use_fake_hardware and sim_isaac"):
+        launch_module.reject_conflicting_hardware_flags(context)
+
+
 def test_launch_forwards_the_gripper_model_to_xacro():
     # The xacro-level gripper_model selects the macro, so the launch-level one
     # has to reach it or the two could name different grippers.

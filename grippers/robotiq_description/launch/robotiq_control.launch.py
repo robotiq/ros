@@ -27,6 +27,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import launch
+from launch.actions import OpaqueFunction
 from launch.substitution import Substitution
 from launch.substitutions import (
     Command,
@@ -72,6 +73,23 @@ class ControllersFile(Substitution):
     def perform(self, context):
         simulated = evaluate_condition_expression(context, [self.simulated])
         return controllers_file_for_distro(self.distro, simulated)
+
+
+# The xacro emits one <plugin> per flag that is set, and ros2_control_node
+# accepts only one, so two flags would fail late and obscurely.
+HARDWARE_FLAGS = ("use_fake_hardware", "sim_isaac")
+
+
+def reject_conflicting_hardware_flags(context):
+    enabled = [
+        flag
+        for flag in HARDWARE_FLAGS
+        if evaluate_condition_expression(context, [LaunchConfiguration(flag)])
+    ]
+    if len(enabled) > 1:
+        raise RuntimeError(
+            f"{' and '.join(enabled)} both select a hardware plugin; set at most one"
+        )
 
 
 class ParameterFilePath(Substitution):
@@ -289,6 +307,7 @@ def generate_launch_description():
     )
 
     nodes = [
+        OpaqueFunction(function=reject_conflicting_hardware_flags),
         control_node,
         robot_state_publisher_node,
         joint_state_broadcaster_spawner,
