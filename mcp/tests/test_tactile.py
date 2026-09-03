@@ -6,6 +6,7 @@ from gripper_mcp.tactile import (
     contact_signal,
     pad_sums,
     peak_rise,
+    rest_noise,
 )
 from gripper_mcp.tactile_backend import TactileLayout, TactilePad, TactileReading
 
@@ -18,6 +19,7 @@ RISE_COUNTS = PRESSED_COUNTS - REST_COUNTS
 FULL_SCALE_COUNTS = float(RISE_COUNTS * TAXELS_PER_PAD * 2)
 HOT_TAXEL_COUNTS = 900
 DRIFTED_LOW_COUNTS = 40
+NOISY_REST_COUNTS = REST_COUNTS + 2
 
 
 def reading(left_counts: int, right_counts: int) -> TactileReading:
@@ -184,3 +186,22 @@ def test_a_pad_the_baseline_never_saw_is_an_error():
 
     with pytest.raises(TactileShapeMismatch, match="thumb"):
         pad_sums(renamed, resting_baseline())
+
+
+def test_identical_rest_frames_have_no_noise():
+    frames = [reading(REST_COUNTS, REST_COUNTS)] * 3
+
+    assert rest_noise(frames, average_readings(frames), FULL_SCALE_COUNTS) == 0.0
+
+
+def test_the_noise_floor_is_the_loudest_rest_frame_against_the_mean():
+    frames = [
+        reading(REST_COUNTS, REST_COUNTS),
+        reading(NOISY_REST_COUNTS, REST_COUNTS),
+    ]
+    baseline = average_readings(frames)
+
+    expected = contact_signal(frames[1], baseline, FULL_SCALE_COUNTS)
+
+    assert rest_noise(frames, baseline, FULL_SCALE_COUNTS) == pytest.approx(expected)
+    assert rest_noise(frames, baseline, FULL_SCALE_COUNTS) > 0.0

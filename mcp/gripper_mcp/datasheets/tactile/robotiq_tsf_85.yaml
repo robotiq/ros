@@ -17,9 +17,16 @@ pads: [left, right]
 # Unverified against a physical TSF-85; re-measure before trusting it there.
 full_scale_counts: 6160.0
 
-# Contact is declared at or above this signal. Deliberately just above the
-# noise floor: the point is to notice FIRST touch, not a firm grip.
+# Floor for the contact threshold. Deliberately just above the twin's noise
+# floor: the point is to notice FIRST touch, not a firm grip.
 contact_threshold: 0.02
+
+# The threshold used at runtime is max(contact_threshold, noise_margin x the
+# peak rest signal seen during the tare), so real pads whose noise sits above
+# the twin-tuned floor still get a threshold above their own noise. Measured
+# on a physical TSF-85: rest noise peaks near 0.035 of full scale, an external
+# hold reads about 0.8, so 2x the noise separates the two with room.
+noise_margin: 2.0
 
 # Matches the tactile SDK's findBaseline(), which averages 1000 samples.
 baseline_samples: 1000
