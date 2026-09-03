@@ -9,3 +9,5 @@ __pycache__/
 .qtcreator/
 CMakeUserPresets.json
 robotiq_tsf/build/
+.venv/
+.pytest_cache/
