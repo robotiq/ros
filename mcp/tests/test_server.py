@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import pytest
 import yaml
@@ -95,11 +96,12 @@ def test_the_listing_names_the_configured_gripper(mcp):
     assert (entry.name, entry.backend) == ("left", "mock")
 
 
-def test_a_ros_wiring_entry_is_refused_by_this_build(tmp_path):
+def test_a_ros_wiring_entry_names_the_missing_ros_install(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "rclpy", None)
     wiring = tmp_path / "grippers.yaml"
     wiring.write_text(
         yaml.safe_dump([{"name": "left", "model": "robotiq_2f_85", "backend": "ros"}])
     )
 
-    with pytest.raises(NotImplementedError, match="ros"):
+    with pytest.raises(RuntimeError, match="rclpy"):
         build_service(wiring)

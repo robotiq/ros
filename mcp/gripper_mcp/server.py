@@ -69,10 +69,14 @@ def build_backend(config: GripperConfig, spec: GripperModelSpec) -> GripperBacke
         return MockGripperBackend(
             object_width_mm=config.object_width_mm, geometry=spec.geometry
         )
-    raise NotImplementedError(
-        f"Backend '{config.backend}' for gripper '{config.name}' is not available "
-        "in this build; only 'mock' is."
-    )
+    try:
+        from gripper_mcp.ros_backend import RosGripperBackend
+    except ImportError as error:
+        raise RuntimeError(
+            f"Gripper '{config.name}' uses the ros backend, which needs a sourced "
+            f"ROS 2 install with rclpy and control_msgs: {error}"
+        ) from error
+    return RosGripperBackend(config.name, config.namespace, spec.command_joint)
 
 
 def build_service(wiring: Path, spec_dir: Path = SPEC_DIR) -> GripperService:
