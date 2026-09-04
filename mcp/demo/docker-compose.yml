@@ -1,5 +1,5 @@
 # The whole gripper stack with no hardware: the ros2_control driver on fake
-# hardware with RViz in one container, the MCP server in another, both on the
+# hardware, RViz showing it, and the MCP server, one container each, all on the
 # host's network so they share one DDS graph. Point an MCP client (Claude Code,
 # for one) at http://127.0.0.1:8301/mcp and watch the 2F-85 move in RViz.
 #
@@ -7,14 +7,30 @@
 #   docker build -t robotiq_gripper_mcp:jazzy mcp                  # once
 #   ./mcp/demo/demo.sh            # xhost + compose up; demo.sh down tears down
 #
-# RViz needs a base image built with the default WITH_GUI=true
-# (LAUNCH_RVIZ=false for a headless base).
+# RViz needs a base image built with the default WITH_GUI=true; skip it on a
+# headless base with `docker compose ... up -d gripper-driver gripper-mcp`.
+# Closing the RViz window ends its container; the next `up` brings it back.
 # ROS_DOMAIN_ID defaults to 42 and the port to 8301 so the demo never joins a
 # real cell's graph or shadows a server already on 8300.
 services:
   gripper-driver:
     image: ${ROBOTIQ_ROS2_IMAGE:-robotiq_ros2:jazzy}
     container_name: robotiq_demo_driver
+    network_mode: host
+    ipc: host
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+    command:
+      - -c
+      - >
+        source /opt/ros/$${ROS_DISTRO}/setup.bash
+        && source /ws/install/setup.bash
+        && exec ros2 launch robotiq_description robotiq_control.launch.py
+        use_fake_hardware:=true gripper_model:=2f_85
+
+  rviz:
+    image: ${ROBOTIQ_ROS2_IMAGE:-robotiq_ros2:jazzy}
+    container_name: robotiq_demo_rviz
     network_mode: host
     ipc: host
     environment:
@@ -29,9 +45,10 @@ services:
       - >
         source /opt/ros/$${ROS_DISTRO}/setup.bash
         && source /ws/install/setup.bash
-        && exec ros2 launch robotiq_description robotiq_control.launch.py
-        use_fake_hardware:=true gripper_model:=2f_85
-        launch_rviz:=${LAUNCH_RVIZ:-true}
+        && exec rviz2 -d
+        /ws/install/robotiq_description/share/robotiq_description/rviz/view_urdf.rviz
+    depends_on:
+      - gripper-driver
 
   gripper-mcp:
     image: ${GRIPPER_MCP_IMAGE:-robotiq_gripper_mcp:jazzy}

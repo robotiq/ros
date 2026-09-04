@@ -158,8 +158,9 @@ driver and a `bench` mock holding a 40 mm cube with tactile pads.
 ./mcp/demo/demo.sh          # xhost + compose up; `demo.sh down` tears it down
 ```
 
-`LAUNCH_RVIZ=false` runs it headless. The stack sits on `ROS_DOMAIN_ID=42` and
-port 8301 so it never joins a real cell's graph.
+Closing the RViz window ends its container; the next `demo.sh` brings it back.
+On a headless base image start only `gripper-driver gripper-mcp` with compose.
+The stack sits on `ROS_DOMAIN_ID=42` and port 8301 so it never joins a real cell's graph.
 
 The server is now a tool server for any MCP client. With
 [Claude Code](https://code.claude.com/docs/en/mcp), register it once and start a
