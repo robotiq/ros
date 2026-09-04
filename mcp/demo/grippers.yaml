@@ -1,0 +1,15 @@
+# Wiring for the demo stack: one gripper on the real driver (fake hardware, so
+# it never stalls), one pure mock holding a virtual object with tactile pads.
+
+- name: driver
+  model: robotiq_2f_85
+  backend: ros
+  namespace: ""
+  description: 2F-85 through robotiq_gripper_controller on ros2_control's fake hardware
+
+- name: bench
+  model: robotiq_2f_85
+  backend: mock
+  tactile: mock
+  object_width_mm: 40.0
+  description: Mock 2F-85 with TSF-85 pads, a 40 mm virtual cube between the fingers
