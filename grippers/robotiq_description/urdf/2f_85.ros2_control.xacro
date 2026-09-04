@@ -7,9 +7,9 @@
         name
         prefix
         sim_gazebo:=false
-        sim_isaac:=false
-        isaac_joint_commands:=/isaac_joint_commands
-        isaac_joint_states:=/isaac_joint_states
+        sim_topic_based:=false
+        joint_commands_topic:=/sim/joint_commands
+        joint_states_topic:=/sim/joint_states
         use_fake_hardware:=false
         mock_sensor_commands:=false
         com_port:=/dev/ttyUSB0
@@ -24,9 +24,9 @@
             <!-- Plugins -->
             <xacro:robotiq_2f_hardware
                 sim_gazebo="${sim_gazebo}"
-                sim_isaac="${sim_isaac}"
-                isaac_joint_commands="${isaac_joint_commands}"
-                isaac_joint_states="${isaac_joint_states}"
+                sim_topic_based="${sim_topic_based}"
+                joint_commands_topic="${joint_commands_topic}"
+                joint_states_topic="${joint_states_topic}"
                 use_fake_hardware="${use_fake_hardware}"
                 mock_sensor_commands="${mock_sensor_commands}"
                 com_port="${com_port}"
@@ -57,13 +57,13 @@
                     <param name="initial_value">${gripper_closed_position}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
-                <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_isaac}">
+                <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_topic_based}">
                     <state_interface name="motor_current"/>
                     <state_interface name="object_status"/>
                 </xacro:unless>
             </joint>
             <!-- When simulating we need to include the rest of the gripper joints -->
-            <xacro:if value="${sim_isaac or sim_gazebo}">
+            <xacro:if value="${sim_topic_based or sim_gazebo}">
                 <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_right_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
                 <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_left_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
                 <xacro:robotiq_2f_sim_mimic_joint name="${prefix}robotiq_85_right_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
@@ -72,7 +72,7 @@
             </xacro:if>
 
             <!-- Only add this with fake hardware mode -->
-            <xacro:unless value="${sim_gazebo or sim_isaac}">
+            <xacro:unless value="${sim_gazebo or sim_topic_based}">
                 <gpio name="reactivate_gripper">
                     <command_interface name="reactivate_gripper_cmd" />
                     <command_interface name="reactivate_gripper_response" />

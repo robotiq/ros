@@ -6,9 +6,9 @@
         parent
         *origin
         sim_gazebo:=false
-        sim_isaac:=false
-        isaac_joint_commands:=/isaac_joint_commands
-        isaac_joint_states:=/isaac_joint_states
+        sim_topic_based:=false
+        joint_commands_topic:=/sim/joint_commands
+        joint_states_topic:=/sim/joint_states
         use_fake_hardware:=false
         mock_sensor_commands:=false
         include_ros2_control:=true
@@ -28,9 +28,9 @@
             <xacro:robotiq_gripper_ros2_control
                 name="${name}" prefix="${prefix}"
                 sim_gazebo="${sim_gazebo}"
-                sim_isaac="${sim_isaac}"
-                isaac_joint_commands="${isaac_joint_commands}"
-                isaac_joint_states="${isaac_joint_states}"
+                sim_topic_based="${sim_topic_based}"
+                joint_commands_topic="${joint_commands_topic}"
+                joint_states_topic="${joint_states_topic}"
                 use_fake_hardware="${use_fake_hardware}"
                 mock_sensor_commands="${mock_sensor_commands}"
                 com_port="${com_port}"

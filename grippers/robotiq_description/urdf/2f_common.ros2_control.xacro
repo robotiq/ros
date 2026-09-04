@@ -6,9 +6,9 @@
          2f_140.ros2_control.xacro. -->
     <xacro:macro name="robotiq_2f_hardware" params="
         sim_gazebo
-        sim_isaac
-        isaac_joint_commands
-        isaac_joint_states
+        sim_topic_based
+        joint_commands_topic
+        joint_states_topic
         use_fake_hardware
         mock_sensor_commands
         com_port
@@ -24,10 +24,10 @@
             <!-- Set use_dummy to true to connect to a dummy driver for testing purposes. -->
             <param name="use_dummy">false</param>
 
-            <xacro:if value="${sim_isaac}">
+            <xacro:if value="${sim_topic_based}">
                 <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
-                <param name="joint_commands_topic">${isaac_joint_commands}</param>
-                <param name="joint_states_topic">${isaac_joint_states}</param>
+                <param name="joint_commands_topic">${joint_commands_topic}</param>
+                <param name="joint_states_topic">${joint_states_topic}</param>
                 <param name="trigger_joint_command_threshold">0.02</param>
             </xacro:if>
             <xacro:if value="${sim_gazebo}">
@@ -38,7 +38,7 @@
                 <param name="mock_sensor_commands">${mock_sensor_commands}</param>
                 <param name="state_following_offset">0.0</param>
             </xacro:if>
-            <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_isaac}">
+            <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_topic_based}">
                 <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
                 <param name="gripper_closed_position">${gripper_closed_position}</param>
                 <param name="COM_port">${com_port}</param>
