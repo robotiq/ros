@@ -1,0 +1,31 @@
+# The gripper MCP server (mcp/) as a container, on the host's network so it
+# joins the same DDS graph as the gripper driver. The base image comes first:
+#
+#   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
+#   cp mcp/grippers.yaml.example mcp/grippers.yaml   # edit for the cell
+#   docker compose -f docker/docker-compose.yml up --build
+#
+# Then point an MCP client at http://127.0.0.1:8300/mcp. Environment knobs,
+# all optional: ROBOTIQ_ROS2_IMAGE (base image), GRIPPERS_YAML (wiring file),
+# ROS_DOMAIN_ID, RMW_IMPLEMENTATION, GRIPPER_MCP_PORT.
+services:
+  gripper-mcp:
+    build:
+      context: ../mcp
+      args:
+        BASE_IMAGE: ${ROBOTIQ_ROS2_IMAGE:-robotiq_ros2:jazzy}
+    image: robotiq_gripper_mcp:jazzy
+    container_name: robotiq_gripper_mcp
+    network_mode: host
+    ipc: host
+    restart: unless-stopped
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    volumes:
+      - ${GRIPPERS_YAML:-../mcp/grippers.yaml}:/config/grippers.yaml:ro
+    command:
+      - --config
+      - /config/grippers.yaml
+      - --port
+      - ${GRIPPER_MCP_PORT:-8300}

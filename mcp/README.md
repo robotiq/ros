@@ -112,6 +112,76 @@ It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
 sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
 `grippers/` or `robotiq_tsf/` depends on it.
 
+## Docker
+
+`mcp/Dockerfile` layers the server on this repo's ROS 2 image
+([`docker/Dockerfile`](../docker/Dockerfile)), which already carries `rclpy`,
+`control_msgs` and `robotiq_tsf`'s messages on the distro's Python. uv installs
+`mcp/` into a venv that sees those system packages, so one interpreter imports
+both `rclpy` and `fastmcp`. Jazzy and Lyrical only: Humble's Python 3.10 cannot
+run fastmcp. Build the base image first, with the repo root as its context:
+
+```bash
+docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
+docker build -t robotiq_gripper_mcp:jazzy mcp
+```
+
+`BASE_IMAGE` (default `robotiq_ros2:jazzy`) selects any image built from
+`docker/Dockerfile`: a headless build, or something layered on top of it.
+`grippers.yaml` is host-specific and is mounted at run time, never baked in.
+The container needs the host's network to share the driver's DDS graph:
+
+```bash
+docker run --rm --network host --ipc host -e ROS_DOMAIN_ID=0 \
+  -v "$PWD/mcp/grippers.yaml:/config/grippers.yaml:ro" robotiq_gripper_mcp:jazzy
+```
+
+[`docker/docker-compose.yml`](../docker/docker-compose.yml) does the same as a
+service, with `ROBOTIQ_ROS2_IMAGE`, `GRIPPERS_YAML`, `ROS_DOMAIN_ID`,
+`RMW_IMPLEMENTATION` and `GRIPPER_MCP_PORT` as optional environment knobs:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
+
+Both `rmw_fastrtps_cpp` (the default) and `rmw_cyclonedds_cpp` are installed,
+so the image joins either kind of graph by setting `RMW_IMPLEMENTATION`.
+
+### Demo, no hardware
+
+[`demo/docker-compose.yml`](demo/docker-compose.yml) starts the driver on
+ros2_control's fake hardware with RViz showing the 2F-85, next to the server
+with [`demo/grippers.yaml`](demo/grippers.yaml): a `driver` gripper on that
+driver and a `bench` mock holding a 40 mm cube with tactile pads.
+
+```bash
+./mcp/demo/demo.sh          # xhost + compose up; `demo.sh down` tears it down
+```
+
+Closing the RViz window ends its container; the next `demo.sh` brings it back.
+On a headless base image start only `gripper-driver gripper-mcp` with compose.
+The stack sits on `ROS_DOMAIN_ID=42` and port 8301 so it never joins a real cell's graph.
+
+The server is now a tool server for any MCP client. With
+[Claude Code](https://code.claude.com/docs/en/mcp), register it once and start a
+new session:
+
+```bash
+claude mcp add --transport http robotiq-gripper http://127.0.0.1:8301/mcp
+```
+
+Then ask in plain language, RViz following along:
+
+> Open the driver gripper to 30 mm, then grasp with it and tell me what
+> happened. Now grasp the object in the bench gripper and check whether it
+> is really held.
+
+The grasp on the driver closes on nothing, because fake hardware moves
+instantly and never meets resistance; the one on the bench stops on the cube
+and the pads confirm the hold. The server's own instructions tell the agent how
+to read those outcomes, so a stalled close is reported as a grasp, not a
+failure.
+
 ## Development
 
 ```bash
