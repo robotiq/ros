@@ -23,6 +23,7 @@ services:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
       DISPLAY: ${DISPLAY:-:0}
       QT_X11_NO_MITSHM: "1"
+      LIBGL_ALWAYS_SOFTWARE: "1"
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     command:
