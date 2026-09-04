@@ -4,10 +4,13 @@
 #
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .     # once
 #   docker build -t robotiq_gripper_mcp:jazzy mcp                  # once
+#   xhost +local:                                                 # let RViz draw
 #   docker compose -f mcp/demo/docker-compose.yml up -d
 #   cd mcp && uv run demo/demo.py
 #   docker compose -f mcp/demo/docker-compose.yml down
 #
+# RViz shows the 2F-85 moving as the tools run; it needs a base image built
+# with the default WITH_GUI=true (LAUNCH_RVIZ=false for a headless base).
 # ROS_DOMAIN_ID defaults to 42 and the port to 8301 so the demo never joins a
 # real cell's graph or shadows a server already on 8300.
 services:
@@ -18,6 +21,10 @@ services:
     ipc: host
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+      DISPLAY: ${DISPLAY:-:0}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
     command:
       - -c
       - >
@@ -25,6 +32,7 @@ services:
         && source /ws/install/setup.bash
         && exec ros2 launch robotiq_description robotiq_control.launch.py
         use_fake_hardware:=true gripper_model:=2f_85
+        launch_rviz:=${LAUNCH_RVIZ:-true}
 
   gripper-mcp:
     image: ${GRIPPER_MCP_IMAGE:-robotiq_gripper_mcp:jazzy}
