@@ -1,15 +1,23 @@
-# Controller configuration for the simulated hardware plugin the description
-# can select: `sim_isaac:=true` (topic_based_ros2_control/TopicBasedSystem).
-# Selected by launch/robotiq_control.launch.py whenever that argument is set; see
-# config/robotiq_controllers.yaml for the hardware and mock config it replaces,
-# and robotiq_controllers.sim.humble.yaml for the Humble variant.
+# Controller configuration for the topic_based_ros2_control/TopicBasedSystem
+# hardware plugin the description selects with `sim_topic_based:=true`: any
+# simulator that exchanges JointState messages on two topics. Selected by
+# launch/robotiq_control.launch.py whenever that argument is set; see
+# config/robotiq_controllers.yaml for the config it replaces, and
+# robotiq_controllers.topic_based.humble.yaml for the Humble variant.
 #
-# It differs from robotiq_controllers.yaml only where the simulated plugin
+# This is NOT the config for `use_fake_hardware:=true`. The ros2_control mock
+# (GenericSystem) declares the driver's interfaces and teleports: the position
+# command is copied into the state each cycle, so a goal succeeds on the next
+# update and stall detection never runs. It keeps robotiq_controllers.yaml.
+# Under sim_topic_based the simulator integrates the joint with its own drives, the
+# finger moves over time, and the stall parameters below read a real velocity.
+#
+# It differs from robotiq_controllers.yaml only where the topic_based plugin
 # exports something different from the driver, so the controller can activate:
 #
 # - No `robotiq_activation_controller`. The `reactivate_gripper` GPIO it claims is
-#   declared for the driver and the mock only (2f_85.ros2_control.xacro); under a
-#   simulated plugin there is nothing to reactivate.
+#   declared for the driver and the mock only (2f_85.ros2_control.xacro); under
+#   the topic_based plugin there is nothing to reactivate.
 # - No `max_effort_interface` / `max_velocity_interface`. The plugin exposes the
 #   standard position/velocity/effort interfaces only, never the driver's
 #   `set_gripper_max_*`, and a claimed interface that does not exist stops the
@@ -18,9 +26,7 @@
 #   joint velocities leaves the velocity state at 0, which reads as "stalled"
 #   from the first cycle, so allow_stalling would report every out-of-tolerance
 #   goal as succeeded. The client decides whether an aborted, stalled goal means
-#   an object was gripped. The stall window itself is wider than the driver's:
-#   a goal needs longer than 0.05 s to show up as motion over a topic, and
-#   simulated joint velocities carry more noise than the driver's.
+#   an object was gripped. See robotiq/ros#63 for the stall window itself.
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz

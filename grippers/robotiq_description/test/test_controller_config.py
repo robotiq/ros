@@ -54,13 +54,16 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 # both models; robotiq_control.launch.py resolves it via ParameterFile.
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 
-# The simulated plugin (sim_isaac) exports neither the set_gripper_max_* command
+# The topic_based plugin exports neither the set_gripper_max_* command
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
 # distro, selected by the same launch file.
-JAZZY_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.yaml"
-HUMBLE_SIM_CONFIG = CONFIG_DIR / "robotiq_controllers.sim.humble.yaml"
-SIM_CONFIGS = (JAZZY_SIM_CONFIG, HUMBLE_SIM_CONFIG)
-SIM_OF = {JAZZY_CONFIG: JAZZY_SIM_CONFIG, HUMBLE_CONFIG: HUMBLE_SIM_CONFIG}
+JAZZY_TOPIC_BASED_CONFIG = CONFIG_DIR / "robotiq_controllers.topic_based.yaml"
+HUMBLE_TOPIC_BASED_CONFIG = CONFIG_DIR / "robotiq_controllers.topic_based.humble.yaml"
+TOPIC_BASED_CONFIGS = (JAZZY_TOPIC_BASED_CONFIG, HUMBLE_TOPIC_BASED_CONFIG)
+TOPIC_BASED_OF = {
+    JAZZY_CONFIG: JAZZY_TOPIC_BASED_CONFIG,
+    HUMBLE_CONFIG: HUMBLE_TOPIC_BASED_CONFIG,
+}
 
 # Names exported by robotiq_driver's hardware interface for the joint it is
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
@@ -86,7 +89,10 @@ EXPECTED_CONTROLLER_TYPES = {
     HUMBLE_CONFIG: "position_controllers/GripperActionController",
 }
 EXPECTED_CONTROLLER_TYPES.update(
-    {SIM_OF[config]: plugin for config, plugin in EXPECTED_CONTROLLER_TYPES.items()}
+    {
+        TOPIC_BASED_OF[config]: plugin
+        for config, plugin in EXPECTED_CONTROLLER_TYPES.items()
+    }
 )
 
 
@@ -135,7 +141,7 @@ def test_humble_config_claims_no_unsupported_interfaces():
     assert "max_velocity_interface" not in params
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS + SIM_CONFIGS)
+@pytest.mark.parametrize("config", ALL_CONFIGS + TOPIC_BASED_CONFIGS)
 def test_joint_is_left_to_the_launch(config):
     # Hardcoding the 2F-85 joint here is why a 2F-140 launch used to fail to
     # activate robotiq_gripper_controller.
@@ -171,25 +177,27 @@ def test_launch_restricts_gripper_model_to_the_known_joints():
 
 
 @pytest.mark.parametrize(
-    "use_fake_hardware,sim_isaac",
+    "use_fake_hardware,sim_topic_based",
     [("false", "false"), ("true", "false"), ("false", "true")],
 )
-def test_launch_accepts_at_most_one_hardware_flag(use_fake_hardware, sim_isaac):
+def test_launch_accepts_at_most_one_hardware_flag(use_fake_hardware, sim_topic_based):
     launch_module = load_launch_module()
     context = LaunchContext()
     context.launch_configurations.update(
-        use_fake_hardware=use_fake_hardware, sim_isaac=sim_isaac
+        use_fake_hardware=use_fake_hardware, sim_topic_based=sim_topic_based
     )
     launch_module.reject_conflicting_hardware_flags(context)
 
 
-def test_launch_rejects_fake_hardware_together_with_sim_isaac():
+def test_launch_rejects_fake_hardware_together_with_sim_topic_based():
     # Both flags set makes the xacro emit two <plugin> elements while the launch
-    # picks the sim config; neither half can work, so fail before anything starts.
+    # picks the topic_based config; neither half can work, so fail before anything starts.
     launch_module = load_launch_module()
     context = LaunchContext()
-    context.launch_configurations.update(use_fake_hardware="true", sim_isaac="true")
-    with pytest.raises(RuntimeError, match="use_fake_hardware and sim_isaac"):
+    context.launch_configurations.update(
+        use_fake_hardware="true", sim_topic_based="true"
+    )
+    with pytest.raises(RuntimeError, match="use_fake_hardware and sim_topic_based"):
         launch_module.reject_conflicting_hardware_flags(context)
 
 
@@ -205,15 +213,15 @@ def test_launch_forwards_the_gripper_model_to_xacro():
         use_fake_hardware="true",
         com_port="/dev/null",
         baudrate="115200",
-        sim_isaac="false",
-        isaac_joint_commands="/isaac_joint_commands",
-        isaac_joint_states="/isaac_joint_states",
+        sim_topic_based="false",
+        joint_commands_topic="/sim/joint_commands",
+        joint_states_topic="/sim/joint_states",
     )
     rendered = "".join(s.perform(context) for s in command.command)
     assert "gripper_model:=2f_140" in rendered
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS + SIM_CONFIGS)
+@pytest.mark.parametrize("config", ALL_CONFIGS + TOPIC_BASED_CONFIGS)
 def test_controller_type_matches_distro(config):
     controllers = load(config)["controller_manager"]["ros__parameters"]
     assert (
@@ -237,9 +245,9 @@ def test_launch_selects_the_config_for_the_distro(distro, expected):
     assert selected == expected.name
     assert (CONFIG_DIR / selected).is_file()
 
-    simulated = launch_module.controllers_file_for_distro(distro, simulated=True)
-    assert simulated == SIM_OF[expected].name
-    assert (CONFIG_DIR / simulated).is_file()
+    topic_based = launch_module.controllers_file_for_distro(distro, topic_based=True)
+    assert topic_based == TOPIC_BASED_OF[expected].name
+    assert (CONFIG_DIR / topic_based).is_file()
 
 
 requires_launch = pytest.mark.skipif(
@@ -259,7 +267,7 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
     context = LaunchContext()
     context.launch_configurations.update(
         {
-            "sim_isaac": "false",
+            "sim_topic_based": "false",
             "gripper_joint": JOINT,
             **launch_arguments,
         }
@@ -284,9 +292,9 @@ def resolved(config, joint=JOINT):
 @pytest.mark.parametrize(
     "distro,hardware_config,sim_config",
     [
-        ("humble", HUMBLE_CONFIG, HUMBLE_SIM_CONFIG),
-        ("jazzy", JAZZY_CONFIG, JAZZY_SIM_CONFIG),
-        (None, JAZZY_CONFIG, JAZZY_SIM_CONFIG),
+        ("humble", HUMBLE_CONFIG, HUMBLE_TOPIC_BASED_CONFIG),
+        ("jazzy", JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
+        (None, JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
     ],
 )
 def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypatch):
@@ -299,25 +307,25 @@ def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypat
         "robotiq_activation_controller": resolved(hardware_config),
     }
 
-    simulated = spawned_controllers(distro, monkeypatch, sim_isaac="true")
-    assert simulated == {
+    topic_based = spawned_controllers(distro, monkeypatch, sim_topic_based="true")
+    assert topic_based == {
         "joint_state_broadcaster": resolved(sim_config),
         "robotiq_gripper_controller": resolved(sim_config),
     }
 
 
-@pytest.mark.parametrize("config", SIM_CONFIGS)
+@pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)
 def test_sim_configs_claim_no_driver_only_command_interfaces(config):
     # TopicBasedSystem exports the standard joint interfaces only; claiming
-    # set_gripper_max_* here is why the sim path never activated.
+    # set_gripper_max_* here is why the sim_topic_based path never activated.
     params = gripper_controller_params(config)
     assert "max_effort_interface" not in params
     assert "max_velocity_interface" not in params
 
 
-@pytest.mark.parametrize("config", SIM_CONFIGS)
+@pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)
 def test_sim_configs_spawn_no_activation_controller(config):
-    # No reactivate_gripper GPIO is declared under sim_isaac (see
+    # No reactivate_gripper GPIO is declared under sim_topic_based (see
     # 2f_85.ros2_control.xacro), so the controller would have nothing to claim.
     controllers = load(config)["controller_manager"]["ros__parameters"]
     assert set(controllers) == {
@@ -336,13 +344,13 @@ def test_sim_config_keeps_the_action_surface_of_its_distro(config):
     # Stall handling is the one deliberate difference: a simulator that publishes
     # no velocities would otherwise pass every failed grasp as a successful stall.
     hardware = gripper_controller_params(config)
-    sim = gripper_controller_params(SIM_OF[config])
+    sim = gripper_controller_params(TOPIC_BASED_OF[config])
     assert sim["joint"] == hardware["joint"]
     assert sim["goal_tolerance"] == hardware["goal_tolerance"]
     assert hardware["allow_stalling"] is True
     assert sim["allow_stalling"] is False
     assert (
-        load(SIM_OF[config])["controller_manager"]["ros__parameters"][
+        load(TOPIC_BASED_OF[config])["controller_manager"]["ros__parameters"][
             "robotiq_gripper_controller"
         ]
         == load(config)["controller_manager"]["ros__parameters"][
