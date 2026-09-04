@@ -155,12 +155,11 @@ with [`demo/grippers.yaml`](demo/grippers.yaml): a `driver` gripper on that
 driver and a `bench` mock holding a 40 mm cube with tactile pads.
 
 ```bash
-xhost +local:                                     # let the container's RViz draw
-docker compose -f mcp/demo/docker-compose.yml up -d
+./mcp/demo/demo.sh          # xhost + compose up; `demo.sh down` tears it down
 ```
 
 `LAUNCH_RVIZ=false` runs it headless. The stack sits on `ROS_DOMAIN_ID=42` and
-port 8301 so it never joins a real cell's graph. `down` tears it down.
+port 8301 so it never joins a real cell's graph.
 
 The server is now a tool server for any MCP client. With
 [Claude Code](https://code.claude.com/docs/en/mcp), register it once and start a
