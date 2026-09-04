@@ -5,7 +5,9 @@ description = "MCP server exposing Robotiq 2F grippers to LLM agents through the
 readme = "README.md"
 license = "BSD-3-Clause"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.0",
+]
 
 [dependency-groups]
 dev = [
