@@ -5,9 +5,7 @@
 #
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .     # once
 #   docker build -t robotiq_gripper_mcp:jazzy mcp                  # once
-#   xhost +local:                                                 # let RViz draw
-#   docker compose -f mcp/demo/docker-compose.yml up -d
-#   docker compose -f mcp/demo/docker-compose.yml down
+#   ./mcp/demo/demo.sh            # xhost + compose up; demo.sh down tears down
 #
 # RViz needs a base image built with the default WITH_GUI=true
 # (LAUNCH_RVIZ=false for a headless base).
