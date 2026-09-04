@@ -278,8 +278,18 @@ six joint names for the model you launch, each with your `prefix`, or nothing mo
 | `2f_85` | `robotiq_85_left_knuckle_joint` | `robotiq_85_right_knuckle_joint`, `robotiq_85_left_inner_knuckle_joint`, `robotiq_85_right_inner_knuckle_joint`, `robotiq_85_left_finger_tip_joint`, `robotiq_85_right_finger_tip_joint` |
 | `2f_140` | `finger_joint` | `right_outer_knuckle_joint`, `left_inner_knuckle_joint`, `right_inner_knuckle_joint`, `left_inner_finger_joint`, `right_inner_finger_joint` |
 
-The plugin is not a dependency of this package — build
-[topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) yourself.
+The plugin is not a dependency of this package. On Humble install
+`ros-humble-topic-based-ros2-control`; on Jazzy and Lyrical it has no binary release, so build
+[topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) in an
+overlay once:
+
+```bash
+git clone https://github.com/PickNikRobotics/topic_based_ros2_control <ws>/src/topic_based_ros2_control
+colcon build --cmake-args -DBUILD_TESTING=OFF
+```
+
+(`-DBUILD_TESTING=OFF` skips its `ros_testing` test dependency, which a runtime install does not
+have.)
 The `ros2_control` xacros also carry a `sim_gazebo` parameter (`gz_ros2_control/GazeboSimSystem`)
 for cells that embed the gripper macro in their own Gazebo description; this launch does not wire
 it, since Gazebo hosts its own `controller_manager`.
