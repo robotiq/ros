@@ -147,6 +147,18 @@ docker compose -f docker/docker-compose.yml up --build
 Both `rmw_fastrtps_cpp` (the default) and `rmw_cyclonedds_cpp` are installed,
 so the image joins either kind of graph by setting `RMW_IMPLEMENTATION`.
 
+### Demo, no hardware
+
+[`demo/docker-compose.yml`](demo/docker-compose.yml) starts the driver on
+ros2_control's fake hardware next to the server, and `demo/demo.py` walks the
+tools on both a real-driver gripper and the tactile mock:
+
+```bash
+docker compose -f mcp/demo/docker-compose.yml up -d
+cd mcp && uv run demo/demo.py
+docker compose -f mcp/demo/docker-compose.yml down
+```
+
 ## Development
 
 ```bash
