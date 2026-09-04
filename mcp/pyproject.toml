@@ -6,9 +6,13 @@ readme = "README.md"
 license = "BSD-3-Clause"
 requires-python = ">=3.12"
 dependencies = [
+    "fastmcp>=3",
     "pydantic>=2.0",
     "pyyaml>=6.0",
 ]
+
+[project.scripts]
+gripper-mcp = "gripper_mcp.server:main"
 
 [dependency-groups]
 dev = [
