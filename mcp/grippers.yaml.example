@@ -5,6 +5,8 @@
 # backend: ros   talks to robotiq_gripper_controller under `namespace`
 #          mock  pure-Python stand-in; object_width_mm puts a virtual object
 #                between the fingers so a close stalls on it
+# tactile: mock  optional; TSF-85 pads whose pressure follows the same virtual
+#                object. Only for models whose datasheet has a tactile block.
 
 - name: left
   model: robotiq_2f_85
@@ -21,5 +23,6 @@
 - name: bench
   model: robotiq_2f_85
   backend: mock
+  tactile: mock
   object_width_mm: 40.0
-  description: Mock 2F-85 holding a 40 mm virtual cube
+  description: Mock 2F-85 with tactile pads, holding a 40 mm virtual cube
