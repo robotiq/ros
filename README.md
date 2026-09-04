@@ -432,3 +432,7 @@ tag and container name, so switching does not reuse the other's build:
 ROS_DISTRO=humble  ./docker/run.sh gripper   # robotiq_ros2:humble  / robotiq_ros2_humble
 ROS_DISTRO=lyrical ./docker/run.sh both      # robotiq_ros2:lyrical / robotiq_ros2_lyrical
 ```
+
+The gripper MCP server ships as a second image layered on this one
+(`mcp/Dockerfile`, `docker/docker-compose.yml`); see the Docker section of
+[`mcp/README.md`](mcp/README.md).
