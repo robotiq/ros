@@ -150,24 +150,21 @@ so the image joins either kind of graph by setting `RMW_IMPLEMENTATION`.
 ### Demo, no hardware
 
 [`demo/docker-compose.yml`](demo/docker-compose.yml) starts the driver on
-ros2_control's fake hardware next to the server, with RViz showing the 2F-85
-move, and `demo/demo.py` walks the tools on both a real-driver gripper and the
-tactile mock:
+ros2_control's fake hardware with RViz showing the 2F-85, next to the server
+with [`demo/grippers.yaml`](demo/grippers.yaml): a `driver` gripper on that
+driver and a `bench` mock holding a 40 mm cube with tactile pads.
 
 ```bash
 xhost +local:                                     # let the container's RViz draw
 docker compose -f mcp/demo/docker-compose.yml up -d
-cd mcp && uv run demo/demo.py
-docker compose -f mcp/demo/docker-compose.yml down
 ```
 
 `LAUNCH_RVIZ=false` runs it headless. The stack sits on `ROS_DOMAIN_ID=42` and
-port 8301 so it never joins a real cell's graph.
+port 8301 so it never joins a real cell's graph. `down` tears it down.
 
-### From Claude Code
-
-The same stack works as a tool server for any MCP client. With
-[Claude Code](https://code.claude.com/docs/en/mcp), register it once:
+The server is now a tool server for any MCP client. With
+[Claude Code](https://code.claude.com/docs/en/mcp), register it once and start a
+new session:
 
 ```bash
 claude mcp add --transport http robotiq-gripper http://127.0.0.1:8301/mcp
@@ -179,8 +176,11 @@ Then ask in plain language, RViz following along:
 > happened. Now grasp the object in the bench gripper and check whether it
 > is really held.
 
-The server's own instructions tell the agent how to read outcomes, so a stalled
-close is reported as a grasp, not a failure.
+The grasp on the driver closes on nothing, because fake hardware moves
+instantly and never meets resistance; the one on the bench stops on the cube
+and the pads confirm the hold. The server's own instructions tell the agent how
+to read those outcomes, so a stalled close is reported as a grasp, not a
+failure.
 
 ## Development
 

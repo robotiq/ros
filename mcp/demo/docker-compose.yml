@@ -1,16 +1,16 @@
 # The whole gripper stack with no hardware: the ros2_control driver on fake
-# hardware in one container, the MCP server in another, both on the host's
-# network so they share one DDS graph. Then demo.py walks the tool surface.
+# hardware with RViz in one container, the MCP server in another, both on the
+# host's network so they share one DDS graph. Point an MCP client (Claude Code,
+# for one) at http://127.0.0.1:8301/mcp and watch the 2F-85 move in RViz.
 #
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .     # once
 #   docker build -t robotiq_gripper_mcp:jazzy mcp                  # once
 #   xhost +local:                                                 # let RViz draw
 #   docker compose -f mcp/demo/docker-compose.yml up -d
-#   cd mcp && uv run demo/demo.py
 #   docker compose -f mcp/demo/docker-compose.yml down
 #
-# RViz shows the 2F-85 moving as the tools run; it needs a base image built
-# with the default WITH_GUI=true (LAUNCH_RVIZ=false for a headless base).
+# RViz needs a base image built with the default WITH_GUI=true
+# (LAUNCH_RVIZ=false for a headless base).
 # ROS_DOMAIN_ID defaults to 42 and the port to 8301 so the demo never joins a
 # real cell's graph or shadows a server already on 8300.
 services:
