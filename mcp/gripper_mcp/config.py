@@ -14,6 +14,7 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel
 
+from gripper_mcp.tactile_backend import TactileLayout
 from gripper_mcp.units import GripperGeometry
 
 SPEC_DIR = Path(__file__).resolve().parent.parent / "robot_specifications"
@@ -26,6 +27,7 @@ class GripperConfig(BaseModel):
     namespace: str = ""
     description: str = ""
     object_width_mm: float | None = None
+    tactile: Literal["mock"] | None = None
 
 
 class Defaults(BaseModel):
@@ -33,11 +35,25 @@ class Defaults(BaseModel):
     motion_timeout_s: float
 
 
+class TactileSpec(BaseModel):
+    rows: int
+    cols: int
+    pads: list[str]
+    full_scale_counts: float
+    contact_threshold: float
+    baseline_samples: int
+
+    @property
+    def layout(self) -> TactileLayout:
+        return TactileLayout(rows=self.rows, cols=self.cols, pad_names=tuple(self.pads))
+
+
 class GripperModelSpec(BaseModel):
     model: str
     command_joint: str
     geometry: GripperGeometry
     defaults: Defaults
+    tactile: TactileSpec | None = None
 
 
 def load_model_spec(path: Path) -> GripperModelSpec:

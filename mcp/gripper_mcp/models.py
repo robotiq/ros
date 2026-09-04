@@ -10,6 +10,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Backend = Literal["ros", "mock"]
+TactileSource = Literal["mock"]
+
+GraspVerdict = Literal["held", "no_contact", "closed_on_nothing"]
 
 Outcome = Literal[
     "reached",
@@ -26,6 +29,9 @@ class GripperInfo(BaseModel):
     name: str
     model: str
     backend: Backend
+    tactile: TactileSource | None = Field(
+        default=None, description="Tactile source when the gripper has pads"
+    )
     description: str
 
 
@@ -66,3 +72,37 @@ class GripperHealth(BaseModel):
     )
     detail: str
     backend: Backend
+
+
+class TactileTareResult(BaseModel):
+    robot_name: str
+    samples: int = Field(description="Readings averaged into the new baseline")
+    rest_counts_mean: float = Field(description="Mean raw count across every taxel")
+    tactile_backend: TactileSource
+    measured_at: str = Field(description="ISO-8601 UTC")
+
+
+class TactileReadingResult(BaseModel):
+    robot_name: str
+    contact: bool = Field(description="contact_signal is at or above threshold")
+    contact_signal: float = Field(
+        description="Baseline-subtracted pressure over both pads: 0.0 rest, 1.0 full scale"
+    )
+    threshold: float = Field(description="Signal at or above which contact is declared")
+    pad_signals: dict[str, float] = Field(description="Same scale, per pad")
+    peak_taxel_counts: float = Field(
+        description="Largest single-taxel rise, raw counts"
+    )
+    tactile_backend: TactileSource
+    measured_at: str = Field(description="ISO-8601 UTC")
+
+
+class GraspVerification(BaseModel):
+    robot_name: str
+    verdict: GraspVerdict
+    object_held: bool = Field(description="True only for verdict held")
+    opening_mm: float
+    contact_signal: float
+    threshold: float
+    detail: str
+    tactile_backend: TactileSource

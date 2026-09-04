@@ -16,6 +16,9 @@ hardware and against a simulator launched with `sim_isaac:=true`.
 | `gripper_set_opening` | Move to a specific opening in mm |
 | `gripper_grasp` | Close onto an object; stopping before the fingers meet is a success |
 | `gripper_get_health` | Reachable, controller active |
+| `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
+| `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
+| `gripper_verify_grasp` | Confirm a hold from touch plus opening |
 
 Every tool takes an explicit `robot_name`; nothing fans out to every gripper.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
@@ -30,6 +33,24 @@ on a 2F-85, `140.0` on a 2F-140) fully open. Every motion result carries an
 | `stalled_unexpectedly` | A plain move stopped early against resistance |
 | `incomplete` | Timed out or never finished |
 | `refused` | The backend rejected the goal |
+
+## Tactile
+
+A gripper fitted with TSF-85 fingers gets a `tactile` source in `grippers.yaml`
+next to its gripper backend; the three tactile tools fail for any other
+gripper. Readings are raw taxel counts, made meaningful by subtracting a
+baseline averaged over many samples with the fingers open (the first read takes
+it automatically if the gripper is open; `gripper_tare_tactile` retakes it).
+`gripper_verify_grasp` gives one of:
+
+| Verdict | Meaning |
+|---|---|
+| `held` | Pads register contact and the fingers stopped before meeting |
+| `closed_on_nothing` | Fingers fully closed |
+| `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
+
+Only the `mock` tactile source exists so far; the ROS source on
+`robotiq_tsf`'s `TactileSensor/StaticData` topic is next.
 
 ## Quick start (no hardware)
 
@@ -64,8 +85,9 @@ Two layers, deliberately split:
 - `robot_specifications/<model>.yaml`: one datasheet per Robotiq model, the same
   on every host. The command joint's name and range come straight from
   `robotiq_description`'s URDF. Supporting another model is adding a file.
-- `grippers.yaml`: the cell's wiring, which grippers exist, their model, backend
-  and ROS namespace. Host-specific, so only `grippers.yaml.example` ships.
+- `grippers.yaml`: the cell's wiring, which grippers exist, their model, backend,
+  ROS namespace and optional tactile source. Host-specific, so only
+  `grippers.yaml.example` ships.
 
 ## Not a ROS package
 

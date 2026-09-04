@@ -5,7 +5,7 @@ import pytest
 import yaml
 from fastmcp import Client
 
-from gripper_mcp.server import build_mcp, build_service
+from gripper_mcp.server import build_mcp, build_services
 
 EXPECTED_TOOLS = {
     "gripper_list_grippers",
@@ -15,8 +15,12 @@ EXPECTED_TOOLS = {
     "gripper_set_opening",
     "gripper_grasp",
     "gripper_get_health",
+    "gripper_read_tactile",
+    "gripper_tare_tactile",
+    "gripper_verify_grasp",
 }
 CLOSING_TOOLS = {"gripper_close", "gripper_set_opening", "gripper_grasp"}
+TACTILE_READS = {"gripper_read_tactile", "gripper_verify_grasp"}
 CUBE_WIDTH_MM = 40.0
 
 
@@ -30,12 +34,13 @@ def mcp(tmp_path_factory):
                     "name": "left",
                     "model": "robotiq_2f_85",
                     "backend": "mock",
+                    "tactile": "mock",
                     "object_width_mm": CUBE_WIDTH_MM,
                 }
             ]
         )
     )
-    return build_mcp(build_service(wiring))
+    return build_mcp(*build_services(wiring))
 
 
 @pytest.fixture(scope="module")
@@ -79,6 +84,33 @@ def test_opening_is_not_destructive_and_reads_are_read_only(tools):
     assert tools["gripper_open"].annotations.destructive_hint is False
     assert tools["gripper_get_state"].annotations.read_only_hint is True
     assert tools["gripper_get_health"].annotations.read_only_hint is True
+    for name in TACTILE_READS:
+        assert tools[name].annotations.read_only_hint is True, name
+    assert tools["gripper_tare_tactile"].annotations.read_only_hint is False
+    assert tools["gripper_tare_tactile"].annotations.destructive_hint is False
+
+
+def test_a_grasp_then_verify_through_the_wire_confirms_the_hold(mcp):
+    call(mcp, "gripper_open", robot_name="left")
+    call(mcp, "gripper_tare_tactile", robot_name="left")
+
+    call(mcp, "gripper_grasp", robot_name="left")
+    verification = call(mcp, "gripper_verify_grasp", robot_name="left")
+
+    assert verification.verdict == "held"
+    assert verification.tactile_backend == "mock"
+
+
+def test_tactile_on_a_model_without_pads_fails_at_startup(tmp_path):
+    wiring = tmp_path / "grippers.yaml"
+    wiring.write_text(
+        yaml.safe_dump(
+            [{"name": "right", "model": "robotiq_2f_140", "tactile": "mock"}]
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="tactile block"):
+        build_services(wiring)
 
 
 def test_a_grasp_through_the_wire_stops_on_the_virtual_cube(mcp):
@@ -104,4 +136,4 @@ def test_a_ros_wiring_entry_names_the_missing_ros_install(tmp_path, monkeypatch)
     )
 
     with pytest.raises(RuntimeError, match="rclpy"):
-        build_service(wiring)
+        build_services(wiring)

@@ -3,8 +3,10 @@
 Pressure is derived from how far the fingers have closed past a virtual object,
 the same device the mock gripper uses to decide when to stall. Nothing here
 models the sensor's physics; it models its behaviour well enough to drive and
-test a contact loop: no signal until contact, a rise that grows with
-penetration, a centre that reads harder than the edges, and saturation.
+test a contact loop: no signal until contact, a light touch the moment the
+fingers reach the object (the pads are soft, and the mock gripper stalls exactly
+there), a rise that grows with penetration, a centre that reads harder than the
+edges, and saturation.
 
 Its `object_width_mm` is configured independently of the mock gripper's. That
 is the point: a gripper that stalls while the pads stay quiet is the "stopped on
@@ -18,6 +20,7 @@ from gripper_mcp.tactile_backend import TactileLayout, TactilePad, TactileReadin
 TSF_85_LAYOUT = TactileLayout(rows=7, cols=4, pad_names=("left", "right"))
 
 REST_COUNTS = 9
+TOUCH_COUNTS = 20
 TAXEL_MAX_COUNTS = 110
 STIFFNESS_COUNTS_PER_MM = 6.9
 
@@ -50,13 +53,16 @@ class MockTactileBackend:
             layout=self._layout,
         )
 
-    def _penetration_mm(self) -> float:
+    def _penetration_mm(self) -> float | None:
         if self._object_width_mm is None:
-            return 0.0
-        return max(0.0, self._object_width_mm - self._read_opening_mm())
+            return None
+        penetration = self._object_width_mm - self._read_opening_mm()
+        return None if penetration < 0.0 else penetration
 
-    def _taxels_for(self, penetration_mm: float) -> tuple[int, ...]:
-        rise = penetration_mm * self._stiffness_counts_per_mm
+    def _taxels_for(self, penetration_mm: float | None) -> tuple[int, ...]:
+        if penetration_mm is None:
+            return (self._rest_counts,) * len(self._weights)
+        rise = TOUCH_COUNTS + penetration_mm * self._stiffness_counts_per_mm
 
         return tuple(
             min(TAXEL_MAX_COUNTS, self._rest_counts + round(rise * weight))

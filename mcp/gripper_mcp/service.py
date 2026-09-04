@@ -43,10 +43,12 @@ class GripperService:
         specs: dict[str, GripperModelSpec],
         configs: dict[str, GripperConfig],
         backends: dict[str, GripperBackend],
+        tactile_sources: dict[str, str] | None = None,
     ) -> None:
         self._specs = specs
         self._configs = configs
         self._backends = backends
+        self._tactile_sources = tactile_sources or {}
 
     def list_grippers(self) -> list[GripperInfo]:
         return [
@@ -54,10 +56,14 @@ class GripperService:
                 name=name,
                 model=config.model,
                 backend=self._backends[name].name,
+                tactile=self._tactile_sources.get(name),
                 description=config.description,
             )
             for name, config in self._configs.items()
         ]
+
+    def require(self, robot_name: str) -> None:
+        self._backend(robot_name)
 
     def get_state(self, robot_name: str) -> GripperState:
         backend = self._backend(robot_name)
@@ -72,8 +78,18 @@ class GripperService:
             knuckle_rad=round(state.position_rad, 4),
             force_n=state.force_n,
             backend=backend.name,
-            measured_at=datetime.now(timezone.utc).isoformat(),
+            measured_at=timestamp(),
         )
+
+    def fingers_met(self, robot_name: str) -> bool:
+        geometry = self._spec(robot_name).geometry
+        opening_mm = self.get_state(robot_name).opening_mm
+        return opening_mm <= geometry.min_opening_mm + OPENING_TOLERANCE_MM
+
+    def fingers_open(self, robot_name: str) -> bool:
+        geometry = self._spec(robot_name).geometry
+        opening_mm = self.get_state(robot_name).opening_mm
+        return opening_mm >= geometry.max_opening_mm - OPENING_TOLERANCE_MM
 
     def open_fully(self, robot_name: str) -> GripperMotionResult:
         geometry = self._spec(robot_name).geometry
@@ -147,6 +163,10 @@ class GripperService:
 
     def _spec(self, robot_name: str) -> GripperModelSpec:
         return self._specs[self._configs[robot_name].model]
+
+
+def timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def stopped_on_something(
