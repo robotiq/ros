@@ -27,7 +27,7 @@ class GripperConfig(BaseModel):
     namespace: str = ""
     description: str = ""
     object_width_mm: float | None = None
-    tactile: Literal["mock"] | None = None
+    tactile: Literal["ros", "mock"] | None = None
 
 
 class Defaults(BaseModel):
@@ -42,6 +42,8 @@ class TactileSpec(BaseModel):
     full_scale_counts: float
     contact_threshold: float
     baseline_samples: int
+    step_mm: float
+    contact_timeout_s: float
 
     @property
     def layout(self) -> TactileLayout:

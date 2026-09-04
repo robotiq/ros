@@ -19,6 +19,7 @@ hardware and against a simulator launched with `sim_isaac:=true`.
 | `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
 | `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
 | `gripper_verify_grasp` | Confirm a hold from touch plus opening |
+| `gripper_grasp_until_contact` | Close in steps until the pads feel first touch; for fragile or soft objects |
 
 Every tool takes an explicit `robot_name`; nothing fans out to every gripper.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
@@ -49,8 +50,17 @@ it automatically if the gripper is open; `gripper_tare_tactile` retakes it).
 | `closed_on_nothing` | Fingers fully closed |
 | `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
 
-Only the `mock` tactile source exists so far; the ROS source on
-`robotiq_tsf`'s `TactileSensor/StaticData` topic is next.
+`gripper_grasp_until_contact` is the one tool that moves more than once per
+call: it closes by the datasheet's `step_mm`, reads the pads between steps, and
+stops on first touch, on the fingers meeting, on a stall, or on a hard
+`contact_timeout_s`. A stall with quiet pads is reported as
+`stalled_before_contact`, never as a grasp.
+
+The `ros` tactile source subscribes to `robotiq_tsf`'s `TactileSensor/StaticData`
+and `TactileSensor/Dynamic` under the gripper's `namespace` (the tactile driver
+runs in the same namespace as the gripper's controller); it needs `robotiq_tsf`
+built and sourced alongside `rclpy`. The `mock` source presses on the same
+virtual object as the mock gripper.
 
 ## Quick start (no hardware)
 

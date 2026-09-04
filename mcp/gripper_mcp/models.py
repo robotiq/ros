@@ -10,9 +10,17 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Backend = Literal["ros", "mock"]
-TactileSource = Literal["mock"]
+TactileSource = Literal["ros", "mock"]
 
 GraspVerdict = Literal["held", "no_contact", "closed_on_nothing"]
+
+ContactOutcome = Literal[
+    "contact_detected",
+    "closed_without_contact",
+    "stalled_before_contact",
+    "incomplete",
+    "refused",
+]
 
 Outcome = Literal[
     "reached",
@@ -95,6 +103,19 @@ class TactileReadingResult(BaseModel):
     )
     tactile_backend: TactileSource
     measured_at: str = Field(description="ISO-8601 UTC")
+
+
+class ContactGraspResult(BaseModel):
+    robot_name: str
+    outcome: ContactOutcome
+    object_grasped: bool = Field(description="True only for contact_detected")
+    opening_mm: float = Field(description="Where the fingers stopped")
+    contact_signal: float = Field(description="Signal at the stop, 1.0 = full scale")
+    threshold: float = Field(description="Signal at or above which closing stopped")
+    steps: int = Field(description="Closing increments issued before stopping")
+    detail: str
+    backend: Backend
+    tactile_backend: TactileSource
 
 
 class GraspVerification(BaseModel):

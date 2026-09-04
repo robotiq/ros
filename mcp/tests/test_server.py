@@ -18,8 +18,14 @@ EXPECTED_TOOLS = {
     "gripper_read_tactile",
     "gripper_tare_tactile",
     "gripper_verify_grasp",
+    "gripper_grasp_until_contact",
 }
-CLOSING_TOOLS = {"gripper_close", "gripper_set_opening", "gripper_grasp"}
+CLOSING_TOOLS = {
+    "gripper_close",
+    "gripper_set_opening",
+    "gripper_grasp",
+    "gripper_grasp_until_contact",
+}
 TACTILE_READS = {"gripper_read_tactile", "gripper_verify_grasp"}
 CUBE_WIDTH_MM = 40.0
 
@@ -99,6 +105,36 @@ def test_a_grasp_then_verify_through_the_wire_confirms_the_hold(mcp):
 
     assert verification.verdict == "held"
     assert verification.tactile_backend == "mock"
+
+
+def test_a_contact_grasp_through_the_wire_finds_the_cube(mcp):
+    call(mcp, "gripper_open", robot_name="left")
+
+    result = call(mcp, "gripper_grasp_until_contact", robot_name="left")
+
+    assert result.outcome == "contact_detected"
+    assert result.object_grasped is True
+    assert result.opening_mm == pytest.approx(CUBE_WIDTH_MM)
+
+
+def test_a_ros_tactile_entry_names_the_missing_ros_install(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "rclpy", None)
+    wiring = tmp_path / "grippers.yaml"
+    wiring.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "name": "left",
+                    "model": "robotiq_2f_85",
+                    "backend": "mock",
+                    "tactile": "ros",
+                }
+            ]
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="robotiq_tsf"):
+        build_services(wiring)
 
 
 def test_tactile_on_a_model_without_pads_fails_at_startup(tmp_path):

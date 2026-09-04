@@ -5,14 +5,17 @@
 # backend: ros   talks to robotiq_gripper_controller under `namespace`
 #          mock  pure-Python stand-in; object_width_mm puts a virtual object
 #                between the fingers so a close stalls on it
-# tactile: mock  optional; TSF-85 pads whose pressure follows the same virtual
-#                object. Only for models whose datasheet has a tactile block.
+# tactile: ros   optional; TSF-85 pads read from robotiq_tsf's TactileSensor/*
+#                topics under the same `namespace`
+#          mock  pads whose pressure follows the same virtual object
+#                Only for models whose datasheet has a tactile block.
 
 - name: left
   model: robotiq_2f_85
   backend: ros
+  tactile: ros
   namespace: /left
-  description: Robotiq 2F-85 on the left arm
+  description: Robotiq 2F-85 with TSF-85 pads on the left arm
 
 - name: right
   model: robotiq_2f_140
