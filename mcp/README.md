@@ -112,6 +112,41 @@ It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
 sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
 `grippers/` or `robotiq_tsf/` depends on it.
 
+## Docker
+
+`mcp/Dockerfile` layers the server on this repo's ROS 2 image
+([`docker/Dockerfile`](../docker/Dockerfile)), which already carries `rclpy`,
+`control_msgs` and `robotiq_tsf`'s messages on the distro's Python. uv installs
+`mcp/` into a venv that sees those system packages, so one interpreter imports
+both `rclpy` and `fastmcp`. Jazzy and Lyrical only: Humble's Python 3.10 cannot
+run fastmcp. Build the base image first, with the repo root as its context:
+
+```bash
+docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
+docker build -t robotiq_gripper_mcp:jazzy mcp
+```
+
+`BASE_IMAGE` (default `robotiq_ros2:jazzy`) selects any image built from
+`docker/Dockerfile`: a headless build, or something layered on top of it.
+`grippers.yaml` is host-specific and is mounted at run time, never baked in.
+The container needs the host's network to share the driver's DDS graph:
+
+```bash
+docker run --rm --network host --ipc host -e ROS_DOMAIN_ID=0 \
+  -v "$PWD/mcp/grippers.yaml:/config/grippers.yaml:ro" robotiq_gripper_mcp:jazzy
+```
+
+[`docker/docker-compose.yml`](../docker/docker-compose.yml) does the same as a
+service, with `ROBOTIQ_ROS2_IMAGE`, `GRIPPERS_YAML`, `ROS_DOMAIN_ID`,
+`RMW_IMPLEMENTATION` and `GRIPPER_MCP_PORT` as optional environment knobs:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
+
+Both `rmw_fastrtps_cpp` (the default) and `rmw_cyclonedds_cpp` are installed,
+so the image joins either kind of graph by setting `RMW_IMPLEMENTATION`.
+
 ## Development
 
 ```bash
