@@ -69,6 +69,16 @@ JOINT = "robotiq_85_left_knuckle_joint"
 GRIPPER_JOINTS = (JOINT, "finger_joint")
 UPDATE_RATE_HZ = 500
 
+# Every key a controller_manager block may carry besides the controllers, per
+# config. A misspelled setting is silently ignored by the controller_manager, so
+# the blocks are compared exhaustively against these.
+CONTROLLER_MANAGER_SETTINGS = {
+    JAZZY_CONFIG: {"update_rate", "hardware_components_initial_state"},
+    HUMBLE_CONFIG: {"update_rate"},
+    JAZZY_SIM_CONFIG: {"update_rate"},
+    HUMBLE_SIM_CONFIG: {"update_rate"},
+}
+
 
 def exported_command_interfaces(joint):
     return {
@@ -345,8 +355,7 @@ def test_sim_configs_spawn_no_activation_controller(config):
     # No reactivate_gripper GPIO is declared under sim_isaac (see
     # 2f_85.ros2_control.xacro), so the controller would have nothing to claim.
     controllers = load(config)["controller_manager"]["ros__parameters"]
-    assert set(controllers) == {
-        "update_rate",
+    assert set(controllers) == CONTROLLER_MANAGER_SETTINGS[config] | {
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
     }
@@ -382,8 +391,7 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
     # (/robotiq_gripper_controller/gripper_cmd), so they must not drift between
     # the two configs.
     controllers = load(config)["controller_manager"]["ros__parameters"]
-    assert set(controllers) == {
-        "update_rate",
+    assert set(controllers) == CONTROLLER_MANAGER_SETTINGS[config] | {
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
         "robotiq_activation_controller",
@@ -397,6 +405,17 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
         controllers["joint_state_broadcaster"]["type"]
         == "joint_state_broadcaster/JointStateBroadcaster"
     )
+
+
+def test_jazzy_config_keeps_the_node_alive_without_a_gripper():
+    controllers = load(JAZZY_CONFIG)["controller_manager"]["ros__parameters"]
+    initial_state = controllers["hardware_components_initial_state"]
+    assert initial_state["shutdown_on_initial_state_failure"] is False
+
+
+def test_humble_config_declares_no_initial_state_policy():
+    controllers = load(HUMBLE_CONFIG)["controller_manager"]["ros__parameters"]
+    assert "hardware_components_initial_state" not in controllers
 
 
 @requires_launch
