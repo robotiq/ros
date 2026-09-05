@@ -247,33 +247,58 @@ requires_launch = pytest.mark.skipif(
 )
 
 
-def spawned_controllers(distro, monkeypatch, **launch_arguments):
-    from launch import LaunchContext
-    from launch.utilities import perform_substitutions
-    from launch_ros.actions import Node
+def launch_entities(distro, monkeypatch, **launch_arguments):
+    """The launch's entities, and a context with its arguments resolved.
 
+    `launch_arguments` override the declared defaults.
+    """
     if distro is None:
         monkeypatch.delenv("ROS_DISTRO", raising=False)
     else:
         monkeypatch.setenv("ROS_DISTRO", distro)
     context = LaunchContext()
-    context.launch_configurations.update(
-        {
-            "sim_isaac": "false",
-            "gripper_joint": JOINT,
-            **launch_arguments,
-        }
-    )
+    context.launch_configurations.update(launch_arguments)
+    entities = load_launch_module().generate_launch_description().entities
+    for entity in entities:
+        if isinstance(entity, DeclareLaunchArgument):
+            entity.execute(context)
+    return entities, context
 
-    spawned = {}
-    for action in load_launch_module().generate_launch_description().entities:
-        if not isinstance(action, Node) or action.node_executable != "spawner":
-            continue
-        if action.condition is not None and not action.condition.evaluate(context):
-            continue
-        cmd = [perform_substitutions(context, part) for part in action.cmd]
-        spawned[cmd[1]] = Path(cmd[cmd.index("--param-file") + 1]).read_text()
-    return spawned
+
+def starts(action, context):
+    return action.condition is None or action.condition.evaluate(context)
+
+
+def nodes_running(entities, context, executable):
+    from launch_ros.actions import Node
+
+    return [
+        e
+        for e in entities
+        if isinstance(e, Node) and e.node_executable == executable
+        if starts(e, context)
+    ]
+
+
+def spawner_commands(distro, monkeypatch, **launch_arguments):
+    """Yield (controller, resolved command line) for every spawner that starts.
+
+    A generator so the entities, and with them the ParameterFile's temporary
+    file, outlive the caller's look at each command.
+    """
+    from launch.utilities import perform_substitutions
+
+    entities, context = launch_entities(distro, monkeypatch, **launch_arguments)
+    for spawner in nodes_running(entities, context, "spawner"):
+        cmd = [perform_substitutions(context, part) for part in spawner.cmd]
+        yield cmd[1], cmd
+
+
+def spawned_controllers(distro, monkeypatch, **launch_arguments):
+    return {
+        name: Path(cmd[cmd.index("--param-file") + 1]).read_text()
+        for name, cmd in spawner_commands(distro, monkeypatch, **launch_arguments)
+    }
 
 
 def resolved(config, joint=JOINT):
@@ -372,3 +397,53 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
         controllers["joint_state_broadcaster"]["type"]
         == "joint_state_broadcaster/JointStateBroadcaster"
     )
+
+
+@requires_launch
+def test_launch_gives_a_slow_gripper_ten_seconds_to_reach_the_controller_manager(
+    monkeypatch,
+):
+    # Bounded so a controller_manager that never answers ends the bringup, wide
+    # enough that a gripper still recovering from a fault is not taken for missing.
+    for _, cmd in spawner_commands("jazzy", monkeypatch):
+        assert cmd[cmd.index("--controller-manager-timeout") + 1] == "10"
+
+
+PROCESS = {"name": "p", "cmd": ["p"], "cwd": None, "env": None, "pid": 1}
+
+
+def dispatch(entities, context, event):
+    from launch.actions import RegisterEventHandler
+
+    emitted = []
+    for entity in entities:
+        if not isinstance(entity, RegisterEventHandler) or not starts(entity, context):
+            continue
+        if entity.event_handler.matches(event):
+            emitted.extend(entity.event_handler.handle(event, context) or [])
+    return emitted
+
+
+def control_node_exit(monkeypatch, **launch_arguments):
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities("jazzy", monkeypatch, **launch_arguments)
+    (control_node,) = nodes_running(entities, context, "ros2_control_node")
+    event = ProcessExited(action=control_node, returncode=-6, **PROCESS)
+    return dispatch(entities, context, event)
+
+
+@requires_launch
+def test_launch_ends_when_the_control_node_exits(monkeypatch):
+    from launch.actions import Shutdown
+
+    emitted = control_node_exit(monkeypatch)
+    assert len(emitted) == 1
+    assert isinstance(emitted[0], Shutdown)
+
+
+@requires_launch
+def test_launch_can_outlive_the_control_node_for_includers(monkeypatch):
+    # gripper_tactile_viz.launch.py includes this file next to the tactile
+    # stack, which has no reason to stop streaming when the gripper is gone.
+    assert control_node_exit(monkeypatch, shutdown_on_failure="false") == []

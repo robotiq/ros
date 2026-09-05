@@ -150,6 +150,7 @@ def generate_launch_description():
             "baudrate": baudrate,
             "use_fake_hardware": use_fake_hardware,
             "launch_rviz": "false",
+            "shutdown_on_failure": "false",
         }.items(),
     )
 
