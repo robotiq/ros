@@ -284,6 +284,14 @@ def generate_launch_description():
                 description=f"Deprecated since 1.2.0: use {new}",
             )
         )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="shutdown_on_failure",
+            default_value="true",
+            description="End the launch when ros2_control_node exits. Set false when "
+            "including this file next to nodes that should outlive the gripper",
+        )
+    )
 
     topic_based = LaunchConfiguration("sim_topic_based")
 
@@ -338,6 +346,8 @@ def generate_launch_description():
                 controller_name,
                 "--controller-manager",
                 "/controller_manager",
+                "--controller-manager-timeout",
+                "10",
                 "--param-file",
                 ParameterFilePath(initial_joint_controllers),
             ],
@@ -352,6 +362,14 @@ def generate_launch_description():
         "robotiq_activation_controller", condition=UnlessCondition(topic_based)
     )
 
+    shutdown_on_control_node_exit = launch.actions.RegisterEventHandler(
+        launch.event_handlers.OnProcessExit(
+            target_action=control_node,
+            on_exit=[launch.actions.Shutdown(reason="ros2_control_node exited")],
+        ),
+        condition=IfCondition(LaunchConfiguration("shutdown_on_failure")),
+    )
+
     nodes = [
         OpaqueFunction(function=reject_conflicting_hardware_flags),
         control_node,
@@ -360,6 +378,7 @@ def generate_launch_description():
         robotiq_gripper_controller_spawner,
         robotiq_activation_controller_spawner,
         rviz_node,
+        shutdown_on_control_node_exit,
     ]
 
     return launch.LaunchDescription(
