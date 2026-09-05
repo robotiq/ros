@@ -443,6 +443,111 @@ def dispatch(entities, context, event):
     return emitted
 
 
+def drive_spawner_exits(monkeypatch, returncodes, distro="jazzy", **launch_arguments):
+    """Exit each spawner that starts, in order, with the given returncodes.
+
+    Returns what the launch's handlers emitted after each exit.
+    """
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities(distro, monkeypatch, **launch_arguments)
+    spawners = nodes_running(entities, context, "spawner")
+    assert len(spawners) == len(returncodes)
+    return [
+        dispatch(entities, context, ProcessExited(action=s, returncode=rc, **PROCESS))
+        for s, rc in zip(spawners, returncodes)
+    ]
+
+
+def hints(emitted_per_exit):
+    from launch.actions import LogInfo
+
+    return [
+        [perform_text(e.msg) for e in emitted if isinstance(e, LogInfo)]
+        for emitted in emitted_per_exit
+    ]
+
+
+def shutdowns(emitted_per_exit):
+    from launch.actions import Shutdown
+
+    return [
+        [e for e in emitted if isinstance(e, Shutdown)] for emitted in emitted_per_exit
+    ]
+
+
+SPAWNER_RERUN = (
+    "ros2 run controller_manager spawner "
+    "joint_state_broadcaster robotiq_gripper_controller robotiq_activation_controller"
+)
+
+
+@requires_launch
+@pytest.mark.parametrize("returncodes", [[1, 1, 1], [0, 1, 0], [1, 0, 0]])
+def test_launch_hints_once_after_the_last_spawner_exits(monkeypatch, returncodes):
+    # Verified on a 2F-85: bringing the hardware back leaves the controllers
+    # loaded but inactive, and re-running the spawners is what activates them.
+    emitted = hints(drive_spawner_exits(monkeypatch, returncodes))
+    assert emitted[:-1] == [[], []]
+    assert len(emitted[-1]) == 1
+    assert SPAWNER_RERUN in emitted[-1][0]
+    assert shutdowns(drive_spawner_exits(monkeypatch, returncodes)) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_when_every_spawner_succeeds(monkeypatch):
+    assert drive_spawner_exits(monkeypatch, [0, 0, 0]) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_when_the_spawners_are_killed(monkeypatch):
+    # SIGINT from a Ctrl-C or from the launch's own Shutdown is not a failure.
+    assert drive_spawner_exits(monkeypatch, [-2, -2, -2]) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_once_shutting_down(monkeypatch):
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities("jazzy", monkeypatch)
+    context._set_is_shutdown(True)
+    for spawner in nodes_running(entities, context, "spawner"):
+        event = ProcessExited(action=spawner, returncode=1, **PROCESS)
+        assert dispatch(entities, context, event) == []
+
+
+@requires_launch
+@pytest.mark.parametrize(
+    "launch_arguments,returncodes",
+    [({"sim_isaac": "true"}, [1, 1]), ({"use_fake_hardware": "true"}, [1, 1, 1])],
+)
+def test_launch_gives_no_reconnect_advice_without_a_gripper(
+    monkeypatch, launch_arguments, returncodes
+):
+    emitted = drive_spawner_exits(monkeypatch, returncodes, **launch_arguments)
+    assert emitted == [[] for _ in returncodes]
+
+
+@requires_launch
+def test_launch_ends_on_humble_where_the_node_cannot_survive(monkeypatch):
+    # Humble's controller_manager aborts, or wedges, on a failed connect, so the
+    # spawners' failure is the only exit signal the launch can act on there.
+    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1], distro="humble")
+    assert hints(emitted)[:-1] == [[], []]
+    assert "relaunch" in hints(emitted)[-1][0]
+    assert SPAWNER_RERUN not in hints(emitted)[-1][0]
+    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
+
+
+@requires_launch
+def test_launch_keeps_running_on_humble_when_asked(monkeypatch):
+    emitted = drive_spawner_exits(
+        monkeypatch, [1, 1, 1], distro="humble", shutdown_on_failure="false"
+    )
+    assert [len(h) for h in hints(emitted)] == [0, 0, 1]
+    assert shutdowns(emitted) == [[], [], []]
+
+
 def control_node_exit(monkeypatch, **launch_arguments):
     from launch.events.process import ProcessExited
 
@@ -466,3 +571,7 @@ def test_launch_can_outlive_the_control_node_for_includers(monkeypatch):
     # gripper_tactile_viz.launch.py includes this file next to the tactile
     # stack, which has no reason to stop streaming when the gripper is gone.
     assert control_node_exit(monkeypatch, shutdown_on_failure="false") == []
+
+
+def perform_text(msg):
+    return "".join(s.perform(LaunchContext()) for s in msg)
