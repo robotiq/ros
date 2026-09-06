@@ -69,6 +69,16 @@ JOINT = "robotiq_85_left_knuckle_joint"
 GRIPPER_JOINTS = (JOINT, "finger_joint")
 UPDATE_RATE_HZ = 500
 
+# Every key a controller_manager block may carry besides the controllers, per
+# config. A misspelled setting is silently ignored by the controller_manager, so
+# the blocks are compared exhaustively against these.
+CONTROLLER_MANAGER_SETTINGS = {
+    JAZZY_CONFIG: {"update_rate", "hardware_components_initial_state"},
+    HUMBLE_CONFIG: {"update_rate"},
+    JAZZY_SIM_CONFIG: {"update_rate"},
+    HUMBLE_SIM_CONFIG: {"update_rate"},
+}
+
 
 def exported_command_interfaces(joint):
     return {
@@ -247,33 +257,58 @@ requires_launch = pytest.mark.skipif(
 )
 
 
-def spawned_controllers(distro, monkeypatch, **launch_arguments):
-    from launch import LaunchContext
-    from launch.utilities import perform_substitutions
-    from launch_ros.actions import Node
+def launch_entities(distro, monkeypatch, **launch_arguments):
+    """The launch's entities, and a context with its arguments resolved.
 
+    `launch_arguments` override the declared defaults.
+    """
     if distro is None:
         monkeypatch.delenv("ROS_DISTRO", raising=False)
     else:
         monkeypatch.setenv("ROS_DISTRO", distro)
     context = LaunchContext()
-    context.launch_configurations.update(
-        {
-            "sim_isaac": "false",
-            "gripper_joint": JOINT,
-            **launch_arguments,
-        }
-    )
+    context.launch_configurations.update(launch_arguments)
+    entities = load_launch_module().generate_launch_description().entities
+    for entity in entities:
+        if isinstance(entity, DeclareLaunchArgument):
+            entity.execute(context)
+    return entities, context
 
-    spawned = {}
-    for action in load_launch_module().generate_launch_description().entities:
-        if not isinstance(action, Node) or action.node_executable != "spawner":
-            continue
-        if action.condition is not None and not action.condition.evaluate(context):
-            continue
-        cmd = [perform_substitutions(context, part) for part in action.cmd]
-        spawned[cmd[1]] = Path(cmd[cmd.index("--param-file") + 1]).read_text()
-    return spawned
+
+def starts(action, context):
+    return action.condition is None or action.condition.evaluate(context)
+
+
+def nodes_running(entities, context, executable):
+    from launch_ros.actions import Node
+
+    return [
+        e
+        for e in entities
+        if isinstance(e, Node) and e.node_executable == executable
+        if starts(e, context)
+    ]
+
+
+def spawner_commands(distro, monkeypatch, **launch_arguments):
+    """Yield (controller, resolved command line) for every spawner that starts.
+
+    A generator so the entities, and with them the ParameterFile's temporary
+    file, outlive the caller's look at each command.
+    """
+    from launch.utilities import perform_substitutions
+
+    entities, context = launch_entities(distro, monkeypatch, **launch_arguments)
+    for spawner in nodes_running(entities, context, "spawner"):
+        cmd = [perform_substitutions(context, part) for part in spawner.cmd]
+        yield cmd[1], cmd
+
+
+def spawned_controllers(distro, monkeypatch, **launch_arguments):
+    return {
+        name: Path(cmd[cmd.index("--param-file") + 1]).read_text()
+        for name, cmd in spawner_commands(distro, monkeypatch, **launch_arguments)
+    }
 
 
 def resolved(config, joint=JOINT):
@@ -320,8 +355,7 @@ def test_sim_configs_spawn_no_activation_controller(config):
     # No reactivate_gripper GPIO is declared under sim_isaac (see
     # 2f_85.ros2_control.xacro), so the controller would have nothing to claim.
     controllers = load(config)["controller_manager"]["ros__parameters"]
-    assert set(controllers) == {
-        "update_rate",
+    assert set(controllers) == CONTROLLER_MANAGER_SETTINGS[config] | {
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
     }
@@ -357,8 +391,7 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
     # (/robotiq_gripper_controller/gripper_cmd), so they must not drift between
     # the two configs.
     controllers = load(config)["controller_manager"]["ros__parameters"]
-    assert set(controllers) == {
-        "update_rate",
+    assert set(controllers) == CONTROLLER_MANAGER_SETTINGS[config] | {
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
         "robotiq_activation_controller",
@@ -372,3 +405,173 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
         controllers["joint_state_broadcaster"]["type"]
         == "joint_state_broadcaster/JointStateBroadcaster"
     )
+
+
+def test_jazzy_config_keeps_the_node_alive_without_a_gripper():
+    controllers = load(JAZZY_CONFIG)["controller_manager"]["ros__parameters"]
+    initial_state = controllers["hardware_components_initial_state"]
+    assert initial_state["shutdown_on_initial_state_failure"] is False
+
+
+def test_humble_config_declares_no_initial_state_policy():
+    controllers = load(HUMBLE_CONFIG)["controller_manager"]["ros__parameters"]
+    assert "hardware_components_initial_state" not in controllers
+
+
+@requires_launch
+def test_launch_gives_a_slow_gripper_ten_seconds_to_reach_the_controller_manager(
+    monkeypatch,
+):
+    # Bounded so a controller_manager that never answers ends the bringup, wide
+    # enough that a gripper still recovering from a fault is not taken for missing.
+    for _, cmd in spawner_commands("jazzy", monkeypatch):
+        assert cmd[cmd.index("--controller-manager-timeout") + 1] == "10"
+
+
+PROCESS = {"name": "p", "cmd": ["p"], "cwd": None, "env": None, "pid": 1}
+
+
+def dispatch(entities, context, event):
+    from launch.actions import RegisterEventHandler
+
+    emitted = []
+    for entity in entities:
+        if not isinstance(entity, RegisterEventHandler) or not starts(entity, context):
+            continue
+        if entity.event_handler.matches(event):
+            emitted.extend(entity.event_handler.handle(event, context) or [])
+    return emitted
+
+
+def drive_spawner_exits(monkeypatch, returncodes, distro="jazzy", **launch_arguments):
+    """Exit each spawner that starts, in order, with the given returncodes.
+
+    Returns what the launch's handlers emitted after each exit.
+    """
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities(distro, monkeypatch, **launch_arguments)
+    spawners = nodes_running(entities, context, "spawner")
+    assert len(spawners) == len(returncodes)
+    return [
+        dispatch(entities, context, ProcessExited(action=s, returncode=rc, **PROCESS))
+        for s, rc in zip(spawners, returncodes)
+    ]
+
+
+def hints(emitted_per_exit):
+    from launch.actions import LogInfo
+
+    return [
+        [perform_text(e.msg) for e in emitted if isinstance(e, LogInfo)]
+        for emitted in emitted_per_exit
+    ]
+
+
+def shutdowns(emitted_per_exit):
+    from launch.actions import Shutdown
+
+    return [
+        [e for e in emitted if isinstance(e, Shutdown)] for emitted in emitted_per_exit
+    ]
+
+
+SPAWNER_RERUN = (
+    "ros2 run controller_manager spawner "
+    "joint_state_broadcaster robotiq_gripper_controller robotiq_activation_controller"
+)
+
+
+@requires_launch
+@pytest.mark.parametrize("returncodes", [[1, 1, 1], [0, 1, 0], [1, 0, 0]])
+def test_launch_hints_once_after_the_last_spawner_exits(monkeypatch, returncodes):
+    # Verified on a 2F-85: bringing the hardware back leaves the controllers
+    # loaded but inactive, and re-running the spawners is what activates them.
+    emitted = hints(drive_spawner_exits(monkeypatch, returncodes))
+    assert emitted[:-1] == [[], []]
+    assert len(emitted[-1]) == 1
+    assert SPAWNER_RERUN in emitted[-1][0]
+    assert shutdowns(drive_spawner_exits(monkeypatch, returncodes)) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_when_every_spawner_succeeds(monkeypatch):
+    assert drive_spawner_exits(monkeypatch, [0, 0, 0]) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_when_the_spawners_are_killed(monkeypatch):
+    # SIGINT from a Ctrl-C or from the launch's own Shutdown is not a failure.
+    assert drive_spawner_exits(monkeypatch, [-2, -2, -2]) == [[], [], []]
+
+
+@requires_launch
+def test_launch_stays_quiet_once_shutting_down(monkeypatch):
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities("jazzy", monkeypatch)
+    context._set_is_shutdown(True)
+    for spawner in nodes_running(entities, context, "spawner"):
+        event = ProcessExited(action=spawner, returncode=1, **PROCESS)
+        assert dispatch(entities, context, event) == []
+
+
+@requires_launch
+@pytest.mark.parametrize(
+    "launch_arguments,returncodes",
+    [({"sim_isaac": "true"}, [1, 1]), ({"use_fake_hardware": "true"}, [1, 1, 1])],
+)
+def test_launch_gives_no_reconnect_advice_without_a_gripper(
+    monkeypatch, launch_arguments, returncodes
+):
+    emitted = drive_spawner_exits(monkeypatch, returncodes, **launch_arguments)
+    assert emitted == [[] for _ in returncodes]
+
+
+@requires_launch
+def test_launch_ends_on_humble_where_the_node_cannot_survive(monkeypatch):
+    # Humble's controller_manager aborts, or wedges, on a failed connect, so the
+    # spawners' failure is the only exit signal the launch can act on there.
+    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1], distro="humble")
+    assert hints(emitted)[:-1] == [[], []]
+    assert "relaunch" in hints(emitted)[-1][0]
+    assert SPAWNER_RERUN not in hints(emitted)[-1][0]
+    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
+
+
+@requires_launch
+def test_launch_keeps_running_on_humble_when_asked(monkeypatch):
+    emitted = drive_spawner_exits(
+        monkeypatch, [1, 1, 1], distro="humble", shutdown_on_failure="false"
+    )
+    assert [len(h) for h in hints(emitted)] == [0, 0, 1]
+    assert shutdowns(emitted) == [[], [], []]
+
+
+def control_node_exit(monkeypatch, **launch_arguments):
+    from launch.events.process import ProcessExited
+
+    entities, context = launch_entities("jazzy", monkeypatch, **launch_arguments)
+    (control_node,) = nodes_running(entities, context, "ros2_control_node")
+    event = ProcessExited(action=control_node, returncode=-6, **PROCESS)
+    return dispatch(entities, context, event)
+
+
+@requires_launch
+def test_launch_ends_when_the_control_node_exits(monkeypatch):
+    from launch.actions import Shutdown
+
+    emitted = control_node_exit(monkeypatch)
+    assert len(emitted) == 1
+    assert isinstance(emitted[0], Shutdown)
+
+
+@requires_launch
+def test_launch_can_outlive_the_control_node_for_includers(monkeypatch):
+    # gripper_tactile_viz.launch.py includes this file next to the tactile
+    # stack, which has no reason to stop streaming when the gripper is gone.
+    assert control_node_exit(monkeypatch, shutdown_on_failure="false") == []
+
+
+def perform_text(msg):
+    return "".join(s.perform(LaunchContext()) for s in msg)

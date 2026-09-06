@@ -238,6 +238,15 @@ def generate_launch_description():
             description="sim_isaac only: JointState topic the simulator publishes",
         )
     )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="shutdown_on_failure",
+            default_value="true",
+            description="End the launch when ros2_control_node exits, or, on Humble, when no "
+            "controller could be activated. Set false when including this file next to "
+            "nodes that should outlive the gripper",
+        )
+    )
 
     simulated = LaunchConfiguration("sim_isaac")
 
@@ -247,7 +256,8 @@ def generate_launch_description():
         )
     }
 
-    controllers_file = ControllersFile(os.environ.get("ROS_DISTRO"), simulated)
+    distro = os.environ.get("ROS_DISTRO")
+    controllers_file = ControllersFile(distro, simulated)
     initial_joint_controllers = ParameterFile(
         PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
         allow_substs=True,
@@ -292,28 +302,92 @@ def generate_launch_description():
                 controller_name,
                 "--controller-manager",
                 "/controller_manager",
+                "--controller-manager-timeout",
+                "10",
                 "--param-file",
                 ParameterFilePath(initial_joint_controllers),
             ],
             condition=condition,
         )
 
-    joint_state_broadcaster_spawner = spawner("joint_state_broadcaster")
-    robotiq_gripper_controller_spawner = spawner("robotiq_gripper_controller")
-    # The reactivate_gripper GPIO this controller claims is declared for the
-    # driver and the mock only; the simulated plugin has nothing to reactivate.
-    robotiq_activation_controller_spawner = spawner(
-        "robotiq_activation_controller", condition=UnlessCondition(simulated)
+    # The reactivate_gripper GPIO the activation controller claims is declared for
+    # the driver and the mock only; the simulated plugin has nothing to reactivate.
+    spawned_controllers = {
+        "joint_state_broadcaster": None,
+        "robotiq_gripper_controller": None,
+        "robotiq_activation_controller": UnlessCondition(simulated),
+    }
+    spawners = [
+        spawner(name, condition) for name, condition in spawned_controllers.items()
+    ]
+
+    def starts(action, context):
+        return action.condition is None or action.condition.evaluate(context)
+
+    def is_set(context, name):
+        return evaluate_condition_expression(context, [LaunchConfiguration(name)])
+
+    # After a failed bringup the last line on screen is otherwise a spawner's
+    # "process has died", which says nothing about the cause or the way out.
+    returncodes = []
+
+    def hint_after_the_last_spawner_exits(event, context):
+        returncodes.append(event.returncode)
+        if context.is_shutdown or len(returncodes) < sum(
+            starts(s, context) for s in spawners
+        ):
+            return None
+        # A negative code is a signal: the spawners were killed, they did not fail.
+        if not any(code > 0 for code in returncodes):
+            return None
+        # Only a real gripper can be unplugged.
+        if any(is_set(context, flag) for flag in HARDWARE_FLAGS):
+            return None
+        if distro == "humble":
+            hint = launch.actions.LogInfo(
+                msg="A controller could not be activated. If the gripper is not "
+                "connected, ros2_control_node did not survive it (see its error above); "
+                "reconnect the gripper and relaunch."
+            )
+            if not is_set(context, "shutdown_on_failure"):
+                return [hint]
+            return [hint, launch.actions.Shutdown(reason="no controller activated")]
+        names = " ".join(
+            name
+            for name, action in zip(spawned_controllers, spawners)
+            if starts(action, context)
+        )
+        return [
+            launch.actions.LogInfo(
+                msg="A controller could not be activated. If the gripper is not "
+                "connected, follow the driver's error above to bring the hardware "
+                f"back, then re-run the spawners: ros2 run controller_manager spawner {names}"
+            )
+        ]
+
+    spawner_hint = launch.actions.RegisterEventHandler(
+        launch.event_handlers.OnProcessExit(
+            target_action=lambda action: action in spawners,
+            on_exit=hint_after_the_last_spawner_exits,
+        )
+    )
+
+    shutdown_on_control_node_exit = launch.actions.RegisterEventHandler(
+        launch.event_handlers.OnProcessExit(
+            target_action=control_node,
+            on_exit=[launch.actions.Shutdown(reason="ros2_control_node exited")],
+        ),
+        condition=IfCondition(LaunchConfiguration("shutdown_on_failure")),
     )
 
     nodes = [
         OpaqueFunction(function=reject_conflicting_hardware_flags),
         control_node,
         robot_state_publisher_node,
-        joint_state_broadcaster_spawner,
-        robotiq_gripper_controller_spawner,
-        robotiq_activation_controller_spawner,
+        *spawners,
         rviz_node,
+        shutdown_on_control_node_exit,
+        spawner_hint,
     ]
 
     return launch.LaunchDescription(args + nodes)
