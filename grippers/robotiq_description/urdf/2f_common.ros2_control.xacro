@@ -7,8 +7,8 @@
     <xacro:macro name="robotiq_2f_hardware" params="
         sim_gazebo
         sim_topic_based
-        joint_commands_topic
-        joint_states_topic
+        sim_joint_commands_topic
+        sim_joint_states_topic
         use_fake_hardware
         mock_sensor_commands
         com_port
@@ -26,8 +26,8 @@
 
             <xacro:if value="${sim_topic_based}">
                 <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
-                <param name="joint_commands_topic">${joint_commands_topic}</param>
-                <param name="joint_states_topic">${joint_states_topic}</param>
+                <param name="joint_commands_topic">${sim_joint_commands_topic}</param>
+                <param name="joint_states_topic">${sim_joint_states_topic}</param>
                 <param name="trigger_joint_command_threshold">0.02</param>
             </xacro:if>
             <xacro:if value="${sim_gazebo}">

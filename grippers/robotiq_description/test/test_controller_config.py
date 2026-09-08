@@ -214,8 +214,8 @@ def test_launch_forwards_the_gripper_model_to_xacro():
         com_port="/dev/null",
         baudrate="115200",
         sim_topic_based="false",
-        joint_commands_topic="/sim/joint_commands",
-        joint_states_topic="/sim/joint_states",
+        sim_joint_commands_topic="/sim/joint_commands",
+        sim_joint_states_topic="/sim/joint_states",
     )
     rendered = "".join(s.perform(context) for s in command.command)
     assert "gripper_model:=2f_140" in rendered

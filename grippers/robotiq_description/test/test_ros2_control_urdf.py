@@ -246,8 +246,8 @@ def test_sim_topics_reach_the_plugin(model):
         model,
         False,
         "sim_topic_based:=true",
-        "joint_commands_topic:=/sim/cmd",
-        "joint_states_topic:=/sim/state",
+        "sim_joint_commands_topic:=/sim/cmd",
+        "sim_joint_states_topic:=/sim/state",
     )
     assert hardware_param(ros2_control, "joint_commands_topic") == "/sim/cmd"
     assert hardware_param(ros2_control, "joint_states_topic") == "/sim/state"

@@ -145,11 +145,11 @@ def xacro_command():
             "sim_topic_based:=",
             LaunchConfiguration("sim_topic_based"),
             " ",
-            "joint_commands_topic:=",
-            LaunchConfiguration("joint_commands_topic"),
+            "sim_joint_commands_topic:=",
+            LaunchConfiguration("sim_joint_commands_topic"),
             " ",
-            "joint_states_topic:=",
-            LaunchConfiguration("joint_states_topic"),
+            "sim_joint_states_topic:=",
+            LaunchConfiguration("sim_joint_states_topic"),
         ]
     )
 
@@ -230,14 +230,14 @@ def generate_launch_description():
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="joint_commands_topic",
+            name="sim_joint_commands_topic",
             default_value="/sim/joint_commands",
             description="sim_topic_based only: JointState topic the simulator takes commands on",
         )
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="joint_states_topic",
+            name="sim_joint_states_topic",
             default_value="/sim/joint_states",
             description="sim_topic_based only: JointState topic the simulator publishes",
         )

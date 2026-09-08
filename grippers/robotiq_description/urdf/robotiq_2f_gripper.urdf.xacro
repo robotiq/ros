@@ -9,8 +9,8 @@
     <xacro:arg name="com_port" default="/dev/ttyUSB0" />
     <xacro:arg name="baudrate" default="115200" />
     <xacro:arg name="sim_topic_based" default="false" />
-    <xacro:arg name="joint_commands_topic" default="/sim/joint_commands" />
-    <xacro:arg name="joint_states_topic" default="/sim/joint_states" />
+    <xacro:arg name="sim_joint_commands_topic" default="/sim/joint_commands" />
+    <xacro:arg name="sim_joint_states_topic" default="/sim/joint_states" />
 
     <!-- Import macros -->
     <xacro:include filename="$(find robotiq_description)/urdf/robotiq_$(arg gripper_model)_macro.urdf.xacro" />
@@ -18,7 +18,7 @@
     <link name="world" />
     <xacro:robotiq_gripper name="RobotiqGripperHardwareInterface" prefix="" parent="world" use_fake_hardware="$(arg use_fake_hardware)" com_port="$(arg com_port)" baudrate="$(arg baudrate)"
         sim_topic_based="$(arg sim_topic_based)"
-        joint_commands_topic="$(arg joint_commands_topic)" joint_states_topic="$(arg joint_states_topic)">
+        sim_joint_commands_topic="$(arg sim_joint_commands_topic)" sim_joint_states_topic="$(arg sim_joint_states_topic)">
         <origin xyz="0 0 0" rpy="0 0 0" />
     </xacro:robotiq_gripper>
 </robot>

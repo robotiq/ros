@@ -7,8 +7,8 @@
         *origin
         sim_gazebo:=false
         sim_topic_based:=false
-        joint_commands_topic:=/sim/joint_commands
-        joint_states_topic:=/sim/joint_states
+        sim_joint_commands_topic:=/sim/joint_commands
+        sim_joint_states_topic:=/sim/joint_states
         use_fake_hardware:=false
         mock_sensor_commands:=false
         include_ros2_control:=true
@@ -29,8 +29,8 @@
                 name="${name}" prefix="${prefix}"
                 sim_gazebo="${sim_gazebo}"
                 sim_topic_based="${sim_topic_based}"
-                joint_commands_topic="${joint_commands_topic}"
-                joint_states_topic="${joint_states_topic}"
+                sim_joint_commands_topic="${sim_joint_commands_topic}"
+                sim_joint_states_topic="${sim_joint_states_topic}"
                 use_fake_hardware="${use_fake_hardware}"
                 mock_sensor_commands="${mock_sensor_commands}"
                 com_port="${com_port}"

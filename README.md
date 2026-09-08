@@ -258,14 +258,14 @@ ros2 launch robotiq_description robotiq_control.launch.py use_fake_hardware:=tru
 ros2 launch robotiq_description robotiq_control.launch.py launch_rviz:=true         # + RViz visualization
 ros2 launch robotiq_description robotiq_control.launch.py baudrate:=<rate>
 ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true \
-  joint_commands_topic:=/sim/joint_commands joint_states_topic:=/sim/joint_states  # topic_based_ros2_control
+  sim_joint_commands_topic:=/sim/joint_commands sim_joint_states_topic:=/sim/joint_states  # topic_based_ros2_control
 ```
 
 This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, and `robotiq_activation_controller`.
 
 `sim_topic_based` swaps the hardware plugin for `topic_based_ros2_control/TopicBasedSystem`: any
 simulator that exchanges `sensor_msgs/JointState` on two topics (Isaac Sim, or a bridge of your
-own), named by `joint_commands_topic` / `joint_states_topic`. That plugin exports only the standard joint interfaces, so the launch loads
+own), named by `sim_joint_commands_topic` / `sim_joint_states_topic`. That plugin exports only the standard joint interfaces, so the launch loads
 `config/robotiq_controllers.topic_based.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
 a stall aborts the goal rather than succeeding, since a simulator that publishes no joint velocities
 would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
