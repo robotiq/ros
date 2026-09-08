@@ -289,7 +289,8 @@ overlay once:
 
 ```bash
 git clone https://github.com/PickNikRobotics/topic_based_ros2_control <ws>/src/topic_based_ros2_control
-colcon build --cmake-args -DBUILD_TESTING=OFF
+cd <ws>
+colcon build --packages-select topic_based_ros2_control --cmake-args -DBUILD_TESTING=OFF
 ```
 
 (`-DBUILD_TESTING=OFF` skips its `ros_testing` test dependency, which a runtime install does not
