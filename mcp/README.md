@@ -14,10 +14,9 @@ requests.
 
 `mcp/` is a plain Python project managed with [uv](https://docs.astral.sh/uv/),
 not an ament package, and `COLCON_IGNORE` keeps it out of every colcon build:
-
-- its dependencies (fastmcp, pydantic v2) have no rosdep keys, so a `package.xml`
-  could not declare them;
-- fastmcp needs Python 3.12, which Humble (Python 3.10) does not ship.
+its dependencies (fastmcp, pydantic v2) have no rosdep keys, so a `package.xml`
+could not declare them. It runs on Python 3.10 and up, Humble's interpreter
+and Jazzy's, and CI tests both.
 
 It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
 sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
