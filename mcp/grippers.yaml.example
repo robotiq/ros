@@ -1,6 +1,6 @@
 # Cell wiring: which grippers the server exposes, and where each one's driver
 # lives. Copy to grippers.yaml and edit. Every entry needs a name (what agents
-# pass as robot_name) and a model (a file in robot_specifications/).
+# pass as robot_name) and a model (a file in datasheets/).
 #
 # backend: ros   talks to robotiq_gripper_controller under `namespace`
 #          mock  pure-Python stand-in; object_width_mm puts a virtual object
