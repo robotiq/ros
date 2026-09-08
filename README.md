@@ -273,7 +273,14 @@ whose `reactivate_gripper` GPIO only the driver and the mock declare. Renamed in
 `sim_isaac`, `isaac_joint_commands` and `isaac_joint_states` (launch arguments and macro parameters,
 shipped in 1.1.0) still work and log a deprecation warning, `sim_isaac:=true` keeping its old
 `/isaac_joint_commands` / `/isaac_joint_states` topic defaults; they are removed in the next major
-release. `TopicBasedSystem` matches
+release. To stay on those topic names without the deprecated arguments:
+
+```bash
+ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true \
+  sim_joint_commands_topic:=/isaac_joint_commands sim_joint_states_topic:=/isaac_joint_states
+```
+
+`TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
 six joint names for the model you launch, each with your `prefix`, or nothing moves:
 
