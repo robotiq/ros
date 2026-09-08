@@ -1,7 +1,8 @@
 # Humble controller configuration for the topic_based_ros2_control plugin
-# (`sim_topic_based:=true`; not the `use_fake_hardware` mock, which keeps
-# robotiq_controllers.humble.yaml). Same controller as
-# robotiq_controllers.humble.yaml — Humble's stock
+# (`sim_topic_based:=true`).
+# Not for the `use_fake_hardware` mock, which teleports to the commanded
+# position and keeps robotiq_controllers.humble.yaml. Same controller as
+# that file — Humble's stock
 # position_controllers/GripperActionController, since parallel_gripper_controller
 # only arrived in Jazzy — with the two departures robotiq_controllers.topic_based.yaml
 # explains: no activation controller (no reactivate GPIO to claim) and a stall

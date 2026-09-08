@@ -336,7 +336,7 @@ All four read `NaN` until the component is activated; activation seeds them from
 
 `motor_current` is motor current, **not** grip force, and it is not convertible to one.
 
-`motor_current` and `object_status` are not `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for either of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and Isaac never write them — so under `use_fake_hardware:=true` both are absent rather than wrong.
+`motor_current` and `object_status` are not `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for either of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and the topic-based plugin never write them — so under `use_fake_hardware:=true` both are absent rather than wrong.
 
 ### Hardware parameters
 
@@ -383,7 +383,7 @@ Drag the `robotiq_85_left_knuckle_joint` slider; the five finger joints follow i
 
 Goal-based commanding also works without hardware: `robotiq_control.launch.py use_fake_hardware:=true launch_rviz:=true` brings up all three controllers against `mock_components/GenericSystem`, and `gripper_cmd` goals drive the model — the five finger joints follow the knuckle via URDF `mimic`, exactly as on hardware. Use the slider above when you want to pose the model by hand instead.
 
-Mock and hardware publish the same `/joint_states` contract on every distro: the knuckle joint alone, with `robot_state_publisher` deriving the mimicked finger joints from the URDF. Only the Gazebo and Isaac paths declare the mimicked joints to `ros2_control`, since those simulators supply their own joint state.
+Mock and hardware publish the same `/joint_states` contract on every distro: the knuckle joint alone, with `robot_state_publisher` deriving the mimicked finger joints from the URDF. Only the Gazebo and topic-based paths (`sim_gazebo`, `sim_topic_based`) declare the mimicked joints to `ros2_control`, since those simulators supply their own joint state.
 
 ## Testing
 

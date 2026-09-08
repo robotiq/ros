@@ -9,8 +9,8 @@
 # (GenericSystem) declares the driver's interfaces and teleports: the position
 # command is copied into the state each cycle, so a goal succeeds on the next
 # update and stall detection never runs. It keeps robotiq_controllers.yaml.
-# Under sim_topic_based the simulator integrates the joint with its own drives, the
-# finger moves over time, and the stall parameters below read a real velocity.
+# Under sim_topic_based, position and velocity are published by the simulator, so
+# a realistic movement is possible, with finger moving over time and a real velocity.
 #
 # It differs from robotiq_controllers.yaml only where the topic_based plugin
 # exports something different from the driver, so the controller can activate:
