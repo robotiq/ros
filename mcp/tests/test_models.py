@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
-from gripper_mcp.models import GripperMotionResult
+from gripper_mcp.models import GripperMotionResult, GripperState
 
 
 def motion_result(**overrides):
@@ -34,3 +36,19 @@ def test_a_result_survives_the_wire():
     result = motion_result()
 
     assert GripperMotionResult.model_validate_json(result.model_dump_json()) == result
+
+
+def test_a_state_keeps_its_timezone_across_the_wire():
+    state = GripperState(
+        robot_name="left",
+        opening_mm=42.5,
+        opening_fraction=0.5,
+        knuckle_rad=0.4,
+        backend="mock",
+        measured_at=datetime(2026, 9, 8, 14, 0, tzinfo=timezone.utc),
+    )
+
+    parsed = GripperState.model_validate_json(state.model_dump_json())
+
+    assert parsed.measured_at == state.measured_at
+    assert parsed.measured_at.tzinfo is not None
