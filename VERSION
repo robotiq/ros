@@ -9,6 +9,7 @@
 #   grippers/robotiq_driver/package.xml
 #   grippers/robotiq_hardware_tests/package.xml
 #   mcp/pyproject.toml
+#   mcp/uv.lock
 #   robotiq_tsf/package.xml
 #
 # Bump with `dev/version.py --set X.Y.Z`, which rewrites this file and every
