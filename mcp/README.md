@@ -30,6 +30,17 @@ uv sync            # creates .venv with the dev dependencies
 uv run pytest
 ```
 
+`uv.lock` is generated from `pyproject.toml` and committed: it pins every
+dependency to an exact file and hash, and CI installs from it with
+`uv sync --locked`, which fails if it is stale.
+
+- `uv add <pkg>` / `uv remove <pkg>` edit `pyproject.toml` and the lock
+  together; plain `uv sync` also refreshes the lock after a hand edit.
+- `uv lock --upgrade` (or `--upgrade-package <pkg>`) moves pinned versions
+  within the ranges `pyproject.toml` declares. Nothing else does.
+- The lock also records this project's own version, so a release bump
+  rewrites it (see `dev/version.py`).
+
 Formatting and linting run through the repo-wide pre-commit config
 (`pre-commit run -a` from the repo root). CI for this directory is
 [`ci-mcp.yml`](../.github/workflows/ci-mcp.yml).
