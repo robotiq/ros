@@ -143,7 +143,7 @@ def test_each_gripper_opens_to_its_own_model_width():
     }
     backends = {
         name: MockGripperBackend(
-            sleep_fn=lambda _seconds: None, geometry=specs[config.model].geometry
+            sleep_fn=lambda _seconds: None, stroke=specs[config.model].stroke
         )
         for name, config in configs.items()
     }
