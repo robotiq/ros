@@ -1,0 +1,46 @@
+# gripper_mcp
+
+MCP server for Robotiq 2F adaptive grippers. It gives an LLM agent a small,
+gripper-shaped tool surface (open, close, grasp, read state) and drives the
+`ros2_control` driver in [`grippers/`](../grippers/) underneath, so the same
+tools work against real hardware and against a simulator launched with
+`sim_isaac:=true`.
+
+Work in progress: this directory currently holds the project skeleton only. The
+tool surface, the ROS 2 backend and the tactile tools land in follow-up pull
+requests.
+
+## Not a ROS package
+
+`mcp/` is a plain Python project managed with [uv](https://docs.astral.sh/uv/),
+not an ament package, and `COLCON_IGNORE` keeps it out of every colcon build:
+its dependencies (fastmcp, pydantic v2) have no rosdep keys, so a `package.xml`
+could not declare them. It runs on Python 3.10 and up, Humble's interpreter
+and Jazzy's, and CI tests both.
+
+It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
+sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
+`grippers/` or `robotiq_tsf/` depends on it.
+
+## Development
+
+```bash
+cd mcp
+uv sync            # creates .venv with the dev dependencies
+uv run pytest
+```
+
+`uv.lock` is generated from `pyproject.toml` and committed: it pins every
+dependency to an exact file and hash, and CI installs from it with
+`uv sync --locked`, which fails if it is stale.
+
+- `uv add <pkg>` / `uv remove <pkg>` edit `pyproject.toml` and the lock
+  together; plain `uv sync` also refreshes the lock after a hand edit.
+- `uv lock --upgrade` (or `--upgrade-package <pkg>`) moves pinned versions
+  within the ranges `pyproject.toml` declares. Nothing else does.
+- The lock also records this project's own version, so a release bump
+  rewrites it (see `dev/version.py`).
+
+Formatting and linting run through the repo-wide pre-commit config
+(`pre-commit run -a` from the repo root). CI for this directory is
+[`ci-mcp.yml`](../.github/workflows/ci-mcp.yml).

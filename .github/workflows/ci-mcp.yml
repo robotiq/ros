@@ -1,0 +1,38 @@
+# Unit tests for mcp/, the gripper MCP server. It is a plain uv project, not an
+# ament package (see mcp/README.md), so it gets its own job instead of riding
+# the colcon matrix, and COLCON_IGNORE keeps colcon out of the directory
+# anyway. It runs on Humble's and Jazzy's interpreters, 3.10 and 3.12.
+# Formatting is covered by ci-format like the rest of the repo.
+name: MCP
+
+on:
+  pull_request:
+    paths:
+      - "mcp/**"
+      - ".github/workflows/ci-mcp.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: pytest (py${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+          cache-dependency-glob: mcp/uv.lock
+      - name: Install
+        run: uv sync --locked
+      - name: Test
+        run: uv run pytest
