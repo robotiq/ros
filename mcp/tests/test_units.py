@@ -2,17 +2,42 @@ import pytest
 
 from gripper_mcp.units import (
     GripperGeometry,
+    JointGeometry,
+    Stroke,
     knuckle_rad_to_opening_mm,
     opening_mm_to_fraction,
     opening_mm_to_knuckle_rad,
 )
 
-GEOMETRY_2F_85 = GripperGeometry(
-    max_opening_mm=85.0,
-    min_opening_mm=0.0,
-    knuckle_rad_open=0.0,
-    knuckle_rad_closed=0.8,
+STROKE_2F_85 = Stroke(max_opening_mm=85.0)
+KNUCKLE_2F_85 = JointGeometry(
+    name="robotiq_85_left_knuckle_joint", rad_open=0.0, rad_closed=0.8
 )
+GEOMETRY_2F_85 = GripperGeometry.of(STROKE_2F_85, KNUCKLE_2F_85)
+
+
+def test_a_geometry_is_the_datasheet_stroke_on_the_robot_joint():
+    assert GEOMETRY_2F_85 == GripperGeometry(
+        max_opening_mm=85.0,
+        min_opening_mm=0.0,
+        knuckle_rad_open=0.0,
+        knuckle_rad_closed=0.8,
+    )
+
+
+def test_a_stroke_with_no_travel_is_rejected():
+    with pytest.raises(ValueError, match="max_opening_mm"):
+        Stroke(max_opening_mm=0.0)
+
+
+def test_a_joint_with_no_travel_is_rejected():
+    with pytest.raises(ValueError, match="rad_closed"):
+        JointGeometry(name="finger_joint", rad_open=0.7, rad_closed=0.7)
+
+
+def test_a_joint_without_a_name_is_rejected():
+    with pytest.raises(ValueError, match="name"):
+        JointGeometry(name="", rad_open=0.0, rad_closed=0.7)
 
 
 def test_a_geometry_with_no_stroke_is_rejected():

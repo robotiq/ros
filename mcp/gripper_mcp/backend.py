@@ -2,9 +2,11 @@
 
 Backends speak the controller's domain, the command joint's position in radians
 (0 = open), and know nothing about millimetres, pydantic or MCP; the service
-layer owns that translation. This is what lets the same tool surface sit on the
-ROS driver, real or simulated, or on a test double without any of them leaking
-into the tool signatures.
+layer owns that translation. The joint itself, its name and its open/closed
+angles, is the backend's to report: the ROS backend reads it from the robot
+description it is connected to, a test double has a built-in one. This is what
+lets the same tool surface sit on the ROS driver, real or simulated, or on a
+test double without any of them leaking into the tool signatures.
 
 The vocabulary is the `gripper_cmd` action's: a position and a max effort in,
 `reached_goal` and `stalled` out. A stall on a close is how the driver reports
@@ -21,6 +23,8 @@ here until then, with the MCP as its first consumer.
 
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+from gripper_mcp.units import JointGeometry
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,8 @@ class BackendHealth:
 @runtime_checkable
 class GripperBackend(Protocol):
     name: str
+
+    def joint_geometry(self) -> JointGeometry: ...
 
     def read_state(self) -> BackendState: ...
 
