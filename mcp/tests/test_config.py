@@ -110,6 +110,14 @@ def test_a_minimal_entry_defaults_to_the_mock(tmp_path):
     assert config.object_width_mm is None
 
 
+def test_a_ros_gripper_without_a_namespace_is_rejected(tmp_path):
+    wiring = tmp_path / "grippers.yaml"
+    wiring.write_text("- {name: left, model: robotiq_2f_85, backend: ros}\n")
+
+    with pytest.raises(ValidationError, match="'left'.*no namespace"):
+        load_gripper_configs(wiring)
+
+
 def test_an_unknown_backend_is_rejected(tmp_path):
     path = wiring_file(
         tmp_path, [{"name": "left", "model": "robotiq_2f_85", "backend": "sdk"}]
@@ -152,5 +160,5 @@ def test_duplicate_gripper_names_are_rejected(tmp_path):
 def test_a_missing_wiring_file_names_the_path(tmp_path):
     missing = tmp_path / "grippers.yaml"
 
-    with pytest.raises(FileNotFoundError, match=str(missing)):
+    with pytest.raises(FileNotFoundError, match=str(missing.resolve())):
         load_gripper_configs(missing)

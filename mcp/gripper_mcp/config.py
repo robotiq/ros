@@ -38,6 +38,15 @@ class GripperConfig(StrictModel):
     description: str = ""
     object_width_mm: float | None = None
 
+    @model_validator(mode="after")
+    def _ros_needs_a_namespace(self) -> "GripperConfig":
+        if self.backend == "ros" and not self.namespace:
+            raise ValueError(
+                f"gripper '{self.name}' uses the ros backend but has no namespace; "
+                "an empty namespace would address the root graph"
+            )
+        return self
+
 
 class GripForce(StrictModel):
     min_n: float
@@ -93,7 +102,7 @@ def load_model_specs(spec_dir: Path, models: set[str]) -> dict[str, GripperModel
 def load_gripper_configs(path: Path) -> list[GripperConfig]:
     if not path.exists():
         raise FileNotFoundError(
-            f"Gripper wiring file not found: {path}. "
+            f"Gripper wiring file not found: {path.resolve()}. "
             "Copy grippers.yaml.example next to it and edit."
         )
     entries = yaml.safe_load(path.read_text()) or []
