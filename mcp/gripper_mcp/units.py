@@ -8,9 +8,14 @@ Two domains are in play and they must never be confused:
   gripper's command joint. 0.0 = open, the joint's upper limit (0.8 on a 2F-85)
   = closed. INVERTED relative to opening_mm.
 
-The mapping between them is linear. The real linkage is a four-bar, so the
-opening this yields is an approximation, good to a couple of millimetres at
-mid-stroke and exact at both ends.
+The mapping between them is linear. The real linkage is a four-bar, so
+mid-stroke openings are approximate; both ends are exact.
+
+This module is a stopgap. The driver already maps the joint angle to register
+counts in C++ (robotiq_driver's gripper_scaling.hpp), and the counts-to-mm
+conversion belongs with it, in the SDK, so that every consumer shares one
+calibration (robotiq/grippers#16). Until that exists the MCP can only reach the
+joint angle over ROS, so it carries this small second map.
 """
 
 from dataclasses import dataclass
@@ -22,6 +27,12 @@ class GripperGeometry:
     min_opening_mm: float
     knuckle_rad_open: float
     knuckle_rad_closed: float
+
+    def __post_init__(self) -> None:
+        if self.max_opening_mm <= self.min_opening_mm:
+            raise ValueError("max_opening_mm must exceed min_opening_mm")
+        if self.knuckle_rad_closed == self.knuckle_rad_open:
+            raise ValueError("knuckle_rad_closed must differ from knuckle_rad_open")
 
 
 def clamp(value: float, low: float, high: float) -> float:
