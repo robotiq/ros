@@ -109,13 +109,22 @@ the agent picks the tool.
 
 Two layers, deliberately split:
 
-- `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq model, the same
-  on every host. The command joint's name and range come straight from
-  `robotiq_description`'s URDF. Supporting another model is adding a file.
+- `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq
+  model, shipped inside the package. It holds only what the robot cannot tell
+  us: the stroke in mm, the rated grip force and timing defaults. Supporting
+  another model is adding a file.
 - `grippers.yaml`: the cell's wiring, which grippers exist, their model, the
   ROS namespace their driver runs under and an optional tactile source.
-  Host-specific, so only
-  `grippers.yaml.example` ships.
+  Host-specific, so only `grippers.yaml.example` ships; `grippers.yaml` itself
+  is gitignored.
+
+Both refuse unknown keys, so a misspelled field fails at startup by name.
+
+The command joint's name and range are not configured anywhere: the ROS backend
+reads them from the `robot_description` that `robot_state_publisher` latches in
+the gripper's namespace, picking the joint the finger joints `mimic` and the
+driver's `gripper_closed_position` as the closed end. A cell built with a xacro
+`prefix` therefore resolves by itself.
 
 ## Not a ROS package
 

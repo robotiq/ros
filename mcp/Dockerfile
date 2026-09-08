@@ -6,7 +6,6 @@
 #   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
 #   docker build -t robotiq_gripper_mcp:jazzy mcp
 #
-# Jazzy and Lyrical only: fastmcp needs Python 3.12 and Humble ships 3.10.
 # Point BASE_IMAGE at any image built from docker/Dockerfile (a headless build,
 # a downstream image layered on it, ...); ROS_DISTRO comes from that image.
 ARG BASE_IMAGE=robotiq_ros2:jazzy
@@ -34,7 +33,6 @@ WORKDIR /app
 RUN uv venv --system-site-packages /opt/gripper_mcp
 COPY pyproject.toml uv.lock README.md ./
 COPY gripper_mcp ./gripper_mcp
-COPY robot_specifications ./robot_specifications
 RUN uv sync --locked --no-dev
 
 COPY entrypoint.sh /entrypoint.sh
