@@ -15,6 +15,26 @@ GEOMETRY_2F_85 = GripperGeometry(
 )
 
 
+def test_a_geometry_with_no_stroke_is_rejected():
+    with pytest.raises(ValueError, match="max_opening_mm"):
+        GripperGeometry(
+            max_opening_mm=0.0,
+            min_opening_mm=0.0,
+            knuckle_rad_open=0.0,
+            knuckle_rad_closed=0.8,
+        )
+
+
+def test_a_geometry_with_no_joint_travel_is_rejected():
+    with pytest.raises(ValueError, match="knuckle_rad_closed"):
+        GripperGeometry(
+            max_opening_mm=85.0,
+            min_opening_mm=0.0,
+            knuckle_rad_open=0.8,
+            knuckle_rad_closed=0.8,
+        )
+
+
 def test_fully_open_maps_to_zero_knuckle_angle():
     assert opening_mm_to_knuckle_rad(85.0, GEOMETRY_2F_85) == pytest.approx(0.0)
 
