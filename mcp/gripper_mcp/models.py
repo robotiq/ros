@@ -5,6 +5,7 @@ model carries the `backend` that produced it: a value's trustworthiness depends
 on which backend it came from, and an agent has no other way to tell.
 """
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -22,7 +23,7 @@ Outcome = Literal[
 
 
 class GripperInfo(BaseModel):
-    name: str
+    robot_name: str
     model: str
     backend: Backend
     description: str
@@ -33,13 +34,16 @@ class GripperState(BaseModel):
     opening_mm: float = Field(description="0.0 = closed, the model's max = fully open")
     opening_fraction: float = Field(description="0.0 = closed, 1.0 = fully open")
     knuckle_rad: float = Field(
-        description="Command joint position, controller convention: 0.0 = open"
+        description=(
+            "Command joint position, controller convention: 0.0 = open. "
+            "Diagnostics only; command openings in opening_mm"
+        )
     )
     force_n: float | None = Field(
         default=None, description="Measured grip force in newtons; null when unmeasured"
     )
     backend: Backend
-    measured_at: str = Field(description="ISO-8601 UTC")
+    measured_at: datetime = Field(description="UTC, timezone-aware")
 
 
 class GripperMotionResult(BaseModel):
