@@ -27,6 +27,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import launch
+import launch.logging
 from launch.actions import OpaqueFunction
 from launch.substitution import Substitution
 from launch.substitutions import (
@@ -82,6 +83,39 @@ class ControllersFile(Substitution):
 # The xacro emits one <plugin> per flag that is set, and ros2_control_node
 # accepts only one, so two flags would fail late and obscurely.
 HARDWARE_FLAGS = ("use_fake_hardware", "sim_topic_based")
+
+# PickNik's names for the topic-based path, released in 1.1.0. Each maps to its
+# replacement and, for the topics, to the default it had then, which sim_isaac
+# restores so a 1.1.0 command line keeps driving the same simulator.
+DEPRECATED_ISAAC_ARGUMENTS = {
+    "sim_isaac": ("sim_topic_based", None),
+    "isaac_joint_commands": ("sim_joint_commands_topic", "/isaac_joint_commands"),
+    "isaac_joint_states": ("sim_joint_states_topic", "/isaac_joint_states"),
+}
+DEPRECATION_NOTICE = (
+    "{} deprecated since 1.2.0 and removed in the next major release; "
+    "use sim_topic_based, sim_joint_commands_topic and sim_joint_states_topic"
+)
+
+
+def alias_deprecated_isaac_arguments(context):
+    # Runs before the DeclareLaunchArguments, so the context holds only what the
+    # caller actually passed and an explicit new-style argument always wins.
+    given = context.launch_configurations
+    used = [old for old in DEPRECATED_ISAAC_ARGUMENTS if old in given]
+    if not used:
+        return
+    launch.logging.get_logger("robotiq_control.launch").warning(
+        DEPRECATION_NOTICE.format(
+            f"{', '.join(used)} {'is' if len(used) == 1 else 'are'}"
+        )
+    )
+    restore_isaac_defaults = "sim_isaac" in used
+    for old, (new, isaac_default) in DEPRECATED_ISAAC_ARGUMENTS.items():
+        if old in used:
+            given.setdefault(new, given[old])
+        elif restore_isaac_defaults and isaac_default is not None:
+            given.setdefault(new, isaac_default)
 
 
 def reject_conflicting_hardware_flags(context):
@@ -242,6 +276,14 @@ def generate_launch_description():
             description="sim_topic_based only: JointState topic the simulator publishes",
         )
     )
+    for old, (new, _) in DEPRECATED_ISAAC_ARGUMENTS.items():
+        args.append(
+            launch.actions.DeclareLaunchArgument(
+                name=old,
+                default_value="",
+                description=f"Deprecated since 1.2.0: use {new}",
+            )
+        )
 
     topic_based = LaunchConfiguration("sim_topic_based")
 
@@ -320,4 +362,6 @@ def generate_launch_description():
         rviz_node,
     ]
 
-    return launch.LaunchDescription(args + nodes)
+    return launch.LaunchDescription(
+        [OpaqueFunction(function=alias_deprecated_isaac_arguments)] + args + nodes
+    )

@@ -257,6 +257,35 @@ def test_sim_topics_reach_the_plugin(model):
     assert hardware_param(default, "joint_states_topic") == "/sim/joint_states"
 
 
+def xacro_stderr(model, *extra_args):
+    return subprocess.run(
+        ["xacro", str(URDF_DIR / model), *extra_args],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stderr
+
+
+@requires_xacro
+@pytest.mark.parametrize("model", MODELS)
+def test_deprecated_isaac_arguments_still_select_the_plugin_and_warn(model):
+    # PickNik's 1.1.0 names: same plugin, the /isaac_* topic defaults they had,
+    # an explicit isaac_* topic still wins, and xacro says so on stderr.
+    ros2_control = expand(model, False, "sim_isaac:=true")
+    assert plugin_of(ros2_control) == TOPIC_BASED_PLUGIN
+    assert (
+        hardware_param(ros2_control, "joint_commands_topic") == "/isaac_joint_commands"
+    )
+    assert hardware_param(ros2_control, "joint_states_topic") == "/isaac_joint_states"
+
+    overridden = expand(model, False, "sim_isaac:=true", "isaac_joint_commands:=/x")
+    assert hardware_param(overridden, "joint_commands_topic") == "/x"
+
+    assert "sim_isaac" in xacro_stderr(model, "sim_isaac:=true")
+    assert "deprecated" in xacro_stderr(model, "sim_isaac:=true")
+    assert "deprecated" not in xacro_stderr(model, TOPIC_BASED_ARG)
+
+
 @requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
 def test_sim_controller_config_claims_only_what_the_sim_urdf_declares(model, joint):

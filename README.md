@@ -269,7 +269,11 @@ own), named by `sim_joint_commands_topic` / `sim_joint_states_topic`. That plugi
 `config/robotiq_controllers.topic_based.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
 a stall aborts the goal rather than succeeding, since a simulator that publishes no joint velocities
 would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
-whose `reactivate_gripper` GPIO only the driver and the mock declare. `TopicBasedSystem` matches
+whose `reactivate_gripper` GPIO only the driver and the mock declare. Renamed in 1.2.0: PickNik's
+`sim_isaac`, `isaac_joint_commands` and `isaac_joint_states` (launch arguments and macro parameters,
+shipped in 1.1.0) still work and log a deprecation warning, `sim_isaac:=true` keeping its old
+`/isaac_joint_commands` / `/isaac_joint_states` topic defaults; they are removed in the next major
+release. `TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
 six joint names for the model you launch, each with your `prefix`, or nothing moves:
 

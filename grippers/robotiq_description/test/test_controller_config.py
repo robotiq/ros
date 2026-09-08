@@ -37,6 +37,7 @@
 # regardless of the distro the tests run on, so neither can rot unnoticed.
 
 import importlib.util
+import logging
 from pathlib import Path
 
 import pytest
@@ -199,6 +200,55 @@ def test_launch_rejects_fake_hardware_together_with_sim_topic_based():
     )
     with pytest.raises(RuntimeError, match="use_fake_hardware and sim_topic_based"):
         launch_module.reject_conflicting_hardware_flags(context)
+
+
+@pytest.fixture
+def launch_log(caplog):
+    # launch's loggers never propagate and their screen handler binds sys.stdout
+    # once per process, so neither caplog nor capsys sees them unaided.
+    logger = logging.getLogger("robotiq_control.launch")
+    logger.addHandler(caplog.handler)
+    yield caplog
+    logger.removeHandler(caplog.handler)
+
+
+def test_launch_aliases_the_deprecated_isaac_arguments(launch_log):
+    # PickNik's 1.1.0 names must keep driving the same simulator, and say so.
+    launch_module = load_launch_module()
+    context = LaunchContext()
+    context.launch_configurations.update(sim_isaac="true")
+    launch_module.alias_deprecated_isaac_arguments(context)
+    assert context.launch_configurations["sim_topic_based"] == "true"
+    assert (
+        context.launch_configurations["sim_joint_commands_topic"]
+        == "/isaac_joint_commands"
+    )
+    assert (
+        context.launch_configurations["sim_joint_states_topic"] == "/isaac_joint_states"
+    )
+    assert "sim_isaac is deprecated" in launch_log.text
+
+
+def test_launch_lets_an_explicit_new_argument_win_over_a_deprecated_one():
+    launch_module = load_launch_module()
+    context = LaunchContext()
+    context.launch_configurations.update(
+        sim_isaac="true", isaac_joint_commands="/old", sim_joint_commands_topic="/new"
+    )
+    launch_module.alias_deprecated_isaac_arguments(context)
+    assert context.launch_configurations["sim_joint_commands_topic"] == "/new"
+    assert (
+        context.launch_configurations["sim_joint_states_topic"] == "/isaac_joint_states"
+    )
+
+
+def test_launch_is_quiet_without_deprecated_arguments(launch_log):
+    launch_module = load_launch_module()
+    context = LaunchContext()
+    context.launch_configurations.update(sim_topic_based="true")
+    launch_module.alias_deprecated_isaac_arguments(context)
+    assert context.launch_configurations == {"sim_topic_based": "true"}
+    assert "deprecated" not in launch_log.text
 
 
 def test_launch_forwards_the_gripper_model_to_xacro():
