@@ -2,24 +2,35 @@
 
 Two kinds of files, deliberately split:
 
-- `robot_specifications/<model>.yaml`: one datasheet per Robotiq model, the same
-  on every host. Adding a model is adding a file.
+- `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq
+  model, shipped inside the package so an installed wheel finds it. It carries
+  only what no robot description can tell us: the stroke in mm, the grip force
+  the product is rated for, and timing defaults. The command joint's name and
+  range come from the robot at runtime. Adding a model is adding a file.
 - `grippers.yaml`: the cell's wiring, which grippers exist, their model, backend
   and ROS namespace. Host-specific, so it ships as an example to copy.
+
+Every model refuses unknown keys: these files are hand-edited per host, and a
+typo that silently dropped a field would point the server at the wrong robot.
 """
 
+from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from gripper_mcp.units import GripperGeometry
+from gripper_mcp.units import Stroke
 
-SPEC_DIR = Path(__file__).resolve().parent.parent / "robot_specifications"
+SPEC_DIR = Path(str(files("gripper_mcp").joinpath("datasheets")))
 
 
-class GripperConfig(BaseModel):
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class GripperConfig(StrictModel):
     name: str
     model: str
     backend: Literal["ros", "mock"] = "mock"
@@ -28,16 +39,37 @@ class GripperConfig(BaseModel):
     object_width_mm: float | None = None
 
 
-class Defaults(BaseModel):
+class GripForce(StrictModel):
+    min_n: float
+    max_n: float
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "GripForce":
+        if self.max_n <= self.min_n:
+            raise ValueError("max_n must exceed min_n")
+        return self
+
+
+class Defaults(StrictModel):
     max_effort_n: float
     motion_timeout_s: float
 
 
-class GripperModelSpec(BaseModel):
+class GripperModelSpec(StrictModel):
     model: str
-    command_joint: str
-    geometry: GripperGeometry
+    stroke: Stroke
+    grip_force: GripForce
     defaults: Defaults
+
+    @model_validator(mode="after")
+    def _default_effort_within_the_rated_range(self) -> "GripperModelSpec":
+        effort = self.defaults.max_effort_n
+        if not self.grip_force.min_n <= effort <= self.grip_force.max_n:
+            raise ValueError(
+                f"defaults.max_effort_n {effort} is outside the rated grip_force "
+                f"{self.grip_force.min_n}-{self.grip_force.max_n} N"
+            )
+        return self
 
 
 def load_model_spec(path: Path) -> GripperModelSpec:
@@ -65,6 +97,11 @@ def load_gripper_configs(path: Path) -> list[GripperConfig]:
             "Copy grippers.yaml.example next to it and edit."
         )
     entries = yaml.safe_load(path.read_text()) or []
+    if not isinstance(entries, list):
+        raise ValueError(
+            f"{path} must be a list of gripper entries, each starting with '- ' "
+            f"(got a {type(entries).__name__})"
+        )
     configs = [GripperConfig.model_validate(entry) for entry in entries]
 
     names = [config.name for config in configs]
