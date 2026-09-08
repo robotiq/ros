@@ -257,19 +257,30 @@ ros2 launch robotiq_description robotiq_control.launch.py                    # r
 ros2 launch robotiq_description robotiq_control.launch.py use_fake_hardware:=true   # ros2_control mock
 ros2 launch robotiq_description robotiq_control.launch.py launch_rviz:=true         # + RViz visualization
 ros2 launch robotiq_description robotiq_control.launch.py baudrate:=<rate>
-ros2 launch robotiq_description robotiq_control.launch.py sim_isaac:=true \
-  isaac_joint_commands:=/isaac_joint_commands isaac_joint_states:=/isaac_joint_states  # topic_based_ros2_control
+ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true \
+  sim_joint_commands_topic:=/sim/joint_commands sim_joint_states_topic:=/sim/joint_states  # topic_based_ros2_control
 ```
 
 This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, and `robotiq_activation_controller`.
 
-`sim_isaac` swaps the hardware plugin for `topic_based_ros2_control/TopicBasedSystem` (any
-simulator that exchanges `sensor_msgs/JointState` on two topics — Isaac Sim is the usual one, hence
-the argument names). That plugin exports only the standard joint interfaces, so the launch loads
-`config/robotiq_controllers.sim.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
+`sim_topic_based` swaps the hardware plugin for `topic_based_ros2_control/TopicBasedSystem`: any
+simulator that exchanges `sensor_msgs/JointState` on two topics (Isaac Sim, or a bridge of your
+own), named by `sim_joint_commands_topic` / `sim_joint_states_topic`. That plugin exports only the standard joint interfaces, so the launch loads
+`config/robotiq_controllers.topic_based.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
 a stall aborts the goal rather than succeeding, since a simulator that publishes no joint velocities
 would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
-whose `reactivate_gripper` GPIO only the driver and the mock declare. `TopicBasedSystem` matches
+whose `reactivate_gripper` GPIO only the driver and the mock declare. Renamed in 1.2.0: PickNik's
+`sim_isaac`, `isaac_joint_commands` and `isaac_joint_states` (launch arguments and macro parameters,
+shipped in 1.1.0) still work and log a deprecation warning, `sim_isaac:=true` keeping its old
+`/isaac_joint_commands` / `/isaac_joint_states` topic defaults; they are removed in the next major
+release. To stay on those topic names without the deprecated arguments:
+
+```bash
+ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true \
+  sim_joint_commands_topic:=/isaac_joint_commands sim_joint_states_topic:=/isaac_joint_states
+```
+
+`TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
 six joint names for the model you launch, each with your `prefix`, or nothing moves:
 
@@ -278,8 +289,19 @@ six joint names for the model you launch, each with your `prefix`, or nothing mo
 | `2f_85` | `robotiq_85_left_knuckle_joint` | `robotiq_85_right_knuckle_joint`, `robotiq_85_left_inner_knuckle_joint`, `robotiq_85_right_inner_knuckle_joint`, `robotiq_85_left_finger_tip_joint`, `robotiq_85_right_finger_tip_joint` |
 | `2f_140` | `finger_joint` | `right_outer_knuckle_joint`, `left_inner_knuckle_joint`, `right_inner_knuckle_joint`, `left_inner_finger_joint`, `right_inner_finger_joint` |
 
-The plugin is not a dependency of this package — build
-[topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) yourself.
+The plugin is not a dependency of this package. On Humble install
+`ros-humble-topic-based-ros2-control`; on Jazzy and Lyrical it has no binary release, so build
+[topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) in an
+overlay once:
+
+```bash
+git clone https://github.com/PickNikRobotics/topic_based_ros2_control <ws>/src/topic_based_ros2_control
+cd <ws>
+colcon build --packages-select topic_based_ros2_control --cmake-args -DBUILD_TESTING=OFF
+```
+
+(`-DBUILD_TESTING=OFF` skips its `ros_testing` test dependency, which a runtime install does not
+have.)
 The `ros2_control` xacros also carry a `sim_gazebo` parameter (`gz_ros2_control/GazeboSimSystem`)
 for cells that embed the gripper macro in their own Gazebo description; this launch does not wire
 it, since Gazebo hosts its own `controller_manager`.
@@ -322,7 +344,7 @@ All four read `NaN` until the component is activated; activation seeds them from
 
 `motor_current` is motor current, **not** grip force, and it is not convertible to one.
 
-`motor_current` and `object_status` are not `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for either of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and Isaac never write them — so under `use_fake_hardware:=true` both are absent rather than wrong.
+`motor_current` and `object_status` are not `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for either of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and the topic-based plugin never write them — so under `use_fake_hardware:=true` both are absent rather than wrong.
 
 ### Hardware parameters
 
@@ -369,7 +391,7 @@ Drag the `robotiq_85_left_knuckle_joint` slider; the five finger joints follow i
 
 Goal-based commanding also works without hardware: `robotiq_control.launch.py use_fake_hardware:=true launch_rviz:=true` brings up all three controllers against `mock_components/GenericSystem`, and `gripper_cmd` goals drive the model — the five finger joints follow the knuckle via URDF `mimic`, exactly as on hardware. Use the slider above when you want to pose the model by hand instead.
 
-Mock and hardware publish the same `/joint_states` contract on every distro: the knuckle joint alone, with `robot_state_publisher` deriving the mimicked finger joints from the URDF. Only the Gazebo and Isaac paths declare the mimicked joints to `ros2_control`, since those simulators supply their own joint state.
+Mock and hardware publish the same `/joint_states` contract on every distro: the knuckle joint alone, with `robot_state_publisher` deriving the mimicked finger joints from the URDF. Only the Gazebo and topic-based paths (`sim_gazebo`, `sim_topic_based`) declare the mimicked joints to `ros2_control`, since those simulators supply their own joint state.
 
 ## Testing
 

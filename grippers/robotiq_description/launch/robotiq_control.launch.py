@@ -27,6 +27,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import launch
+import launch.logging
 from launch.actions import OpaqueFunction
 from launch.substitution import Substitution
 from launch.substitutions import (
@@ -45,39 +46,76 @@ from launch_ros.parameter_descriptions import ParameterFile
 import os
 
 # Humble has no parallel_gripper_controller package, so it needs its own
-# controller config, and the simulated plugin (sim_isaac) exports a different
+# controller config, and the topic_based plugin exports a different
 # interface set from the driver and the mock, so it needs its own too.
 # See config/robotiq_controllers*.yaml.
 JAZZY_CONTROLLERS_FILE = "robotiq_controllers.yaml"
 HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
-JAZZY_SIM_CONTROLLERS_FILE = "robotiq_controllers.sim.yaml"
-HUMBLE_SIM_CONTROLLERS_FILE = "robotiq_controllers.sim.humble.yaml"
+JAZZY_TOPIC_BASED_CONTROLLERS_FILE = "robotiq_controllers.topic_based.yaml"
+HUMBLE_TOPIC_BASED_CONTROLLERS_FILE = "robotiq_controllers.topic_based.humble.yaml"
 
 
-def controllers_file_for_distro(distro, simulated=False):
+def controllers_file_for_distro(distro, topic_based=False):
     """Return the controller config file name for ROS distro `distro`.
 
-    `simulated` selects the config for the sim_isaac hardware plugin.
+    `topic_based` selects the config for the sim_topic_based hardware plugin.
     """
     if distro == "humble":
-        return HUMBLE_SIM_CONTROLLERS_FILE if simulated else HUMBLE_CONTROLLERS_FILE
-    return JAZZY_SIM_CONTROLLERS_FILE if simulated else JAZZY_CONTROLLERS_FILE
+        return (
+            HUMBLE_TOPIC_BASED_CONTROLLERS_FILE
+            if topic_based
+            else HUMBLE_CONTROLLERS_FILE
+        )
+    return JAZZY_TOPIC_BASED_CONTROLLERS_FILE if topic_based else JAZZY_CONTROLLERS_FILE
 
 
 class ControllersFile(Substitution):
-    def __init__(self, distro, simulated):
+    def __init__(self, distro, topic_based):
         super().__init__()
         self.distro = distro
-        self.simulated = simulated
+        self.topic_based = topic_based
 
     def perform(self, context):
-        simulated = evaluate_condition_expression(context, [self.simulated])
-        return controllers_file_for_distro(self.distro, simulated)
+        topic_based = evaluate_condition_expression(context, [self.topic_based])
+        return controllers_file_for_distro(self.distro, topic_based)
 
 
 # The xacro emits one <plugin> per flag that is set, and ros2_control_node
 # accepts only one, so two flags would fail late and obscurely.
-HARDWARE_FLAGS = ("use_fake_hardware", "sim_isaac")
+HARDWARE_FLAGS = ("use_fake_hardware", "sim_topic_based")
+
+# PickNik's names for the topic-based path, released in 1.1.0. Each maps to its
+# replacement and, for the topics, to the default it had then, which sim_isaac
+# restores so a 1.1.0 command line keeps driving the same simulator.
+DEPRECATED_ISAAC_ARGUMENTS = {
+    "sim_isaac": ("sim_topic_based", None),
+    "isaac_joint_commands": ("sim_joint_commands_topic", "/isaac_joint_commands"),
+    "isaac_joint_states": ("sim_joint_states_topic", "/isaac_joint_states"),
+}
+DEPRECATION_NOTICE = (
+    "{} deprecated since 1.2.0 and removed in the next major release; "
+    "use sim_topic_based, sim_joint_commands_topic and sim_joint_states_topic"
+)
+
+
+def alias_deprecated_isaac_arguments(context):
+    # Runs before the DeclareLaunchArguments, so the context holds only what the
+    # caller actually passed and an explicit new-style argument always wins.
+    given = context.launch_configurations
+    used = [old for old in DEPRECATED_ISAAC_ARGUMENTS if old in given]
+    if not used:
+        return
+    launch.logging.get_logger("robotiq_control.launch").warning(
+        DEPRECATION_NOTICE.format(
+            f"{', '.join(used)} {'is' if len(used) == 1 else 'are'}"
+        )
+    )
+    restore_isaac_defaults = "sim_isaac" in used
+    for old, (new, isaac_default) in DEPRECATED_ISAAC_ARGUMENTS.items():
+        if old in used:
+            given.setdefault(new, given[old])
+        elif restore_isaac_defaults and isaac_default is not None:
+            given.setdefault(new, isaac_default)
 
 
 def reject_conflicting_hardware_flags(context):
@@ -138,14 +176,14 @@ def xacro_command():
             "baudrate:=",
             LaunchConfiguration("baudrate"),
             " ",
-            "sim_isaac:=",
-            LaunchConfiguration("sim_isaac"),
+            "sim_topic_based:=",
+            LaunchConfiguration("sim_topic_based"),
             " ",
-            "isaac_joint_commands:=",
-            LaunchConfiguration("isaac_joint_commands"),
+            "sim_joint_commands_topic:=",
+            LaunchConfiguration("sim_joint_commands_topic"),
             " ",
-            "isaac_joint_states:=",
-            LaunchConfiguration("isaac_joint_states"),
+            "sim_joint_states_topic:=",
+            LaunchConfiguration("sim_joint_states_topic"),
         ]
     )
 
@@ -219,27 +257,35 @@ def generate_launch_description():
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="sim_isaac",
+            name="sim_topic_based",
             default_value="false",
             description="Drive a simulator over topic_based_ros2_control instead of a real gripper",
         )
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="isaac_joint_commands",
-            default_value="/isaac_joint_commands",
-            description="sim_isaac only: JointState topic the simulator takes commands on",
+            name="sim_joint_commands_topic",
+            default_value="/sim/joint_commands",
+            description="sim_topic_based only: JointState topic the simulator takes commands on",
         )
     )
     args.append(
         launch.actions.DeclareLaunchArgument(
-            name="isaac_joint_states",
-            default_value="/isaac_joint_states",
-            description="sim_isaac only: JointState topic the simulator publishes",
+            name="sim_joint_states_topic",
+            default_value="/sim/joint_states",
+            description="sim_topic_based only: JointState topic the simulator publishes",
         )
     )
+    for old, (new, _) in DEPRECATED_ISAAC_ARGUMENTS.items():
+        args.append(
+            launch.actions.DeclareLaunchArgument(
+                name=old,
+                default_value="",
+                description=f"Deprecated since 1.2.0: use {new}",
+            )
+        )
 
-    simulated = LaunchConfiguration("sim_isaac")
+    topic_based = LaunchConfiguration("sim_topic_based")
 
     robot_description_param = {
         "robot_description": launch_ros.parameter_descriptions.ParameterValue(
@@ -247,7 +293,7 @@ def generate_launch_description():
         )
     }
 
-    controllers_file = ControllersFile(os.environ.get("ROS_DISTRO"), simulated)
+    controllers_file = ControllersFile(os.environ.get("ROS_DISTRO"), topic_based)
     initial_joint_controllers = ParameterFile(
         PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
         allow_substs=True,
@@ -301,9 +347,9 @@ def generate_launch_description():
     joint_state_broadcaster_spawner = spawner("joint_state_broadcaster")
     robotiq_gripper_controller_spawner = spawner("robotiq_gripper_controller")
     # The reactivate_gripper GPIO this controller claims is declared for the
-    # driver and the mock only; the simulated plugin has nothing to reactivate.
+    # driver and the mock only; the topic_based plugin has nothing to reactivate.
     robotiq_activation_controller_spawner = spawner(
-        "robotiq_activation_controller", condition=UnlessCondition(simulated)
+        "robotiq_activation_controller", condition=UnlessCondition(topic_based)
     )
 
     nodes = [
@@ -316,4 +362,6 @@ def generate_launch_description():
         rviz_node,
     ]
 
-    return launch.LaunchDescription(args + nodes)
+    return launch.LaunchDescription(
+        [OpaqueFunction(function=alias_deprecated_isaac_arguments)] + args + nodes
+    )

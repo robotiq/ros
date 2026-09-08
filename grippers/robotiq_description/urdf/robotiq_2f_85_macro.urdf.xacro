@@ -6,9 +6,12 @@
         parent
         *origin
         sim_gazebo:=false
+        sim_topic_based:=false
+        sim_joint_commands_topic:=/sim/joint_commands
+        sim_joint_states_topic:=/sim/joint_states
         sim_isaac:=false
-        isaac_joint_commands:=/isaac_joint_commands
-        isaac_joint_states:=/isaac_joint_states
+        isaac_joint_commands:=''
+        isaac_joint_states:=''
         use_fake_hardware:=false
         mock_sensor_commands:=false
         include_ros2_control:=true
@@ -20,6 +23,16 @@
         gripper_max_force:=235.0
         gripper_closed_position:=0.7929">
 
+        <!-- PickNik's names for the topic-based path, released in 1.1.0 and
+             deprecated since 1.2.0. sim_isaac keeps its old /isaac_joint_* topic
+             defaults; an explicit new-style argument wins over both. -->
+        <xacro:if value="${sim_isaac or isaac_joint_commands != '' or isaac_joint_states != ''}">
+            ${xacro.warning('sim_isaac, isaac_joint_commands and isaac_joint_states are deprecated since 1.2.0 and removed in the next major release; use sim_topic_based, sim_joint_commands_topic and sim_joint_states_topic')}
+        </xacro:if>
+        <xacro:property name="topic_based" value="${sim_topic_based or sim_isaac}"/>
+        <xacro:property name="commands_topic" value="${isaac_joint_commands or ('/isaac_joint_commands' if sim_isaac else sim_joint_commands_topic)}"/>
+        <xacro:property name="states_topic" value="${isaac_joint_states or ('/isaac_joint_states' if sim_isaac else sim_joint_states_topic)}"/>
+
 
         <!-- ros2 control include -->
         <xacro:include filename="$(find robotiq_description)/urdf/2f_85.ros2_control.xacro" />
@@ -28,9 +41,9 @@
             <xacro:robotiq_gripper_ros2_control
                 name="${name}" prefix="${prefix}"
                 sim_gazebo="${sim_gazebo}"
-                sim_isaac="${sim_isaac}"
-                isaac_joint_commands="${isaac_joint_commands}"
-                isaac_joint_states="${isaac_joint_states}"
+                sim_topic_based="${topic_based}"
+                sim_joint_commands_topic="${commands_topic}"
+                sim_joint_states_topic="${states_topic}"
                 use_fake_hardware="${use_fake_hardware}"
                 mock_sensor_commands="${mock_sensor_commands}"
                 com_port="${com_port}"
