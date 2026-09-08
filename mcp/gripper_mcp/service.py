@@ -61,7 +61,7 @@ class GripperService:
 
     def get_state(self, robot_name: str) -> GripperState:
         backend = self._backend(robot_name)
-        geometry = self._spec(robot_name).geometry
+        geometry = self._geometry(robot_name)
         state = backend.read_state()
         opening_mm = knuckle_rad_to_opening_mm(state.position_rad, geometry)
 
@@ -76,19 +76,19 @@ class GripperService:
         )
 
     def open_fully(self, robot_name: str) -> GripperMotionResult:
-        geometry = self._spec(robot_name).geometry
-        return self.move_to_opening(robot_name, geometry.max_opening_mm)
+        stroke = self._spec(robot_name).stroke
+        return self.move_to_opening(robot_name, stroke.max_opening_mm)
 
     def close_fully(self, robot_name: str) -> GripperMotionResult:
-        geometry = self._spec(robot_name).geometry
-        return self.move_to_opening(robot_name, geometry.min_opening_mm)
+        stroke = self._spec(robot_name).stroke
+        return self.move_to_opening(robot_name, stroke.min_opening_mm)
 
     def grasp(
         self, robot_name: str, max_effort_n: float | None = None
     ) -> GripperMotionResult:
-        geometry = self._spec(robot_name).geometry
+        stroke = self._spec(robot_name).stroke
         return self.move_to_opening(
-            robot_name, geometry.min_opening_mm, max_effort_n, is_grasp=True
+            robot_name, stroke.min_opening_mm, max_effort_n, is_grasp=True
         )
 
     def move_to_opening(
@@ -100,18 +100,17 @@ class GripperService:
     ) -> GripperMotionResult:
         backend = self._backend(robot_name)
         spec = self._spec(robot_name)
-        target_mm = clamp_opening_mm(opening_mm, spec.geometry)
+        geometry = self._geometry(robot_name)
+        target_mm = clamp_opening_mm(opening_mm, geometry)
         motion = backend.move_to(
-            position_rad=opening_mm_to_knuckle_rad(target_mm, spec.geometry),
+            position_rad=opening_mm_to_knuckle_rad(target_mm, geometry),
             max_effort_n=(
                 spec.defaults.max_effort_n if max_effort_n is None else max_effort_n
             ),
             timeout_s=spec.defaults.motion_timeout_s,
         )
-        achieved_mm = knuckle_rad_to_opening_mm(
-            motion.final_position_rad, spec.geometry
-        )
-        stopped_on_object = stopped_on_something(motion, achieved_mm, spec.geometry)
+        achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
+        stopped_on_object = stopped_on_something(motion, achieved_mm, geometry)
 
         return GripperMotionResult(
             robot_name=robot_name,
@@ -147,6 +146,13 @@ class GripperService:
 
     def _spec(self, robot_name: str) -> GripperModelSpec:
         return self._specs[self._configs[robot_name].model]
+
+    def _geometry(self, robot_name: str):
+        return geometry_of(self._spec(robot_name), self._backend(robot_name))
+
+
+def geometry_of(spec: GripperModelSpec, backend: GripperBackend) -> GripperGeometry:
+    return GripperGeometry.of(spec.stroke, backend.joint_geometry())
 
 
 def stopped_on_something(
