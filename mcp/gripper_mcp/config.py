@@ -7,8 +7,13 @@ Two kinds of files, deliberately split:
   only what no robot description can tell us: the stroke in mm, the grip force
   the product is rated for, and timing defaults. The command joint's name and
   range come from the robot at runtime. Adding a model is adding a file.
-- `grippers.yaml`: the cell's wiring, which grippers exist, their model, backend
-  and ROS namespace. Host-specific, so it ships as an example to copy.
+- `grippers.yaml`: the cell's wiring, which grippers exist, their model and
+  the ROS namespace their driver runs under. Host-specific, so it ships as an
+  example to copy.
+
+The only backend is the ROS driver. Running without hardware is the driver's
+job too, on the SDK's fake gripper (`use_dummy`), so the wiring has no mock
+entry to offer.
 
 Every model refuses unknown keys: these files are hand-edited per host, and a
 typo that silently dropped a field would point the server at the wrong robot.
@@ -16,7 +21,6 @@ typo that silently dropped a field would point the server at the wrong robot.
 
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -33,16 +37,14 @@ class StrictModel(BaseModel):
 class GripperConfig(StrictModel):
     name: str
     model: str
-    backend: Literal["ros", "mock"] = "mock"
-    namespace: str = ""
+    namespace: str
     description: str = ""
-    object_width_mm: float | None = None
 
     @model_validator(mode="after")
-    def _ros_needs_a_namespace(self) -> "GripperConfig":
-        if self.backend == "ros" and not self.namespace:
+    def _needs_a_namespace(self) -> "GripperConfig":
+        if not self.namespace:
             raise ValueError(
-                f"gripper '{self.name}' uses the ros backend but has no namespace; "
+                f"gripper '{self.name}' has no namespace; "
                 "an empty namespace would address the root graph"
             )
         return self

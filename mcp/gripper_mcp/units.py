@@ -5,7 +5,8 @@ Two domains are in play and they must never be confused:
 - **opening_mm**: what agents and tools speak. 0.0 = closed, the model's max
   opening (85.0 on a 2F-85) = fully open.
 - **knuckle_rad**: what `robotiq_gripper_controller` speaks, the position of the
-  gripper's command joint. 0.0 = open, the joint's upper limit (0.8 on a 2F-85)
+  gripper's command joint. 0.0 = open, the driver's closed position
+  (`gripper_closed_position` in the robot description, 0.7929 on a 2F-85)
   = closed. INVERTED relative to opening_mm.
 
 The two ends have two owners. The stroke in mm is the product datasheet's and
@@ -14,7 +15,8 @@ description the backend is actually talking to, so the backend supplies them at
 runtime and nothing here is copied from a URDF.
 
 The mapping between them is linear. The real linkage is a four-bar, so
-mid-stroke openings are approximate; both ends are exact.
+mid-stroke openings are approximate; the ends are exact only as far as the
+backend's closed angle is the one the driver actually closes to.
 
 This module is a stopgap. The driver already maps the joint angle to register
 counts in C++ (robotiq_driver's gripper_scaling.hpp), and the counts-to-mm

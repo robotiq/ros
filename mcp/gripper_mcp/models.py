@@ -2,7 +2,8 @@
 
 Every model names its units in the field name or its description, and every
 model carries the `backend` that produced it: a value's trustworthiness depends
-on which backend it came from, and an agent has no other way to tell.
+on which backend it came from, and an agent has no other way to tell. "ros" is
+the driver; "mock" only ever comes from the test doubles under tests/.
 """
 
 from datetime import datetime
