@@ -41,9 +41,11 @@ from launch.conditions import (
     UnlessCondition,
     evaluate_condition_expression,
 )
+from launch.utilities import normalize_to_list_of_substitutions, perform_substitutions
 import launch_ros
 from launch_ros.parameter_descriptions import ParameterFile
 import os
+import re
 
 # Humble has no parallel_gripper_controller package, so it needs its own
 # controller config, and the topic_based plugin exports a different
@@ -137,6 +139,15 @@ class ParameterFilePath(Substitution):
 
     def perform(self, context):
         return str(self.parameter_file.evaluate(context))
+
+
+CONTROLLER_MANAGER_TIMEOUT = "15"
+
+
+def hardware_component_names(context):
+    """Names of the <ros2_control> components in the description the launch loads."""
+    urdf = perform_substitutions(context, [xacro_command()])
+    return re.findall(r'<ros2_control\s+name="([^"]+)"', urdf)
 
 
 # Joint carrying the position command, per gripper_model. The launch argument
@@ -340,19 +351,22 @@ def generate_launch_description():
     # then dies with "parameter 'joint' is not initialized". --param-file has been
     # a spawner option since Humble, and each node reads only its own section of
     # the file, so this is correct on every supported distro.
+    def spawner_arguments(*controller_names):
+        return [
+            *controller_names,
+            "--controller-manager",
+            "/controller_manager",
+            "--controller-manager-timeout",
+            CONTROLLER_MANAGER_TIMEOUT,
+            "--param-file",
+            ParameterFilePath(initial_joint_controllers),
+        ]
+
     def spawner(controller_name, condition=None):
         return launch_ros.actions.Node(
             package="controller_manager",
             executable="spawner",
-            arguments=[
-                controller_name,
-                "--controller-manager",
-                "/controller_manager",
-                "--controller-manager-timeout",
-                "10",
-                "--param-file",
-                ParameterFilePath(initial_joint_controllers),
-            ],
+            arguments=spawner_arguments(controller_name),
             condition=condition,
         )
 
@@ -373,11 +387,40 @@ def generate_launch_description():
     def is_set(context, name):
         return evaluate_condition_expression(context, [LaunchConfiguration(name)])
 
+    def uses_real_gripper(context):
+        return not any(is_set(context, flag) for flag in HARDWARE_FLAGS)
+
+    relaunch_hint = launch.actions.LogInfo(
+        msg="The bringup failed. If the error above says the gripper could not be "
+        "connected, connect it and relaunch: on Humble, ros2_control_node cannot "
+        "recover from a failed connection without a restart."
+    )
+
+    def recovery_hint(context):
+        """Both halves of the recovery, in order: the hardware, then the controllers.
+
+        Bringing the component back leaves the controllers loaded but inactive;
+        re-running the spawners is what configures and activates them again.
+        """
+        names = [n for n, s in zip(spawned_controllers, spawners) if starts(s, context)]
+        arguments = " ".join(
+            perform_substitutions(context, normalize_to_list_of_substitutions(a))
+            for a in spawner_arguments(*names)
+        )
+        steps = [
+            f"ros2 control set_hardware_component_state {component} active"
+            for component in hardware_component_names(context)
+        ] + [f"ros2 run controller_manager spawner {arguments}"]
+        return launch.actions.LogInfo(
+            msg="A controller could not be activated. If the gripper is not connected, "
+            "reconnect it, then run, in order:\n  " + "\n  ".join(steps)
+        )
+
     # After a failed bringup the last line on screen is otherwise a spawner's
     # "process has died", which says nothing about the cause or the way out.
     returncodes = []
 
-    def hint_after_the_last_spawner_exits(event, context):
+    def on_spawner_exit(event, context):
         returncodes.append(event.returncode)
         if context.is_shutdown or len(returncodes) < sum(
             starts(s, context) for s in spawners
@@ -386,44 +429,36 @@ def generate_launch_description():
         # A negative code is a signal: the spawners were killed, they did not fail.
         if not any(code > 0 for code in returncodes):
             return None
-        # Only a real gripper can be unplugged.
-        if any(is_set(context, flag) for flag in HARDWARE_FLAGS):
-            return None
+        actions = []
         if distro == "humble":
-            hint = launch.actions.LogInfo(
-                msg="A controller could not be activated. If the gripper is not "
-                "connected, ros2_control_node did not survive it (see its error above); "
-                "reconnect the gripper and relaunch."
-            )
-            if not is_set(context, "shutdown_on_failure"):
-                return [hint]
-            return [hint, launch.actions.Shutdown(reason="no controller activated")]
-        names = " ".join(
-            name
-            for name, action in zip(spawned_controllers, spawners)
-            if starts(action, context)
-        )
-        return [
-            launch.actions.LogInfo(
-                msg="A controller could not be activated. If the gripper is not "
-                "connected, follow the driver's error above to bring the hardware "
-                f"back, then re-run the spawners: ros2 run controller_manager spawner {names}"
-            )
-        ]
+            if uses_real_gripper(context):
+                actions.append(relaunch_hint)
+            if is_set(context, "shutdown_on_failure"):
+                actions.append(
+                    launch.actions.Shutdown(reason="no controller activated")
+                )
+        elif uses_real_gripper(context):
+            actions.append(recovery_hint(context))
+        return actions or None
+
+    def on_control_node_exit(_event, context):
+        actions = []
+        if distro == "humble" and uses_real_gripper(context):
+            actions.append(relaunch_hint)
+        if is_set(context, "shutdown_on_failure"):
+            actions.append(launch.actions.Shutdown(reason="ros2_control_node exited"))
+        return actions or None
 
     spawner_hint = launch.actions.RegisterEventHandler(
         launch.event_handlers.OnProcessExit(
-            target_action=lambda action: action in spawners,
-            on_exit=hint_after_the_last_spawner_exits,
+            target_action=lambda action: action in spawners, on_exit=on_spawner_exit
         )
     )
 
     shutdown_on_control_node_exit = launch.actions.RegisterEventHandler(
         launch.event_handlers.OnProcessExit(
-            target_action=control_node,
-            on_exit=[launch.actions.Shutdown(reason="ros2_control_node exited")],
-        ),
-        condition=IfCondition(LaunchConfiguration("shutdown_on_failure")),
+            target_action=control_node, on_exit=on_control_node_exit
+        )
     )
 
     nodes = [

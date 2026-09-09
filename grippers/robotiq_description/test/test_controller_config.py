@@ -38,6 +38,7 @@
 
 import importlib.util
 import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -476,14 +477,15 @@ def test_humble_config_declares_no_initial_state_policy():
     assert "hardware_components_initial_state" not in controllers
 
 
+ACTIVATION_TIMEOUT_S = 15
+
+
 @requires_launch
-def test_launch_gives_a_slow_gripper_ten_seconds_to_reach_the_controller_manager(
-    monkeypatch,
-):
-    # Bounded so a controller_manager that never answers ends the bringup, wide
-    # enough that a gripper still recovering from a fault is not taken for missing.
+def test_spawners_outwait_a_gripper_recovering_from_a_fault(monkeypatch):
+    timeout = load_launch_module().CONTROLLER_MANAGER_TIMEOUT
+    assert int(timeout) >= ACTIVATION_TIMEOUT_S
     for _, cmd in spawner_commands("jazzy", monkeypatch):
-        assert cmd[cmd.index("--controller-manager-timeout") + 1] == "10"
+        assert cmd[cmd.index("--controller-manager-timeout") + 1] == timeout
 
 
 PROCESS = {"name": "p", "cmd": ["p"], "cwd": None, "env": None, "pid": 1}
@@ -534,7 +536,10 @@ def shutdowns(emitted_per_exit):
     ]
 
 
-SPAWNER_RERUN = (
+HARDWARE_STEP = (
+    "ros2 control set_hardware_component_state RobotiqGripperHardwareInterface active"
+)
+CONTROLLER_STEP = (
     "ros2 run controller_manager spawner "
     "joint_state_broadcaster robotiq_gripper_controller robotiq_activation_controller"
 )
@@ -543,13 +548,25 @@ SPAWNER_RERUN = (
 @requires_launch
 @pytest.mark.parametrize("returncodes", [[1, 1, 1], [0, 1, 0], [1, 0, 0]])
 def test_launch_hints_once_after_the_last_spawner_exits(monkeypatch, returncodes):
-    # Verified on a 2F-85: bringing the hardware back leaves the controllers
-    # loaded but inactive, and re-running the spawners is what activates them.
-    emitted = hints(drive_spawner_exits(monkeypatch, returncodes))
-    assert emitted[:-1] == [[], []]
-    assert len(emitted[-1]) == 1
-    assert SPAWNER_RERUN in emitted[-1][0]
-    assert shutdowns(drive_spawner_exits(monkeypatch, returncodes)) == [[], [], []]
+    emitted = drive_spawner_exits(monkeypatch, returncodes)
+    assert hints(emitted)[:-1] == [[], []]
+    assert shutdowns(emitted) == [[], [], []]
+    (hint,) = hints(emitted)[-1]
+    # Verified on a 2F-85: the first step alone leaves the controllers loaded
+    # but inactive; the second is what configures and activates them again.
+    assert hint.index(HARDWARE_STEP) < hint.index(CONTROLLER_STEP)
+
+
+@requires_launch
+def test_launch_hints_the_spawners_exact_command_line(monkeypatch):
+    # Same arguments as the spawners themselves, so the two cannot drift; the
+    # param file is the one the first spawn used, and Lyrical needs it.
+    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1])
+    (hint,) = hints(emitted)[-1]
+    rerun = hint[hint.index(CONTROLLER_STEP) :]
+    assert "--controller-manager /controller_manager" in rerun
+    assert f"--controller-manager-timeout {ACTIVATION_TIMEOUT_S}" in rerun
+    assert re.search(r"--param-file /\S+", rerun)
 
 
 @requires_launch
@@ -593,7 +610,18 @@ def test_launch_ends_on_humble_where_the_node_cannot_survive(monkeypatch):
     emitted = drive_spawner_exits(monkeypatch, [1, 1, 1], distro="humble")
     assert hints(emitted)[:-1] == [[], []]
     assert "relaunch" in hints(emitted)[-1][0]
-    assert SPAWNER_RERUN not in hints(emitted)[-1][0]
+    assert CONTROLLER_STEP not in hints(emitted)[-1][0]
+    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
+
+
+@requires_launch
+def test_launch_still_ends_on_humble_without_a_gripper(monkeypatch):
+    # No reconnect advice under the mock, but shutdown_on_failure is not about
+    # the gripper and must hold.
+    emitted = drive_spawner_exits(
+        monkeypatch, [1, 1, 1], distro="humble", use_fake_hardware="true"
+    )
+    assert hints(emitted) == [[], [], []]
     assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
 
 
@@ -606,10 +634,10 @@ def test_launch_keeps_running_on_humble_when_asked(monkeypatch):
     assert shutdowns(emitted) == [[], [], []]
 
 
-def control_node_exit(monkeypatch, **launch_arguments):
+def control_node_exit(monkeypatch, distro="jazzy", **launch_arguments):
     from launch.events.process import ProcessExited
 
-    entities, context = launch_entities("jazzy", monkeypatch, **launch_arguments)
+    entities, context = launch_entities(distro, monkeypatch, **launch_arguments)
     (control_node,) = nodes_running(entities, context, "ros2_control_node")
     event = ProcessExited(action=control_node, returncode=-6, **PROCESS)
     return dispatch(entities, context, event)
@@ -622,6 +650,20 @@ def test_launch_ends_when_the_control_node_exits(monkeypatch):
     emitted = control_node_exit(monkeypatch)
     assert len(emitted) == 1
     assert isinstance(emitted[0], Shutdown)
+
+
+@requires_launch
+def test_launch_hints_when_the_node_aborts_on_humble(monkeypatch):
+    # The abort is the common Humble failure. Its Shutdown silences the spawner
+    # hint, so the one line the user needs has to come from this handler.
+    from launch.actions import LogInfo, Shutdown
+
+    emitted = control_node_exit(monkeypatch, distro="humble")
+    assert [type(e) for e in emitted] == [LogInfo, Shutdown]
+    assert "relaunch" in perform_text(emitted[0].msg)
+
+    kept = control_node_exit(monkeypatch, distro="humble", shutdown_on_failure="false")
+    assert [type(e) for e in kept] == [LogInfo]
 
 
 @requires_launch

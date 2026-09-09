@@ -228,7 +228,7 @@ rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn Roboti
    {
       RCLCPP_ERROR(kLogger,
                    "Cannot connect to the Robotiq gripper on %s: %s. Once it is connected, retry with: ros2 control "
-                   "set_hardware_component_state %s active",
+                   "set_hardware_component_state '%s' active",
                    describeLink(parameters_.connection).c_str(),
                    e.what(),
                    info_.name.c_str());
