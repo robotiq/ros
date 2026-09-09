@@ -32,6 +32,15 @@ is identical across all three. On Humble that makes this repo a drop-in
 replacement for PickNik's `humble` branch — see
 [Migrating from PickNik's ros2_robotiq_gripper](#migrating-from-pickniks-ros2_robotiq_gripper).
 
+The other difference is a gripper that is missing at bringup. On Jazzy and Lyrical
+`ros2_control_node` stays up with the hardware component `unconfigured`, the
+spawners give up after 15 s at most, and the launch prints the two commands that
+recover without a relaunch once the gripper is plugged in. Humble's
+`controller_manager` cannot keep the node alive in that state, so there the launch
+ends and a relaunch is the way back. `shutdown_on_failure:=false` keeps the launch
+running in either case, for launch files that include this one next to nodes that
+should outlive the gripper.
+
 ## Versioning
 
 The repository is versioned as a whole: every package carries the same version
