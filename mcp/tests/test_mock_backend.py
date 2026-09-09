@@ -1,7 +1,7 @@
 import pytest
 
 from gripper_mcp.backend import GripperBackend
-from gripper_mcp.mock_backend import MOCK_GEOMETRY, MockGripperBackend
+from fakes.gripper import MOCK_GEOMETRY, MockGripperBackend
 
 CLOSED = MOCK_GEOMETRY.knuckle_rad_closed
 OPEN = MOCK_GEOMETRY.knuckle_rad_open
@@ -77,6 +77,11 @@ def test_opening_after_a_grasp_releases_without_stalling():
     assert motion.reached_goal is True
     assert motion.final_position_rad == OPEN
     assert backend.read_state().force_n == 0.0
+
+
+def test_an_object_wider_than_the_stroke_is_refused():
+    with pytest.raises(ValueError, match="outside the stroke"):
+        instant_mock(object_width_mm=MOCK_GEOMETRY.max_opening_mm + 1.0)
 
 
 def test_a_target_past_the_stroke_is_clamped():

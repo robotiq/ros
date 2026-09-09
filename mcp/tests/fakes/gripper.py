@@ -1,16 +1,22 @@
-"""Pure-Python mock gripper, the CI default backend.
+"""Pure-Python mock gripper, a test double for the service layer.
 
 It exists to exercise the behaviours the service layer has to get right and a
 unit test cannot reach through the real driver: a close that stalls on an
 object, travel time, and a goal that outlives its timeout. An optional virtual
 object of a given width sits between the fingers; closing past it stalls there.
+A width outside the stroke is refused up front, since a real gripper cannot
+stall before it starts moving.
+
+It is deliberately not part of the shipped package. Running the MCP without
+hardware is the ROS driver's job, on the SDK's fake gripper (`use_dummy`), so
+that the driver, the controller and the action are exercised too.
 
 Travel is simulated through an injected `sleep_fn` so tests run instantly while
 a container still moves in something like real time.
 """
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from gripper_mcp.backend import BackendHealth, BackendMotion, BackendState
 from gripper_mcp.units import (
@@ -40,6 +46,14 @@ class MockGripperBackend:
         sleep_fn: Callable[[float], None] = time.sleep,
         geometry: GripperGeometry = MOCK_GEOMETRY,
     ) -> None:
+        if object_width_mm is not None and not (
+            geometry.min_opening_mm < object_width_mm < geometry.max_opening_mm
+        ):
+            raise ValueError(
+                f"object_width_mm={object_width_mm} is outside the stroke "
+                f"({geometry.min_opening_mm}, {geometry.max_opening_mm}) mm"
+            )
+
         self._object_width_mm = object_width_mm
         self._travel_speed_mm_s = travel_speed_mm_s
         self._sleep = sleep_fn
