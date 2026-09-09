@@ -1,8 +1,8 @@
 import pytest
+from fakes.gripper import MockGripperBackend
 
 from gripper_mcp.backend import BackendMotion
 from gripper_mcp.config import SPEC_DIR, GripperConfig, load_model_specs
-from gripper_mcp.mock_backend import MockGripperBackend
 from gripper_mcp.service import GripperService, UnknownGripperError, classify
 
 NARROW = "robotiq_2f_85"
@@ -21,7 +21,11 @@ def service_with(**backend_kwargs) -> tuple[GripperService, MockGripperBackend]:
     backend = MockGripperBackend(sleep_fn=lambda _seconds: None, **backend_kwargs)
     service = GripperService(
         specs=specs,
-        configs={ARM: GripperConfig(name=ARM, model=NARROW, description="left")},
+        configs={
+            ARM: GripperConfig(
+                name=ARM, model=NARROW, namespace="/left", description="left"
+            )
+        },
         backends={ARM: backend},
     )
     return service, backend
@@ -138,8 +142,8 @@ def test_health_passes_the_backend_verdict_through():
 def test_each_gripper_opens_to_its_own_model_width():
     specs = load_model_specs(SPEC_DIR, {NARROW, WIDE})
     configs = {
-        "narrow": GripperConfig(name="narrow", model=NARROW),
-        "wide": GripperConfig(name="wide", model=WIDE),
+        "narrow": GripperConfig(name="narrow", model=NARROW, namespace="/narrow"),
+        "wide": GripperConfig(name="wide", model=WIDE, namespace="/wide"),
     }
     backends = {
         name: MockGripperBackend(
