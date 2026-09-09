@@ -1,6 +1,7 @@
-from gripper_mcp.mock_tactile_backend import (
+from fakes.tactile import (
     REST_COUNTS,
     TAXEL_MAX_COUNTS,
+    TOUCH_COUNTS,
     TSF_85_LAYOUT,
     MockTactileBackend,
 )
@@ -12,9 +13,6 @@ JUST_TOUCHING_MM = 40.0
 LIGHTLY_PRESSED_MM = 38.0
 FIRMLY_PRESSED_MM = 30.0
 CRUSHED_MM = 0.0
-
-CENTRE_INDEX = 3 * TSF_85_LAYOUT.cols + 1
-EDGE_INDEX = 0
 
 
 def backend(opening_mm: float, object_width_mm: float | None) -> MockTactileBackend:
@@ -39,33 +37,33 @@ def test_closing_fully_on_nothing_leaves_every_taxel_at_rest():
     assert all_resting(backend(CRUSHED_MM, None).read_tactile())
 
 
-def test_fingers_exactly_at_the_object_read_no_pressure_yet():
-    assert all_resting(backend(JUST_TOUCHING_MM, OBJECT_WIDTH_MM).read_tactile())
+def test_fingers_exactly_at_the_object_register_a_light_touch():
+    reading = backend(JUST_TOUCHING_MM, OBJECT_WIDTH_MM).read_tactile()
+
+    assert all(
+        taxel == REST_COUNTS + TOUCH_COUNTS
+        for pad in reading.pads
+        for taxel in pad.taxels
+    )
 
 
-def test_closing_past_the_object_raises_the_taxels():
+def test_closing_past_the_object_raises_every_taxel():
     reading = backend(LIGHTLY_PRESSED_MM, OBJECT_WIDTH_MM).read_tactile()
 
-    assert reading.pads[0].taxels[CENTRE_INDEX] > REST_COUNTS
+    assert all(taxel > REST_COUNTS for pad in reading.pads for taxel in pad.taxels)
 
 
 def test_deeper_penetration_reads_higher():
     light = backend(LIGHTLY_PRESSED_MM, OBJECT_WIDTH_MM).read_tactile()
     firm = backend(FIRMLY_PRESSED_MM, OBJECT_WIDTH_MM).read_tactile()
 
-    assert firm.pads[0].taxels[CENTRE_INDEX] > light.pads[0].taxels[CENTRE_INDEX]
+    assert firm.pads[0].taxels[0] > light.pads[0].taxels[0]
 
 
 def test_both_pads_agree_on_a_symmetric_object():
     reading = backend(FIRMLY_PRESSED_MM, OBJECT_WIDTH_MM).read_tactile()
 
     assert reading.pads[0].taxels == reading.pads[1].taxels
-
-
-def test_the_pad_centre_reads_harder_than_its_edge():
-    taxels = backend(FIRMLY_PRESSED_MM, OBJECT_WIDTH_MM).read_tactile().pads[0].taxels
-
-    assert taxels[CENTRE_INDEX] > taxels[EDGE_INDEX]
 
 
 def test_extreme_penetration_saturates():
