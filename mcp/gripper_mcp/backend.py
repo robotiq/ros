@@ -3,13 +3,20 @@
 Backends speak the controller's domain, the command joint's position in radians
 (0 = open), and know nothing about millimetres, pydantic or MCP; the service
 layer owns that translation. This is what lets the same tool surface sit on the
-ROS driver, real or simulated, or on a mock without any of them leaking into the
-tool signatures.
+ROS driver, real or simulated, or on a test double without any of them leaking
+into the tool signatures.
 
 The vocabulary is the `gripper_cmd` action's: a position and a max effort in,
 `reached_goal` and `stalled` out. A stall on a close is how the driver reports
 an object between the fingers, so backends pass it through untouched and never
-decide for the caller whether it was wanted.
+decide for the caller whether it was wanted. `refused` is set when the backend
+rejected the goal before any motion, typically the action server turning it
+down; `timed_out` when the motion outlived its deadline.
+
+This contract is not MCP-specific: every Python client of the ROS driver wants
+"move to a position with a max effort, report reached or stalled". Its home is
+a ros client package alongside the ROS backend once that backend lands; it sits
+here until then, with the MCP as its first consumer.
 """
 
 from dataclasses import dataclass
