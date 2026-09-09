@@ -93,34 +93,32 @@ def test_a_default_effort_outside_the_rated_grip_force_is_rejected(tmp_path):
         load_model_spec(write_datasheet(tmp_path, too_strong))
 
 
-def test_the_example_wiring_loads_and_covers_both_backends():
+def test_the_example_wiring_loads_and_names_a_namespace_per_gripper():
     configs = load_gripper_configs(EXAMPLE_WIRING)
 
-    assert {config.backend for config in configs} == {"ros", "mock"}
     assert {config.model for config in configs} <= set(MODELS)
+    assert all(config.namespace.startswith("/") for config in configs)
 
 
-def test_a_minimal_entry_defaults_to_the_mock(tmp_path):
+def test_a_gripper_without_a_namespace_is_rejected(tmp_path):
     path = wiring_file(tmp_path, [{"name": "left", "model": "robotiq_2f_85"}])
 
-    (config,) = load_gripper_configs(path)
-
-    assert config.backend == "mock"
-    assert config.namespace == ""
-    assert config.object_width_mm is None
+    with pytest.raises(ValidationError, match="namespace"):
+        load_gripper_configs(path)
 
 
-def test_a_ros_gripper_without_a_namespace_is_rejected(tmp_path):
+def test_an_empty_namespace_is_rejected_by_gripper_name(tmp_path):
     wiring = tmp_path / "grippers.yaml"
-    wiring.write_text("- {name: left, model: robotiq_2f_85, backend: ros}\n")
+    wiring.write_text("- {name: left, model: robotiq_2f_85, namespace: ''}\n")
 
-    with pytest.raises(ValidationError, match="'left'.*no namespace"):
+    with pytest.raises(ValidationError, match="'left' has no namespace"):
         load_gripper_configs(wiring)
 
 
-def test_an_unknown_backend_is_rejected(tmp_path):
+def test_a_mock_backend_is_no_longer_a_wiring_option(tmp_path):
     path = wiring_file(
-        tmp_path, [{"name": "left", "model": "robotiq_2f_85", "backend": "sdk"}]
+        tmp_path,
+        [{"name": "bench", "model": "robotiq_2f_85", "backend": "mock"}],
     )
 
     with pytest.raises(ValidationError, match="backend"):
@@ -148,8 +146,8 @@ def test_duplicate_gripper_names_are_rejected(tmp_path):
     path = wiring_file(
         tmp_path,
         [
-            {"name": "left", "model": "robotiq_2f_85"},
-            {"name": "left", "model": "robotiq_2f_140"},
+            {"name": "left", "model": "robotiq_2f_85", "namespace": "/left"},
+            {"name": "left", "model": "robotiq_2f_140", "namespace": "/left"},
         ],
     )
 
