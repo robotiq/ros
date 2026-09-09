@@ -4,6 +4,12 @@
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
+    # Jazzy defaults this to true and takes ros2_control_node down when the
+    # gripper is not connected; Lyrical defaults to false. Set explicitly so every
+    # distro keeps the node up and the connection can be retried from the CLI.
+    # Humble has no such parameter.
+    hardware_components_initial_state:
+      shutdown_on_initial_state_failure: false
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     # Jazzy and newer: parallel_gripper_action_controller replaces gripper_controllers package

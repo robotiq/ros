@@ -103,9 +103,10 @@ block. Code that compiles only on the newest distro will fail the matrix — the
 `ros2_control_compat.hpp` shows the pattern. Kilted and other non-LTS releases
 are not targeted.
 
-The one place the distros genuinely differ is the gripper controller — see
-[Supported ROS 2 distros](README.md#supported-ros-2-distros). Keep changes to
-controller configuration working on both sides of that split.
+The distros genuinely differ in two places — see
+[Supported ROS 2 distros](README.md#supported-ros-2-distros): the gripper
+controller, and what a missing gripper does to `ros2_control_node` at bringup.
+Keep changes to controller configuration working on both sides of that split.
 
 **Humble stays a drop-in replacement for PickNik's `humble` branch** (see
 [Migrating from PickNik's ros2_robotiq_gripper](README.md#migrating-from-pickniks-ros2_robotiq_gripper)).
