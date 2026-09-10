@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import pytest
 import yaml
@@ -107,6 +108,8 @@ def test_the_listing_names_the_configured_gripper(mcp):
     assert entry.max_opening_mm == pytest.approx(85.0)
 
 
-def test_the_default_backend_factory_names_the_missing_ros_backend(tmp_path):
-    with pytest.raises(NotImplementedError, match="ROS backend"):
+def test_a_wiring_entry_names_the_missing_ros_install(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "rclpy", None)
+
+    with pytest.raises(RuntimeError, match="rclpy"):
         build_service(write_wiring(tmp_path))

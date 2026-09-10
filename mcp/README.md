@@ -10,7 +10,7 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 | Tool | What it does |
 |---|---|
 | `gripper_list_grippers` | Discover configured gripper names |
-| `gripper_get_state` | Opening (mm, fraction, joint rad) and grip force |
+| `gripper_get_state` | Opening (mm, fraction, joint rad); the driver reports no force |
 | `gripper_open` | Open fully; optional `max_effort_n` |
 | `gripper_close` | Close fully; optional `max_effort_n` |
 | `gripper_move_to` | Move to a specific position, in mm of opening; optional `max_effort_n` |
@@ -40,13 +40,22 @@ The server is then at `http://127.0.0.1:8300/mcp` (streamable-http); point any
 MCP client at it. The tools carry no authentication: anything that can reach
 the port can close a gripper. The default binds localhost only; pass
 `--host 0.0.0.0` to serve the cell network, and firewall the port when you do.
-The tool surface is complete in this build; the backend that
-talks to `robotiq_gripper_controller` lands in the next one, so until then
-`build_service` refuses every wiring entry by name. Without hardware, run the
-driver on ros2_control's fake hardware (`use_fake_hardware`) rather than a
-Python stand-in: that exercises the driver, the controller and the action,
-which a mock never will. The unit tests use a scripted double under
-`tests/fakes/`.
+Without hardware, run the driver on ros2_control's fake hardware
+(`use_fake_hardware:=true`) rather than a Python stand-in: that exercises the
+driver, the controller and the action, which a mock never will. The unit tests
+use a scripted double under `tests/fakes/`.
+
+## With the driver
+
+The backend talks to `robotiq_gripper_controller` through rclpy: it sends
+`gripper_cmd` goals and reads `joint_states` under the gripper's `namespace`
+from `grippers.yaml`. Source your ROS 2 install before starting the server so
+`rclpy` and `control_msgs` import. The action type is whatever the running
+controller advertises (`ParallelGripperCommand` from Jazzy's controller,
+`GripperCommand` from Humble's), read off the graph rather than guessed from
+the distro. The controller's `stalled` flag is passed through in the result but
+the outcome is read from where the fingers ended up (see `service.py`), because
+the driver sets that flag on every goal (robotiq/ros#29).
 
 ### Connecting an agent
 
