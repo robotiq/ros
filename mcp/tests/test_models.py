@@ -8,7 +8,7 @@ from gripper_mcp.models import GripperMotionResult, GripperState
 
 def motion_result(**overrides):
     fields = dict(
-        robot_name="left",
+        gripper_name="left",
         commanded_opening_mm=0.0,
         achieved_opening_mm=31.2,
         reached_goal=False,
@@ -40,7 +40,7 @@ def test_a_result_survives_the_wire():
 
 def test_a_state_keeps_its_timezone_across_the_wire():
     state = GripperState(
-        robot_name="left",
+        gripper_name="left",
         opening_mm=42.5,
         opening_fraction=0.5,
         knuckle_rad=0.4,
