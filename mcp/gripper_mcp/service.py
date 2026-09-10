@@ -62,7 +62,7 @@ class GripperService:
     def list_grippers(self) -> list[GripperInfo]:
         return [
             GripperInfo(
-                robot_name=name,
+                gripper_name=name,
                 model=config.model,
                 backend=self._backends[name].name,
                 description=config.description,
@@ -70,14 +70,14 @@ class GripperService:
             for name, config in self._configs.items()
         ]
 
-    def get_state(self, robot_name: str) -> GripperState:
-        backend = self._backend(robot_name)
-        geometry = geometry_of(self._spec(robot_name), backend)
+    def get_state(self, gripper_name: str) -> GripperState:
+        backend = self._backend(gripper_name)
+        geometry = geometry_of(self._spec(gripper_name), backend)
         state = backend.read_state()
         opening_mm = knuckle_rad_to_opening_mm(state.position_rad, geometry)
 
         return GripperState(
-            robot_name=robot_name,
+            gripper_name=gripper_name,
             opening_mm=round(opening_mm, MM_DECIMALS),
             opening_fraction=round(
                 opening_mm_to_fraction(opening_mm, geometry), FRACTION_DECIMALS
@@ -88,31 +88,31 @@ class GripperService:
             measured_at=datetime.now(timezone.utc),
         )
 
-    def open_fully(self, robot_name: str) -> GripperMotionResult:
-        stroke = self._spec(robot_name).stroke
-        return self.move_to_opening(robot_name, stroke.max_opening_mm)
+    def open_fully(self, gripper_name: str) -> GripperMotionResult:
+        stroke = self._spec(gripper_name).stroke
+        return self.move_to_opening(gripper_name, stroke.max_opening_mm)
 
-    def close_fully(self, robot_name: str) -> GripperMotionResult:
-        stroke = self._spec(robot_name).stroke
-        return self.move_to_opening(robot_name, stroke.min_opening_mm)
+    def close_fully(self, gripper_name: str) -> GripperMotionResult:
+        stroke = self._spec(gripper_name).stroke
+        return self.move_to_opening(gripper_name, stroke.min_opening_mm)
 
     def grasp(
-        self, robot_name: str, max_effort_n: float | None = None
+        self, gripper_name: str, max_effort_n: float | None = None
     ) -> GripperMotionResult:
-        stroke = self._spec(robot_name).stroke
+        stroke = self._spec(gripper_name).stroke
         return self.move_to_opening(
-            robot_name, stroke.min_opening_mm, max_effort_n, is_grasp=True
+            gripper_name, stroke.min_opening_mm, max_effort_n, is_grasp=True
         )
 
     def move_to_opening(
         self,
-        robot_name: str,
+        gripper_name: str,
         opening_mm: float,
         max_effort_n: float | None = None,
         is_grasp: bool = False,
     ) -> GripperMotionResult:
-        backend = self._backend(robot_name)
-        spec = self._spec(robot_name)
+        backend = self._backend(gripper_name)
+        spec = self._spec(gripper_name)
         geometry = geometry_of(spec, backend)
         target_mm = clamp_opening_mm(opening_mm, geometry)
         motion = backend.move_to(
@@ -126,7 +126,7 @@ class GripperService:
         stopped_on_object = stopped_on_something(target_mm, achieved_mm, spec.stroke)
 
         return GripperMotionResult(
-            robot_name=robot_name,
+            gripper_name=gripper_name,
             commanded_opening_mm=round(target_mm, MM_DECIMALS),
             achieved_opening_mm=(
                 None if motion.refused else round(achieved_mm, MM_DECIMALS)
@@ -139,32 +139,32 @@ class GripperService:
             backend=backend.name,
         )
 
-    def get_health(self, robot_name: str) -> GripperHealth:
-        backend = self._backend(robot_name)
+    def get_health(self, gripper_name: str) -> GripperHealth:
+        backend = self._backend(gripper_name)
         health = backend.health()
 
         return GripperHealth(
-            robot_name=robot_name,
+            gripper_name=gripper_name,
             reachable=health.reachable,
             controller_active=health.controller_active,
             detail=health.detail,
             backend=backend.name,
         )
 
-    def assert_known(self, robot_name: str) -> None:
-        if robot_name not in self._configs:
+    def assert_known(self, gripper_name: str) -> None:
+        if gripper_name not in self._configs:
             available = ", ".join(self._configs) or "(none)"
             raise UnknownGripperError(
-                f"Unknown gripper '{robot_name}'. Available: {available}"
+                f"Unknown gripper '{gripper_name}'. Available: {available}"
             )
 
-    def _backend(self, robot_name: str) -> GripperBackend:
-        self.assert_known(robot_name)
-        return self._backends[robot_name]
+    def _backend(self, gripper_name: str) -> GripperBackend:
+        self.assert_known(gripper_name)
+        return self._backends[gripper_name]
 
-    def _spec(self, robot_name: str) -> GripperModelSpec:
-        self.assert_known(robot_name)
-        return self._specs[self._configs[robot_name].model]
+    def _spec(self, gripper_name: str) -> GripperModelSpec:
+        self.assert_known(gripper_name)
+        return self._specs[self._configs[gripper_name].model]
 
 
 def geometry_of(spec: GripperModelSpec, backend: GripperBackend) -> GripperGeometry:

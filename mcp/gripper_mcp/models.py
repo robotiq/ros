@@ -25,14 +25,14 @@ Outcome = Literal[
 
 
 class GripperInfo(BaseModel):
-    robot_name: str
+    gripper_name: str
     model: str
     backend: Backend
     description: str
 
 
 class GripperState(BaseModel):
-    robot_name: str
+    gripper_name: str
     opening_mm: float = Field(description="0.0 = closed, the model's max = fully open")
     opening_fraction: float = Field(description="0.0 = closed, 1.0 = fully open")
     knuckle_rad: float = Field(
@@ -49,7 +49,7 @@ class GripperState(BaseModel):
 
 
 class GripperMotionResult(BaseModel):
-    robot_name: str
+    gripper_name: str
     commanded_opening_mm: float
     achieved_opening_mm: float | None = None
     reached_goal: bool
@@ -64,7 +64,7 @@ class GripperMotionResult(BaseModel):
 
 
 class GripperHealth(BaseModel):
-    robot_name: str
+    gripper_name: str
     reachable: bool
     controller_active: bool | None = Field(
         default=None, description="robotiq_gripper_controller is loaded and active"

@@ -146,7 +146,7 @@ def test_listed_grippers_report_their_backend():
 
     (entry,) = service.list_grippers()
 
-    assert (entry.robot_name, entry.model, entry.backend) == (ARM, NARROW, "mock")
+    assert (entry.gripper_name, entry.model, entry.backend) == (ARM, NARROW, "mock")
 
 
 def test_health_passes_the_backend_verdict_through():
