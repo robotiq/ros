@@ -18,6 +18,7 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 | `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
 | `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
 | `gripper_verify_grasp` | Confirm a hold from touch plus opening |
+| `gripper_grasp_until_contact` | Close in steps until the pads feel first touch; for fragile or soft objects |
 
 Every tool takes an explicit `gripper_name`; nothing fans out to every gripper.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
@@ -48,6 +49,12 @@ hold. `gripper_verify_grasp` gives one of:
 | `held` | Pads register contact and the fingers stopped before meeting |
 | `closed_on_nothing` | Fingers fully closed |
 | `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
+
+`gripper_grasp_until_contact` is the one tool that moves more than once per
+call: it closes by the datasheet's `step_mm`, reads the pads between steps, and
+stops on first touch, on the fingers meeting, on a stall, or on a hard
+`contact_timeout_s`. A stall with quiet pads is reported as
+`stalled_before_contact`, never as a grasp.
 
 The tactile source subscribes to `robotiq_tsf`'s `TactileSensor/StaticData`
 under the gripper's `namespace` (the tactile driver runs in the same namespace

@@ -85,6 +85,8 @@ class TactileSpec(StrictModel):
     contact_threshold: float
     noise_margin: float = Field(ge=1.0)
     baseline_samples: int = Field(gt=0)
+    step_mm: float = Field(gt=0.0)
+    contact_timeout_s: float = Field(gt=0.0)
 
     @property
     def layout(self) -> TactileLayout:

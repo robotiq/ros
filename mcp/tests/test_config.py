@@ -104,6 +104,8 @@ def test_the_2f_85_datasheet_names_the_tsf_85_pads():
     assert spec.tactile.layout.taxels_per_pad == TSF_85_TAXELS_PER_PAD
     assert spec.tactile.layout.pad_names == ("left", "right")
     assert 0.0 < spec.tactile.contact_threshold < 1.0
+    assert spec.tactile.step_mm > 0.0
+    assert spec.tactile.contact_timeout_s > 0.0
 
 
 def test_the_2f_140_datasheet_has_no_tactile_option():
