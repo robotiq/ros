@@ -47,11 +47,24 @@ def test_a_fresh_gripper_reads_fully_open():
     assert state.knuckle_rad == pytest.approx(0.0)
 
 
-def test_an_unknown_gripper_is_named_with_the_available_ones():
+@pytest.mark.parametrize(
+    "call",
+    [
+        GripperService.get_state,
+        GripperService.open_fully,
+        GripperService.close_fully,
+        GripperService.grasp,
+        GripperService.get_health,
+        lambda service, name: service.move_to_opening(name, HALF_OPEN_MM),
+    ],
+)
+def test_an_unknown_gripper_is_named_with_the_available_ones_from_every_entry_point(
+    call,
+):
     service, _ = service_with()
 
     with pytest.raises(UnknownGripperError, match=ARM):
-        service.get_state("nonexistent")
+        call(service, "nonexistent")
 
 
 def test_closing_on_empty_space_reaches_the_target():
