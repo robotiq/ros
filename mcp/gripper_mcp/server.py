@@ -97,13 +97,11 @@ def build_backend(config: GripperConfig, spec: GripperModelSpec) -> GripperBacke
     return RosGripperBackend(config.name, config.namespace)
 
 
-TactileFactory = Callable[
-    [GripperConfig, GripperModelSpec, GripperBackend], TactileBackend | None
-]
+TactileFactory = Callable[[GripperConfig, GripperModelSpec], TactileBackend | None]
 
 
 def build_tactile(
-    config: GripperConfig, spec: GripperModelSpec, gripper: GripperBackend
+    config: GripperConfig, spec: GripperModelSpec
 ) -> TactileBackend | None:
     if config.tactile is None:
         return None
@@ -112,9 +110,21 @@ def build_tactile(
             f"Gripper '{config.name}' asks for tactile pads, but model "
             f"'{config.model}' names no tactile_model in its datasheet."
         )
-    raise NotImplementedError(
-        f"Gripper '{config.name}' asks for the ROS tactile source, which is not in "
-        "this build."
+    return build_ros_tactile(config, spec)
+
+
+def build_ros_tactile(config: GripperConfig, spec: GripperModelSpec) -> TactileBackend:
+    try:
+        from gripper_mcp.ros_tactile_backend import RosTactileBackend
+    except ImportError as error:
+        raise RuntimeError(
+            f"Gripper '{config.name}' uses the ros tactile source, which needs a "
+            f"sourced ROS 2 install with rclpy and robotiq_tsf: {error}"
+        ) from error
+    return RosTactileBackend(
+        config.name,
+        config.tactile_namespace or config.namespace,
+        spec.tactile.layout,
     )
 
 
@@ -131,7 +141,7 @@ def build_services(
     }
     tactile_backends = {}
     for name, cfg in configs.items():
-        tactile = make_tactile(cfg, specs[cfg.model], backends[name])
+        tactile = make_tactile(cfg, specs[cfg.model])
         if tactile is not None:
             tactile_backends[name] = tactile
 
