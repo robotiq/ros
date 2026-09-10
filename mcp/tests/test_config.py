@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 import gripper_mcp
 from gripper_mcp.config import (
+    GripperConfig,
     SPEC_DIR,
     load_gripper_configs,
     load_model_spec,
@@ -141,6 +142,7 @@ def test_the_example_wiring_loads_and_names_a_namespace_per_gripper():
 
     assert {config.model for config in configs} <= set(MODELS)
     assert all(config.namespace.startswith("/") for config in configs)
+    assert {config.tactile for config in configs} == {None, "ros"}
 
 
 def test_a_mock_tactile_source_is_not_a_wiring_option(tmp_path):
@@ -244,3 +246,17 @@ def test_a_tactile_datasheet_whose_margin_would_lower_the_noise_is_rejected(tmp_
 
     with pytest.raises(ValidationError, match="noise_margin"):
         load_tactile_spec(sheet)
+
+
+def test_the_pads_default_to_the_gripper_namespace_unless_told_otherwise():
+    same = GripperConfig(name="left", model="robotiq_2f_85", namespace="/left")
+    apart = GripperConfig(
+        name="left",
+        model="robotiq_2f_85",
+        namespace="/left",
+        tactile="ros",
+        tactile_namespace="/left_tsf",
+    )
+
+    assert same.tactile_namespace is None
+    assert apart.tactile_namespace == "/left_tsf"
