@@ -1,0 +1,15 @@
+# Robotiq 2F-140 datasheet. See robotiq_2f_85.yaml for what each field means.
+
+model: robotiq_2f_140
+
+stroke:
+  max_opening_mm: 140.0
+  min_opening_mm: 0.0
+
+grip_force:
+  min_n: 10.0
+  max_n: 125.0
+
+defaults:
+  max_effort_n: 50.0
+  motion_timeout_s: 10.0

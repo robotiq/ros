@@ -11,3 +11,6 @@ CMakeUserPresets.json
 robotiq_tsf/build/
 .venv/
 .pytest_cache/
+
+# host-specific cell wiring, copied from mcp/grippers.yaml.example
+mcp/grippers.yaml

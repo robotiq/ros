@@ -1,0 +1,25 @@
+# Robotiq 2F-85 datasheet. One file per gripper model, the same on every host;
+# cell wiring (which grippers exist, their ROS namespace) lives in grippers.yaml.
+# Supporting another Robotiq model is adding one file here, no code.
+#
+# Only what the robot description cannot tell us belongs here. The command
+# joint's name and range are read from the robot at startup, never copied.
+
+model: robotiq_2f_85
+
+# Product datasheet. The opening is mapped onto the command joint's range
+# linearly; the real linkage is a four-bar, so mid-stroke openings are approximate.
+stroke:
+  max_opening_mm: 85.0
+  min_opening_mm: 0.0
+
+# Rated grip force, product datasheet. Distinct from the URDF's joint effort
+# limit, which is a torque in N-m.
+grip_force:
+  min_n: 20.0
+  max_n: 235.0
+
+defaults:
+  # Requested grip force when a call does not name one; must sit in grip_force.
+  max_effort_n: 50.0
+  motion_timeout_s: 10.0

@@ -1,7 +1,8 @@
 import pytest
 
+from fakes.gripper import MOCK_GEOMETRY, MOCK_JOINT, MockGripperBackend
 from gripper_mcp.backend import GripperBackend
-from fakes.gripper import MOCK_GEOMETRY, MockGripperBackend
+from gripper_mcp.units import Stroke
 
 CLOSED = MOCK_GEOMETRY.knuckle_rad_closed
 OPEN = MOCK_GEOMETRY.knuckle_rad_open
@@ -20,6 +21,17 @@ def test_the_mock_satisfies_the_backend_protocol():
 
 def test_a_fresh_mock_starts_open():
     assert instant_mock().read_state().position_rad == OPEN
+
+
+def test_the_mock_reports_its_built_in_joint():
+    assert instant_mock().joint_geometry() == MOCK_JOINT
+
+
+def test_the_mock_takes_the_datasheet_stroke_for_its_mm_map():
+    backend = instant_mock(stroke=Stroke(max_opening_mm=140.0))
+
+    assert backend.opening_mm_for(OPEN) == pytest.approx(140.0)
+    assert backend.opening_mm_for(CLOSED) == pytest.approx(0.0)
 
 
 def test_closing_on_empty_space_reaches_the_goal():
