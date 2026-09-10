@@ -143,15 +143,19 @@ class GripperService:
             backend=backend.name,
         )
 
-    def _backend(self, robot_name: str) -> GripperBackend:
-        if robot_name not in self._backends:
-            available = ", ".join(self._backends) or "(none)"
+    def assert_known(self, robot_name: str) -> None:
+        if robot_name not in self._configs:
+            available = ", ".join(self._configs) or "(none)"
             raise UnknownGripperError(
                 f"Unknown gripper '{robot_name}'. Available: {available}"
             )
+
+    def _backend(self, robot_name: str) -> GripperBackend:
+        self.assert_known(robot_name)
         return self._backends[robot_name]
 
     def _spec(self, robot_name: str) -> GripperModelSpec:
+        self.assert_known(robot_name)
         return self._specs[self._configs[robot_name].model]
 
     def _geometry(self, robot_name: str):
