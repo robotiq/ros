@@ -31,6 +31,9 @@ from gripper_mcp.units import (
 )
 
 OPENING_TOLERANCE_MM = 0.5
+MM_DECIMALS = 2
+RAD_DECIMALS = 4
+FRACTION_DECIMALS = 4
 
 
 class UnknownGripperError(Exception):
@@ -67,9 +70,11 @@ class GripperService:
 
         return GripperState(
             robot_name=robot_name,
-            opening_mm=round(opening_mm, 2),
-            opening_fraction=round(opening_mm_to_fraction(opening_mm, geometry), 4),
-            knuckle_rad=round(state.position_rad, 4),
+            opening_mm=round(opening_mm, MM_DECIMALS),
+            opening_fraction=round(
+                opening_mm_to_fraction(opening_mm, geometry), FRACTION_DECIMALS
+            ),
+            knuckle_rad=round(state.position_rad, RAD_DECIMALS),
             force_n=state.force_n,
             backend=backend.name,
             measured_at=datetime.now(timezone.utc),
@@ -114,8 +119,10 @@ class GripperService:
 
         return GripperMotionResult(
             robot_name=robot_name,
-            commanded_opening_mm=round(target_mm, 2),
-            achieved_opening_mm=None if motion.refused else round(achieved_mm, 2),
+            commanded_opening_mm=round(target_mm, MM_DECIMALS),
+            achieved_opening_mm=(
+                None if motion.refused else round(achieved_mm, MM_DECIMALS)
+            ),
             reached_goal=motion.reached_goal,
             stalled=motion.stalled,
             object_grasped=stopped_on_object if is_grasp else None,
