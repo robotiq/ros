@@ -21,17 +21,16 @@ from collections.abc import Callable
 from gripper_mcp.backend import BackendHealth, BackendMotion, BackendState
 from gripper_mcp.units import (
     GripperGeometry,
+    JointGeometry,
+    Stroke,
     clamp,
     knuckle_rad_to_opening_mm,
     opening_mm_to_knuckle_rad,
 )
 
-MOCK_GEOMETRY = GripperGeometry(
-    max_opening_mm=85.0,
-    min_opening_mm=0.0,
-    knuckle_rad_open=0.0,
-    knuckle_rad_closed=0.8,
-)
+MOCK_JOINT = JointGeometry(name="mock_knuckle_joint", rad_open=0.0, rad_closed=0.8)
+MOCK_STROKE = Stroke(max_opening_mm=85.0)
+MOCK_GEOMETRY = GripperGeometry.of(MOCK_STROKE, MOCK_JOINT)
 
 NOMINAL_TRAVEL_SPEED_MM_S = 150.0
 
@@ -44,23 +43,27 @@ class MockGripperBackend:
         object_width_mm: float | None = None,
         travel_speed_mm_s: float = NOMINAL_TRAVEL_SPEED_MM_S,
         sleep_fn: Callable[[float], None] = time.sleep,
-        geometry: GripperGeometry = MOCK_GEOMETRY,
+        stroke: Stroke = MOCK_STROKE,
     ) -> None:
         if object_width_mm is not None and not (
-            geometry.min_opening_mm < object_width_mm < geometry.max_opening_mm
+            stroke.min_opening_mm < object_width_mm < stroke.max_opening_mm
         ):
             raise ValueError(
                 f"object_width_mm={object_width_mm} is outside the stroke "
-                f"({geometry.min_opening_mm}, {geometry.max_opening_mm}) mm"
+                f"({stroke.min_opening_mm}, {stroke.max_opening_mm}) mm"
             )
 
         self._object_width_mm = object_width_mm
         self._travel_speed_mm_s = travel_speed_mm_s
         self._sleep = sleep_fn
-        self._geometry = geometry
+        self._joint = MOCK_JOINT
+        self._geometry = GripperGeometry.of(stroke, self._joint)
 
-        self._position_rad = geometry.knuckle_rad_open
+        self._position_rad = self._joint.rad_open
         self._holding_force_n = 0.0
+
+    def joint_geometry(self) -> JointGeometry:
+        return self._joint
 
     def opening_mm_for(self, position_rad: float) -> float:
         return knuckle_rad_to_opening_mm(position_rad, self._geometry)
@@ -76,11 +79,7 @@ class MockGripperBackend:
     def move_to(
         self, position_rad: float, max_effort_n: float, timeout_s: float
     ) -> BackendMotion:
-        target = clamp(
-            position_rad,
-            self._geometry.knuckle_rad_open,
-            self._geometry.knuckle_rad_closed,
-        )
+        target = clamp(position_rad, self._joint.rad_open, self._joint.rad_closed)
         stop_at, stalled = self._resolve_stop(target)
 
         travel_mm = abs(
