@@ -19,8 +19,9 @@ EXPECTED_TOOLS = {
     "gripper_read_tactile",
     "gripper_tare_tactile",
     "gripper_verify_grasp",
+    "gripper_grasp_until_contact",
 }
-CLOSING_TOOLS = {"gripper_close", "gripper_move_to"}
+CLOSING_TOOLS = {"gripper_close", "gripper_move_to", "gripper_grasp_until_contact"}
 TACTILE_READS = {"gripper_read_tactile", "gripper_verify_grasp"}
 CUBE_WIDTH_MM = 40.0
 
@@ -133,6 +134,16 @@ def test_a_close_then_verify_through_the_wire_confirms_the_hold(mcp):
 
     assert verification.verdict == "held"
     assert verification.tactile_backend == "mock"
+
+
+def test_a_contact_grasp_through_the_wire_finds_the_cube(mcp):
+    call(mcp, "gripper_open", gripper_name="left")
+
+    result = call(mcp, "gripper_grasp_until_contact", gripper_name="left")
+
+    assert result.outcome == "contact_detected"
+    assert result.object_detected is True
+    assert result.opening_mm == pytest.approx(CUBE_WIDTH_MM)
 
 
 def test_a_ros_tactile_entry_names_the_missing_ros_install(tmp_path, monkeypatch):

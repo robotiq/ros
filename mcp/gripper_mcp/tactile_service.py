@@ -76,6 +76,9 @@ class TactileService:
         self._tares: dict[str, Tare] = {}
         self._tare_lock = threading.Lock()
 
+    def spec_of(self, gripper_name: str) -> TactileSpec:
+        return self._pads_for(gripper_name)[1]
+
     def tare(self, gripper_name: str) -> TactileTareResult:
         tactile, spec = self._pads_for(gripper_name)
         tare = self._capture_tare(gripper_name, tactile, spec)
