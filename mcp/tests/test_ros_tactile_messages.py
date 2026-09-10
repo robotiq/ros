@@ -1,7 +1,9 @@
 import pytest
 
 from gripper_mcp.ros_tactile_messages import (
+    STATIC_TOPIC,
     stale_frame_message,
+    stalled_sample_message,
     TactileMessageMismatch,
     reading_from_counts,
 )
@@ -36,3 +38,10 @@ def test_a_stale_frame_message_names_the_age_and_the_driver():
 
     assert "3.2 s old" in message
     assert "stopped publishing" in message
+
+
+def test_a_stalled_sample_says_how_far_it_got():
+    message = stalled_sample_message(42, 1000, 2.0)
+
+    assert "42 of 1000" in message
+    assert STATIC_TOPIC in message

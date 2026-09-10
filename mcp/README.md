@@ -49,9 +49,11 @@ hold. `gripper_verify_grasp` gives one of:
 | `closed_on_nothing` | Fingers fully closed |
 | `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
 
-The ROS source on `robotiq_tsf`'s `TactileSensor/StaticData` topic is next;
-until it lands, `build_services` refuses a `tactile` entry by name. The tests
-drive the tools from a scripted pad model under `tests/fakes/`.
+The tactile source subscribes to `robotiq_tsf`'s `TactileSensor/StaticData`
+under the gripper's `namespace` (the tactile driver runs in the same namespace
+as the gripper's controller); it needs `robotiq_tsf` built
+and sourced alongside `rclpy`. The tests drive the tools from a scripted pad
+model under `tests/fakes/`.
 
 ## Quick start
 
