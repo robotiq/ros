@@ -31,11 +31,23 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Stroke:
     max_opening_mm: float
+    closed_tolerance_mm: float
     min_opening_mm: float = 0.0
 
     def __post_init__(self) -> None:
         if self.max_opening_mm <= self.min_opening_mm:
             raise ValueError("max_opening_mm must exceed min_opening_mm")
+        if (
+            not 0.0
+            < self.closed_tolerance_mm
+            < self.max_opening_mm - self.min_opening_mm
+        ):
+            raise ValueError(
+                "closed_tolerance_mm must be positive and inside the stroke"
+            )
+
+    def fingers_met(self, opening_mm: float) -> bool:
+        return opening_mm <= self.min_opening_mm + self.closed_tolerance_mm
 
 
 @dataclass(frozen=True)
