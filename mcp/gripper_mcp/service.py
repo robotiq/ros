@@ -4,11 +4,13 @@ Backends speak the command joint's angle; tools speak millimetres. Everything in
 between, unit conversion, outcome classification, per-gripper dispatch, lives
 here so it can be tested without a FastMCP server or a ROS graph.
 
-The one piece of domain judgement in this file is `classify`: a close that
-stops before the fingers meet is a *successful grasp*, not a failure, and a
-close that ends with the fingers together grasped nothing. That semantic used
-to live as prose in an agent prompt, where it can be forgotten; here it is in
-the type system.
+`classify` does not decide whether a stop was wanted. Every motion reports
+`stopped_on_object` neutrally when the fingers halted short of the commanded
+position, in either direction, and the caller, who knows the intent, reads it
+as a grasp or an obstruction. The direction is visible from the commanded and
+achieved openings. The gripper's own firmware answers the same question with
+one enum (moving, detected while opening, detected while closing, at the
+requested position), which is what this vocabulary mirrors.
 
 The verdict is read from where the fingers ended up against where they were
 sent, never from the controller's `stalled` flag. On the real driver that flag
@@ -89,28 +91,23 @@ class GripperService:
             measured_at=datetime.now(timezone.utc),
         )
 
-    def open_fully(self, gripper_name: str) -> GripperMotionResult:
-        stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.max_opening_mm)
-
-    def close_fully(self, gripper_name: str) -> GripperMotionResult:
-        stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.min_opening_mm)
-
-    def grasp(
+    def open_fully(
         self, gripper_name: str, max_effort_n: float | None = None
     ) -> GripperMotionResult:
         stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(
-            gripper_name, stroke.min_opening_mm, max_effort_n, is_grasp=True
-        )
+        return self.move_to_opening(gripper_name, stroke.max_opening_mm, max_effort_n)
+
+    def close_fully(
+        self, gripper_name: str, max_effort_n: float | None = None
+    ) -> GripperMotionResult:
+        stroke = self._spec(gripper_name).stroke
+        return self.move_to_opening(gripper_name, stroke.min_opening_mm, max_effort_n)
 
     def move_to_opening(
         self,
         gripper_name: str,
         opening_mm: float,
         max_effort_n: float | None = None,
-        is_grasp: bool = False,
     ) -> GripperMotionResult:
         backend = self._backend(gripper_name)
         spec = self._spec(gripper_name)
@@ -134,8 +131,8 @@ class GripperService:
             ),
             reached_goal=motion.reached_goal,
             stalled=motion.stalled,
-            object_grasped=stopped_on_object if is_grasp else None,
-            outcome=classify(motion, target_mm, achieved_mm, spec.stroke, is_grasp),
+            object_detected=stopped_on_object,
+            outcome=classify(motion, target_mm, achieved_mm, spec.stroke),
             detail=clamp_note(opening_mm, target_mm) + motion.detail,
             backend=backend.name,
         )
@@ -178,14 +175,10 @@ def clamp_note(requested_mm: float, target_mm: float) -> str:
     return f"Requested {requested_mm:.1f} mm, clamped to {target_mm:.1f} mm. "
 
 
-def missed_target(commanded_mm: float, achieved_mm: float, stroke: Stroke) -> bool:
-    return abs(achieved_mm - commanded_mm) > stroke.closed_tolerance_mm
-
-
 def stopped_on_something(
     commanded_mm: float, achieved_mm: float, stroke: Stroke
 ) -> bool:
-    return achieved_mm - commanded_mm > stroke.closed_tolerance_mm
+    return abs(achieved_mm - commanded_mm) > stroke.closed_tolerance_mm
 
 
 def classify(
@@ -193,16 +186,11 @@ def classify(
     commanded_mm: float,
     achieved_mm: float,
     stroke: Stroke,
-    is_grasp: bool,
 ) -> Outcome:
     if motion.refused:
         return "refused"
     if motion.timed_out:
         return "incomplete"
-    if is_grasp:
-        if stopped_on_something(commanded_mm, achieved_mm, stroke):
-            return "grasped"
-        return "closed_without_object"
-    if missed_target(commanded_mm, achieved_mm, stroke):
-        return "stalled_unexpectedly"
+    if stopped_on_something(commanded_mm, achieved_mm, stroke):
+        return "stopped_on_object"
     return "reached"
