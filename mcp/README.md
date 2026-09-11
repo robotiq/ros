@@ -11,10 +11,9 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 |---|---|
 | `gripper_list_grippers` | Discover configured gripper names |
 | `gripper_get_state` | Opening (mm, fraction, joint rad) and grip force |
-| `gripper_open` | Open fully |
-| `gripper_close` | Close fully; a stall is an unexpected obstruction |
-| `gripper_move_to` | Move to a specific position, in mm of opening |
-| `gripper_grasp` | Close onto an object; stopping before the fingers meet is a success |
+| `gripper_open` | Open fully; optional `max_effort_n` |
+| `gripper_close` | Close fully; optional `max_effort_n` |
+| `gripper_move_to` | Move to a specific position, in mm of opening; optional `max_effort_n` |
 | `gripper_get_health` | Reachable, controller active |
 
 Every tool takes an explicit `gripper_name`; nothing fans out to every gripper.
@@ -25,9 +24,7 @@ on a 2F-85, `140.0` on a 2F-140) fully open. Every motion result carries an
 | Outcome | Meaning |
 |---|---|
 | `reached` | Fingers arrived at the commanded opening |
-| `grasped` | A grasp stopped on something before the fingers met (`reached_goal: false`, `stalled: true`; this is success) |
-| `closed_without_object` | A grasp closed fully; nothing was between the fingers |
-| `stalled_unexpectedly` | A plain move stopped early against resistance |
+| `stopped_on_object` | The fingers stopped on something before the commanded position, either direction; `object_detected: true`. Whether that is a grasp is the caller's call |
 | `incomplete` | Timed out or never finished |
 | `refused` | The backend rejected the goal |
 
