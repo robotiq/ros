@@ -13,6 +13,7 @@ JUST_TOUCHING_MM = 40.0
 LIGHTLY_PRESSED_MM = 38.0
 FIRMLY_PRESSED_MM = 30.0
 CRUSHED_MM = 0.0
+SAMPLE_COUNT = 3
 
 
 def backend(opening_mm: float, object_width_mm: float | None) -> MockTactileBackend:
@@ -91,3 +92,18 @@ def test_the_reading_follows_the_live_opening():
     after = live.read_tactile()
 
     assert all_resting(before) and not all_resting(after)
+
+
+def test_a_sample_is_one_fresh_reading_per_frame_asked():
+    opening = {"mm": FULLY_OPEN_MM}
+    live = MockTactileBackend(
+        read_opening_mm=lambda: opening["mm"], object_width_mm=OBJECT_WIDTH_MM
+    )
+
+    resting = live.sample(SAMPLE_COUNT)
+    opening["mm"] = FIRMLY_PRESSED_MM
+    pressed = live.sample(SAMPLE_COUNT)
+
+    assert len(resting) == len(pressed) == SAMPLE_COUNT
+    assert all(all_resting(frame) for frame in resting)
+    assert not any(all_resting(frame) for frame in pressed)
