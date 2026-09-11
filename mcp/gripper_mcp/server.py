@@ -22,12 +22,17 @@ from gripper_mcp.config import (
     load_model_specs,
 )
 from gripper_mcp.models import (
+    GraspVerification,
     GripperHealth,
     GripperInfo,
     GripperMotionResult,
     GripperState,
+    TactileReadingResult,
+    TactileTareResult,
 )
 from gripper_mcp.service import GripperService
+from gripper_mcp.tactile_backend import TactileBackend
+from gripper_mcp.tactile_service import TactileService
 
 DEFAULT_WIRING = Path("grippers.yaml")
 DEFAULT_PORT = 8300
@@ -39,7 +44,10 @@ INSTRUCTIONS = (
     "opening, reported by gripper_list_grippers. Every motion returns an outcome "
     "field that says how it ended; read that rather than inferring from the flags. "
     "stopped_on_object means the fingers met something; whether that is a grasp "
-    "is for the caller to judge."
+    "is for the caller to judge. "
+    "Grippers listed with a tactile source have TSF-85 pads: gripper_verify_grasp "
+    "confirms a hold from touch, gripper_read_tactile reads the pads, "
+    "gripper_tare_tactile re-zeroes them."
 )
 
 READ_ONLY = {
@@ -57,6 +65,12 @@ OPENS = {
 CLOSES = {
     "read_only_hint": False,
     "destructive_hint": True,
+    "idempotent_hint": True,
+    "open_world_hint": True,
+}
+REZEROES = {
+    "read_only_hint": False,
+    "destructive_hint": False,
     "idempotent_hint": True,
     "open_world_hint": True,
 }
@@ -83,22 +97,68 @@ def build_backend(config: GripperConfig, spec: GripperModelSpec) -> GripperBacke
     return RosGripperBackend(config.name, config.namespace)
 
 
-def build_service(
+TactileFactory = Callable[
+    [GripperConfig, GripperModelSpec, GripperBackend], TactileBackend | None
+]
+
+
+def build_tactile(
+    config: GripperConfig, spec: GripperModelSpec, gripper: GripperBackend
+) -> TactileBackend | None:
+    if config.tactile is None:
+        return None
+    if spec.tactile is None:
+        raise RuntimeError(
+            f"Gripper '{config.name}' asks for tactile pads, but model "
+            f"'{config.model}' names no tactile_model in its datasheet."
+        )
+    raise NotImplementedError(
+        f"Gripper '{config.name}' asks for the ROS tactile source, which is not in "
+        "this build."
+    )
+
+
+def build_services(
     wiring: Path,
     spec_dir: Path = SPEC_DIR,
     make_backend: BackendFactory = build_backend,
-) -> GripperService:
+    make_tactile: TactileFactory = build_tactile,
+) -> tuple[GripperService, TactileService]:
     configs = {cfg.name: cfg for cfg in load_gripper_configs(wiring)}
     specs = load_model_specs(spec_dir, {cfg.model for cfg in configs.values()})
     backends = {
         name: make_backend(cfg, specs[cfg.model]) for name, cfg in configs.items()
     }
-    return GripperService(specs=specs, configs=configs, backends=backends)
+    tactile_backends = {}
+    for name, cfg in configs.items():
+        tactile = make_tactile(cfg, specs[cfg.model], backends[name])
+        if tactile is not None:
+            tactile_backends[name] = tactile
+
+    grippers = GripperService(
+        specs=specs,
+        configs=configs,
+        backends=backends,
+        tactile_sources={name: t.name for name, t in tactile_backends.items()},
+    )
+    tactile = TactileService(
+        grippers,
+        {
+            name: (backend, specs[configs[name].model].tactile)
+            for name, backend in tactile_backends.items()
+        },
+    )
+    return grippers, tactile
 
 
-def build_mcp(service: GripperService) -> FastMCP:
+def build_mcp(grippers: GripperService, tactile: TactileService) -> FastMCP:
     mcp = FastMCP("robotiq_gripper_mcp", instructions=INSTRUCTIONS)
+    register_gripper_tools(mcp, grippers)
+    register_tactile_tools(mcp, tactile)
+    return mcp
 
+
+def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
     @mcp.tool(
         name="gripper_list_grippers",
         annotations={**READ_ONLY, "open_world_hint": False},
@@ -224,7 +284,73 @@ def build_mcp(service: GripperService) -> FastMCP:
     def gripper_get_health(gripper_name: str) -> GripperHealth:
         return service.get_health(gripper_name)
 
-    return mcp
+
+def register_tactile_tools(mcp: FastMCP, service: TactileService) -> None:
+    @mcp.tool(
+        name="gripper_read_tactile",
+        annotations=READ_ONLY,
+        description=describe(
+            """
+        Read the tactile pads of one gripper fitted with TSF-85 fingers.
+
+        Returns a contact signal from 0.0 (nothing touching) to 1.0 (both pads
+        at full scale), the per-pad split, the hottest single taxel, and whether
+        the signal is at or above the contact threshold. The signal is relative
+        to a baseline captured with the fingers fully open; the first read takes
+        it automatically if the gripper is open, otherwise call
+        gripper_tare_tactile first. Fails for grippers without a tactile source.
+
+        Args:
+            gripper_name: Name of the gripper (see gripper_list_grippers).
+            """
+        ),
+    )
+    def gripper_read_tactile(gripper_name: str) -> TactileReadingResult:
+        return service.read(gripper_name)
+
+    @mcp.tool(
+        name="gripper_tare_tactile",
+        annotations=REZEROES,
+        description=describe(
+            """
+        Re-zero the tactile pads of one gripper.
+
+        Averages many distinct frames into a new rest baseline and sets the
+        contact threshold from the noise those frames show (never below the
+        datasheet floor). Only call it with NOTHING between the fingers: taring
+        on a held object makes that object invisible to every later reading.
+
+        Args:
+            gripper_name: Name of the gripper (see gripper_list_grippers).
+            """
+        ),
+    )
+    def gripper_tare_tactile(gripper_name: str) -> TactileTareResult:
+        return service.tare(gripper_name)
+
+    @mcp.tool(
+        name="gripper_verify_grasp",
+        annotations=READ_ONLY,
+        description=describe(
+            """
+        Confirm from touch whether one gripper is holding something.
+
+        Combines the pads and the opening. verdict="held" means the pads
+        register contact and the fingers stopped before meeting.
+        "closed_on_nothing" means the fingers are fully closed. "no_contact"
+        means the fingers are apart but nothing presses on the pads: either the
+        object slipped, or the gripper stopped on something outside the pads.
+        Call it after gripper_close, before lifting. A hold made by opening
+        into a bore is recognised only weakly, since the pads face away from
+        the part; treat "held" after gripper_open as a hint, not a verdict.
+
+        Args:
+            gripper_name: Name of the gripper (see gripper_list_grippers).
+            """
+        ),
+    )
+    def gripper_verify_grasp(gripper_name: str) -> GraspVerification:
+        return service.verify_grasp(gripper_name)
 
 
 def main() -> None:
@@ -235,7 +361,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     args = parser.parse_args()
 
-    mcp = build_mcp(build_service(args.config, args.spec_dir))
+    mcp = build_mcp(*build_services(args.config, args.spec_dir))
     try:
         mcp.run(transport="http", host=args.host, port=args.port)
     finally:
