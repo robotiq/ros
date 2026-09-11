@@ -28,7 +28,7 @@ def test_the_mock_reports_its_built_in_joint():
 
 
 def test_the_mock_takes_the_datasheet_stroke_for_its_mm_map():
-    backend = instant_mock(stroke=Stroke(max_opening_mm=140.0))
+    backend = instant_mock(stroke=Stroke(max_opening_mm=140.0, closed_tolerance_mm=1.5))
 
     assert backend.opening_mm_for(OPEN) == pytest.approx(140.0)
     assert backend.opening_mm_for(CLOSED) == pytest.approx(0.0)
