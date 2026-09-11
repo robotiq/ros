@@ -67,12 +67,20 @@ def describe(text: str) -> str:
 
 
 BackendFactory = Callable[[GripperConfig, GripperModelSpec], GripperBackend]
+SHUTDOWN_HOOKS: list[Callable[[], None]] = []
 
 
 def build_backend(config: GripperConfig, spec: GripperModelSpec) -> GripperBackend:
-    raise NotImplementedError(
-        f"Gripper '{config.name}' needs the ROS backend, which is not in this build."
-    )
+    try:
+        from gripper_mcp.ros_backend import RosGraph, RosGripperBackend
+    except ImportError as error:
+        raise RuntimeError(
+            f"Gripper '{config.name}' needs a sourced ROS 2 install with rclpy and "
+            f"control_msgs: {error}"
+        ) from error
+    if RosGraph.shutdown not in SHUTDOWN_HOOKS:
+        SHUTDOWN_HOOKS.append(RosGraph.shutdown)
+    return RosGripperBackend(config.name, config.namespace)
 
 
 def build_service(
@@ -228,7 +236,11 @@ def main() -> None:
     args = parser.parse_args()
 
     mcp = build_mcp(build_service(args.config, args.spec_dir))
-    mcp.run(transport="http", host=args.host, port=args.port)
+    try:
+        mcp.run(transport="http", host=args.host, port=args.port)
+    finally:
+        for hook in SHUTDOWN_HOOKS:
+            hook()
 
 
 if __name__ == "__main__":
