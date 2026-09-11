@@ -1,8 +1,9 @@
 # Cell wiring: which grippers the server exposes, and where each one's driver
 # lives. Copy to grippers.yaml and edit. Every entry needs a name (what agents
-# pass as robot_name), a model (a file in datasheets/) and the namespace its
+# pass as gripper_name), a model (a file in datasheets/) and the namespace its
 # robotiq_gripper_controller runs under. Without hardware, launch the driver on
-# the SDK's fake gripper (use_dummy) and point an entry at it the same way.
+# ros2_control's fake hardware (use_fake_hardware) and point an entry at it the
+# same way.
 
 - name: left
   model: robotiq_2f_85
