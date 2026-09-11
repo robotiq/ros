@@ -15,9 +15,7 @@ Backend = Literal["ros", "mock"]
 
 Outcome = Literal[
     "reached",
-    "grasped",
-    "closed_without_object",
-    "stalled_unexpectedly",
+    "stopped_on_object",
     "incomplete",
     "not_supported",
     "refused",
@@ -25,14 +23,15 @@ Outcome = Literal[
 
 
 class GripperInfo(BaseModel):
-    robot_name: str
+    gripper_name: str
     model: str
     backend: Backend
+    max_opening_mm: float = Field(description="Fully open, in millimetres")
     description: str
 
 
 class GripperState(BaseModel):
-    robot_name: str
+    gripper_name: str
     opening_mm: float = Field(description="0.0 = closed, the model's max = fully open")
     opening_fraction: float = Field(description="0.0 = closed, 1.0 = fully open")
     knuckle_rad: float = Field(
@@ -49,14 +48,16 @@ class GripperState(BaseModel):
 
 
 class GripperMotionResult(BaseModel):
-    robot_name: str
+    gripper_name: str
     commanded_opening_mm: float
     achieved_opening_mm: float | None = None
     reached_goal: bool
     stalled: bool = Field(description="Stopped early against resistance")
-    object_grasped: bool | None = Field(
-        default=None,
-        description="Set by gripper_grasp: stopped on something before fully closing",
+    object_detected: bool = Field(
+        description=(
+            "The fingers stopped on something before the commanded position, "
+            "in either direction"
+        )
     )
     outcome: Outcome
     detail: str = Field(description="Verbatim backend message; never invented")
@@ -64,7 +65,7 @@ class GripperMotionResult(BaseModel):
 
 
 class GripperHealth(BaseModel):
-    robot_name: str
+    gripper_name: str
     reachable: bool
     controller_active: bool | None = Field(
         default=None, description="robotiq_gripper_controller is loaded and active"
