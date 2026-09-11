@@ -12,8 +12,8 @@ Two kinds of files, deliberately split:
   example to copy.
 
 The only backend is the ROS driver. Running without hardware is the driver's
-job too, on the SDK's fake gripper (`use_dummy`), so the wiring has no mock
-entry to offer.
+job too, on ros2_control's fake hardware (`use_fake_hardware`), so the wiring
+has no mock entry to offer.
 
 Every model refuses unknown keys: these files are hand-edited per host, and a
 typo that silently dropped a field would point the server at the wrong robot.
