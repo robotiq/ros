@@ -1,0 +1,32 @@
+# Robotiq TSF-85 tactile fingers datasheet. The pads are a separate product
+# fitted onto a 2F-85 and read by their own driver (robotiq_tsf), so they get
+# their own sheet; the gripper's datasheet points here with `tactile_model`.
+# Whether a given gripper has them or not is the wiring's business
+# (`tactile: ros` in grippers.yaml).
+
+model: robotiq_tsf_85
+
+# The 7x4 grid per pad is what robotiq_tsf publishes (Taxels: uint16[28]).
+rows: 7
+cols: 4
+pads: [left, right]
+
+# Signal 1.0 means every taxel on both pads is at the working ceiling:
+# 56 taxels x 110 counts. Tuned against the Isaac Sim twin's tactile
+# extension (hottest taxel ~106, no-contact floor ~0.0003 of full scale).
+# Unverified against a physical TSF-85; re-measure before trusting it there.
+full_scale_counts: 6160.0
+
+# Floor for the contact threshold. Deliberately just above the twin's noise
+# floor: the point is to notice FIRST touch, not a firm grip.
+contact_threshold: 0.02
+
+# The threshold used at runtime is max(contact_threshold, noise_margin x the
+# peak rest signal seen during the tare), so real pads whose noise sits above
+# the twin-tuned floor still get a threshold above their own noise. Measured
+# on a physical TSF-85: rest noise peaks near 0.035 of full scale, an external
+# hold reads about 0.8, so 2x the noise separates the two with room.
+noise_margin: 2.0
+
+# Matches the tactile SDK's findBaseline(), which averages 1000 samples.
+baseline_samples: 1000

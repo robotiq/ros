@@ -56,10 +56,12 @@ class GripperService:
         specs: dict[str, GripperModelSpec],
         configs: dict[str, GripperConfig],
         backends: dict[str, GripperBackend],
+        tactile_sources: dict[str, str] | None = None,
     ) -> None:
         self._specs = specs
         self._configs = configs
         self._backends = backends
+        self._tactile_sources = tactile_sources or {}
 
     def list_grippers(self) -> list[GripperInfo]:
         return [
@@ -68,10 +70,14 @@ class GripperService:
                 model=config.model,
                 backend=self._backends[name].name,
                 max_opening_mm=self._specs[config.model].stroke.max_opening_mm,
+                tactile=self._tactile_sources.get(name),
                 description=config.description,
             )
             for name, config in self._configs.items()
         ]
+
+    def stroke_of(self, gripper_name: str) -> Stroke:
+        return self._spec(gripper_name).stroke
 
     def get_state(self, gripper_name: str) -> GripperState:
         backend = self._backend(gripper_name)
@@ -88,7 +94,7 @@ class GripperService:
             knuckle_rad=round(state.position_rad, RAD_DECIMALS),
             force_n=state.force_n,
             backend=backend.name,
-            measured_at=datetime.now(timezone.utc),
+            measured_at=timestamp(),
         )
 
     def open_fully(
@@ -167,6 +173,10 @@ class GripperService:
 
 def geometry_of(spec: GripperModelSpec, backend: GripperBackend) -> GripperGeometry:
     return GripperGeometry.of(spec.stroke, backend.joint_geometry())
+
+
+def timestamp() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def clamp_note(requested_mm: float, target_mm: float) -> str:

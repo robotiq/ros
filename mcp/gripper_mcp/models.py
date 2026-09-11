@@ -12,6 +12,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Backend = Literal["ros", "mock"]
+TactileSource = Literal["ros", "mock"]
+
+GraspVerdict = Literal["held", "no_contact", "closed_on_nothing"]
 
 Outcome = Literal[
     "reached",
@@ -27,6 +30,9 @@ class GripperInfo(BaseModel):
     model: str
     backend: Backend
     max_opening_mm: float = Field(description="Fully open, in millimetres")
+    tactile: TactileSource | None = Field(
+        default=None, description="Tactile source when the gripper has pads"
+    )
     description: str
 
 
@@ -72,3 +78,49 @@ class GripperHealth(BaseModel):
     )
     detail: str
     backend: Backend
+
+
+class TactileTareResult(BaseModel):
+    gripper_name: str
+    samples: int = Field(description="Distinct frames averaged into the new baseline")
+    rest_counts_mean: float = Field(description="Mean raw count across every taxel")
+    noise_floor: float = Field(
+        description="Peak contact_signal the rest frames showed against the baseline"
+    )
+    threshold: float = Field(
+        description="Contact threshold from now on: the datasheet floor or "
+        "noise_margin x noise_floor, whichever is higher"
+    )
+    tactile_backend: TactileSource
+    measured_at: datetime = Field(description="UTC, timezone-aware")
+
+
+class TactileReadingResult(BaseModel):
+    gripper_name: str
+    contact: bool = Field(description="contact_signal is at or above threshold")
+    contact_signal: float = Field(
+        description="Baseline-subtracted pressure over both pads: 0.0 rest, 1.0 full scale"
+    )
+    threshold: float = Field(
+        description="Signal at or above which contact is declared; set at tare as the "
+        "datasheet floor or noise_margin x the measured rest noise, whichever is higher"
+    )
+    pad_signals: dict[str, float] = Field(
+        description="Per pad, as a fraction of that pad's own ceiling (1.0 = saturated)"
+    )
+    peak_taxel_counts: float = Field(
+        description="Largest single-taxel rise, raw counts"
+    )
+    tactile_backend: TactileSource
+    measured_at: datetime = Field(description="UTC, timezone-aware")
+
+
+class GraspVerification(BaseModel):
+    gripper_name: str
+    verdict: GraspVerdict
+    object_held: bool = Field(description="True only for verdict held")
+    opening_mm: float
+    contact_signal: float
+    threshold: float
+    detail: str
+    tactile_backend: TactileSource
