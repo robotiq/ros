@@ -18,6 +18,7 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 | `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
 | `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
 | `gripper_verify_grasp` | Confirm a hold from touch plus opening |
+| `gripper_grasp_until_contact` | Close in steps until the pads feel first touch; for fragile or soft objects |
 
 Every tool takes an explicit `gripper_name`; nothing fans out to every gripper.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
@@ -48,6 +49,12 @@ hold. `gripper_verify_grasp` gives one of:
 | `held` | Pads register contact and the fingers stopped before meeting |
 | `closed_on_nothing` | Fingers fully closed |
 | `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
+
+`gripper_grasp_until_contact` is the one tool that moves more than once per
+call: it closes by the datasheet's `step_mm`, reads the pads between steps, and
+stops on first touch, on the fingers meeting, on a stall, or on a hard
+`contact_timeout_s`. A stall with quiet pads is reported as
+`stalled_before_contact`, never as a grasp.
 
 The tactile source subscribes to `robotiq_tsf`'s `TactileSensor/StaticData`
 under the gripper's `namespace` (the tactile driver runs in the same namespace
@@ -109,13 +116,22 @@ the agent picks the tool.
 
 Two layers, deliberately split:
 
-- `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq model, the same
-  on every host. The command joint's name and range come straight from
-  `robotiq_description`'s URDF. Supporting another model is adding a file.
+- `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq
+  model, shipped inside the package. It holds only what the robot cannot tell
+  us: the stroke in mm, the rated grip force and timing defaults. Supporting
+  another model is adding a file.
 - `grippers.yaml`: the cell's wiring, which grippers exist, their model, the
   ROS namespace their driver runs under and an optional tactile source.
-  Host-specific, so only
-  `grippers.yaml.example` ships.
+  Host-specific, so only `grippers.yaml.example` ships; `grippers.yaml` itself
+  is gitignored.
+
+Both refuse unknown keys, so a misspelled field fails at startup by name.
+
+The command joint's name and range are not configured anywhere: the ROS backend
+reads them from the `robot_description` that `robot_state_publisher` latches in
+the gripper's namespace, picking the joint the finger joints `mimic` and the
+driver's `gripper_closed_position` as the closed end. A cell built with a xacro
+`prefix` therefore resolves by itself.
 
 ## Not a ROS package
 
@@ -128,6 +144,54 @@ and Jazzy's, and CI tests both.
 It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
 sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
 `grippers/` or `robotiq_tsf/` depends on it.
+
+## Docker
+
+[`mcp/Dockerfile`](Dockerfile) layers the server on this repo's ROS 2 image
+([`docker/Dockerfile`](../docker/Dockerfile)); its header explains the base
+image, the venv on the system interpreter and the two build commands.
+[`docker/docker-compose.yml`](../docker/docker-compose.yml) runs it as a
+service; its header lists the environment knobs and how the wiring file is
+mounted. The short version:
+
+```bash
+docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
+docker build -t robotiq_gripper_mcp:jazzy mcp
+docker compose -f docker/docker-compose.yml up --build
+```
+
+`grippers.yaml` is host-specific and is mounted at run time, never baked in.
+
+### Demo, no hardware
+
+[`demo/docker-compose.yml`](demo/docker-compose.yml) starts the driver on
+ros2_control's fake hardware with RViz showing the 2F-85, next to the server
+with [`demo/grippers.yaml`](demo/grippers.yaml); its header covers the
+headless variant, RViz's lifecycle and why it sits on its own ROS domain.
+
+```bash
+./mcp/demo/demo.sh          # checks the images, xhost, compose up; `demo.sh down` tears it down
+```
+
+The server is now a tool server for any MCP client. With
+[Claude Code](https://code.claude.com/docs/en/mcp), register it once and start a
+new session:
+
+```bash
+claude mcp add --transport http robotiq-gripper http://127.0.0.1:8301/mcp
+```
+
+Then ask in plain language, RViz following along:
+
+> Open the driver gripper to 30 mm, then grasp with it and tell me what
+> happened.
+
+The grasp closes on nothing (`closed_without_object`), because fake hardware
+moves instantly and never meets resistance. A stall on an object, and with it
+`gripper_verify_grasp`, needs a real gripper with TSF-85 pads; the driver on the SDK's simulated gripper will cover the
+stall once that gripper models travel and object detection. The server's own
+instructions tell the agent how to read those outcomes, so a stalled close is
+reported as a grasp, not a failure.
 
 ## Development
 

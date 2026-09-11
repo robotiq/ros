@@ -14,6 +14,7 @@ from pathlib import Path
 from fastmcp import FastMCP
 
 from gripper_mcp.backend import GripperBackend
+from gripper_mcp.contact_grasp import grasp_until_contact
 from gripper_mcp.config import (
     SPEC_DIR,
     GripperConfig,
@@ -22,6 +23,7 @@ from gripper_mcp.config import (
     load_model_specs,
 )
 from gripper_mcp.models import (
+    ContactGraspResult,
     GraspVerification,
     GripperHealth,
     GripperInfo,
@@ -45,9 +47,10 @@ INSTRUCTIONS = (
     "field that says how it ended; read that rather than inferring from the flags. "
     "stopped_on_object means the fingers met something; whether that is a grasp "
     "is for the caller to judge. "
-    "Grippers listed with a tactile source have TSF-85 pads: gripper_verify_grasp "
-    "confirms a hold from touch, gripper_read_tactile reads the pads, "
-    "gripper_tare_tactile re-zeroes them."
+    "Grippers listed with a tactile source have TSF-85 pads: "
+    "gripper_grasp_until_contact closes until first touch (use it for fragile or "
+    "soft objects), gripper_verify_grasp confirms a hold from touch, "
+    "gripper_read_tactile reads the pads, gripper_tare_tactile re-zeroes them."
 )
 
 READ_ONLY = {
@@ -164,7 +167,7 @@ def build_services(
 def build_mcp(grippers: GripperService, tactile: TactileService) -> FastMCP:
     mcp = FastMCP("robotiq_gripper_mcp", instructions=INSTRUCTIONS)
     register_gripper_tools(mcp, grippers)
-    register_tactile_tools(mcp, tactile)
+    register_tactile_tools(mcp, grippers, tactile)
     return mcp
 
 
@@ -295,7 +298,9 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
         return service.get_health(gripper_name)
 
 
-def register_tactile_tools(mcp: FastMCP, service: TactileService) -> None:
+def register_tactile_tools(
+    mcp: FastMCP, grippers: GripperService, service: TactileService
+) -> None:
     @mcp.tool(
         name="gripper_read_tactile",
         annotations=READ_ONLY,
@@ -361,6 +366,46 @@ def register_tactile_tools(mcp: FastMCP, service: TactileService) -> None:
     )
     def gripper_verify_grasp(gripper_name: str) -> GraspVerification:
         return service.verify_grasp(gripper_name)
+
+    @mcp.tool(
+        name="gripper_grasp_until_contact",
+        annotations={**CLOSES, "idempotent_hint": False},
+        description=describe(
+            """
+        Close one gripper until its pads feel something, then stop.
+
+        Use this instead of gripper_close for anything fragile, soft or thin.
+        The gripper's own object detection is a motor stall, so it only fires on
+        real mechanical resistance; foam, a paper cup or a cable can be fully
+        squashed while gripper_close still reports nothing. The pads register
+        first touch instead. Closes in small steps, reading the pads between
+        steps, under a hard timeout.
+
+        outcome="contact_detected" is SUCCESS even though the fingers never
+        reached the commanded opening. "closed_without_contact": nothing in the
+        jaws. "stalled_before_contact": the fingers stopped but the pads stayed
+        quiet, so the gripper is obstructed outside the pads or the sensor is
+        not reporting; do NOT treat it as a grasp. "incomplete": the timeout
+        hit first.
+
+        Args:
+            gripper_name: Name of the gripper (see gripper_list_grippers).
+            threshold: Contact signal at which to stop, 1.0 = every taxel at
+                full scale. Omit for the model's default, just above the noise
+                floor. Raise it to grip more firmly.
+            max_effort_n: Grip force ceiling in newtons for each step. Omit
+                for the model's default.
+            """
+        ),
+    )
+    def gripper_grasp_until_contact(
+        gripper_name: str,
+        threshold: float | None = None,
+        max_effort_n: float | None = None,
+    ) -> ContactGraspResult:
+        return grasp_until_contact(
+            grippers, service, gripper_name, threshold, max_effort_n
+        )
 
 
 def main() -> None:
