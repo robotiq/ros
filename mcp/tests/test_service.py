@@ -7,6 +7,7 @@ from gripper_mcp.service import (
     GripperService,
     UnknownGripperError,
     classify,
+    missed_target,
     stopped_on_something,
 )
 from gripper_mcp.units import Stroke
@@ -176,49 +177,95 @@ def test_each_gripper_opens_to_its_own_model_width():
     assert service.open_fully("wide").commanded_opening_mm == pytest.approx(140.0)
 
 
-@pytest.mark.parametrize(
-    ("result", "stopped_on_object", "is_grasp", "outcome"),
-    [
-        (motion(refused=True), False, True, "refused"),
-        (motion(reached_goal=False, timed_out=True), False, True, "incomplete"),
-        (motion(reached_goal=False, stalled=True), True, True, "grasped"),
-        (
-            motion(reached_goal=False, stalled=True),
-            False,
-            True,
-            "closed_without_object",
-        ),
-        (motion(reached_goal=True), False, True, "closed_without_object"),
-        (motion(reached_goal=False, stalled=True), True, False, "stalled_unexpectedly"),
-        (motion(reached_goal=True), False, False, "reached"),
-        (motion(reached_goal=False), False, False, "incomplete"),
-    ],
-)
-def test_classify_covers_every_way_a_motion_can_end(
-    result, stopped_on_object, is_grasp, outcome
-):
-    assert classify(result, stopped_on_object, is_grasp) == outcome
-
-
 STROKE_2F_140 = Stroke(max_opening_mm=140.0, closed_tolerance_mm=1.5)
 ONE_COUNT_2F_140_MM = 140.0 / 227
 TSF_CLOSED_MM = 0.75
 
 
 @pytest.mark.parametrize(
-    ("result", "achieved_mm", "stopped"),
+    ("result", "commanded_mm", "achieved_mm", "is_grasp", "outcome"),
     [
-        (motion(reached_goal=False, stalled=True), ONE_COUNT_2F_140_MM, False),
-        (motion(reached_goal=False, stalled=True), TSF_CLOSED_MM, False),
-        (motion(reached_goal=False, stalled=True), 40.0, True),
-        (motion(reached_goal=True), 40.0, False),
+        (motion(refused=True), 0.0, 85.0, True, "refused"),
+        (motion(reached_goal=False, timed_out=True), 0.0, 60.0, True, "incomplete"),
+        (motion(reached_goal=False, stalled=True), 0.0, 40.0, True, "grasped"),
+        (
+            motion(reached_goal=False, stalled=True),
+            0.0,
+            0.0,
+            True,
+            "closed_without_object",
+        ),
+        (motion(reached_goal=True), 0.0, 0.0, True, "closed_without_object"),
+        (
+            motion(reached_goal=False, stalled=True),
+            0.0,
+            40.0,
+            False,
+            "stalled_unexpectedly",
+        ),
+        (
+            motion(reached_goal=False, stalled=True),
+            85.0,
+            49.0,
+            False,
+            "stalled_unexpectedly",
+        ),
+        (motion(reached_goal=True), 30.0, 30.0, False, "reached"),
+        (motion(reached_goal=False, stalled=True), 30.0, 30.0, False, "reached"),
+    ],
+    ids=[
+        "refused",
+        "timed out",
+        "grasp stopped on something",
+        "grasp closed on nothing, stalled",
+        "grasp closed on nothing, reached",
+        "close blocked part-way",
+        "open blocked part-way",
+        "move landed",
+        "move landed but the driver says stalled (#29)",
+    ],
+)
+def test_classify_decides_from_position_not_the_stall_flag(
+    result, commanded_mm, achieved_mm, is_grasp, outcome
+):
+    assert (
+        classify(result, commanded_mm, achieved_mm, STROKE_2F_140, is_grasp) == outcome
+    )
+
+
+@pytest.mark.parametrize(
+    ("achieved_mm", "stopped"),
+    [
+        (ONE_COUNT_2F_140_MM, False),
+        (TSF_CLOSED_MM, False),
+        (40.0, True),
     ],
     ids=[
         "a count short of the stop is an empty close",
         "thicker fingers meeting early is an empty close",
-        "a stall well before the stop is a grasp",
-        "no stall is no object",
+        "stopping well before the stop is a grasp",
     ],
 )
-def test_the_closed_tolerance_decides_an_empty_close(result, achieved_mm, stopped):
-    assert stopped_on_something(result, achieved_mm, STROKE_2F_140) is stopped
+def test_the_closed_tolerance_decides_an_empty_close(achieved_mm, stopped):
+    assert stopped_on_something(0.0, achieved_mm, STROKE_2F_140) is stopped
+
+
+def test_a_move_within_the_tolerance_reached_its_target():
+    assert not missed_target(30.0, 30.0 + ONE_COUNT_2F_140_MM, STROKE_2F_140)
+    assert missed_target(30.0, 32.0, STROKE_2F_140)
+
+
+def test_an_out_of_range_request_says_so_in_the_detail():
+    service, _ = service_with()
+
+    result = service.move_to_opening(ARM, 500.0)
+
+    assert result.detail.startswith("Requested 500.0 mm, clamped to 85.0 mm. ")
+
+
+def test_an_in_range_request_keeps_the_backend_detail_verbatim():
+    service, _ = service_with()
+
+    result = service.move_to_opening(ARM, HALF_OPEN_MM)
+
+    assert result.detail == "Reached the commanded position."
