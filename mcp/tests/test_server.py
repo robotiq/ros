@@ -50,7 +50,7 @@ def gripper_holding_a_cube(config, spec):
     )
 
 
-def pads_on_the_cube(config, spec, gripper):
+def pads_on_the_cube(gripper, spec):
     return MockTactileBackend(
         read_opening_mm=lambda: gripper.opening_mm_for(
             gripper.read_state().position_rad
@@ -62,11 +62,18 @@ def pads_on_the_cube(config, spec, gripper):
 
 @pytest.fixture
 def mcp(tmp_path):
+    grippers = {}
+
+    def make_backend(config, spec):
+        grippers[config.name] = gripper_holding_a_cube(config, spec)
+        return grippers[config.name]
+
+    def make_tactile(config, spec):
+        return pads_on_the_cube(grippers[config.name], spec)
+
     wiring = write_wiring(tmp_path)
     return build_mcp(
-        *build_services(
-            wiring, make_backend=gripper_holding_a_cube, make_tactile=pads_on_the_cube
-        )
+        *build_services(wiring, make_backend=make_backend, make_tactile=make_tactile)
     )
 
 
@@ -126,6 +133,13 @@ def test_a_close_then_verify_through_the_wire_confirms_the_hold(mcp):
 
     assert verification.verdict == "held"
     assert verification.tactile_backend == "mock"
+
+
+def test_a_ros_tactile_entry_names_the_missing_ros_install(tmp_path, monkeypatch):
+    monkeypatch.setitem(sys.modules, "rclpy", None)
+
+    with pytest.raises(RuntimeError, match="robotiq_tsf"):
+        build_services(write_wiring(tmp_path), make_backend=gripper_holding_a_cube)
 
 
 def test_tactile_on_a_model_without_pads_fails_at_startup(tmp_path):
