@@ -15,6 +15,9 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 | `gripper_close` | Close fully; optional `max_effort_n` |
 | `gripper_move_to` | Move to a specific position, in mm of opening; optional `max_effort_n` |
 | `gripper_get_health` | Reachable, controller active |
+| `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
+| `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
+| `gripper_verify_grasp` | Confirm a hold from touch plus opening |
 
 Every tool takes an explicit `gripper_name`; nothing fans out to every gripper.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
@@ -27,6 +30,28 @@ on a 2F-85, `140.0` on a 2F-140) fully open. Every motion result carries an
 | `stopped_on_object` | The fingers stopped on something before the commanded position, either direction; `object_detected: true`. Whether that is a grasp is the caller's call |
 | `incomplete` | Timed out or never finished |
 | `refused` | The backend rejected the goal |
+
+## Tactile
+
+A gripper fitted with TSF-85 fingers gets a `tactile` source in `grippers.yaml`
+next to its namespace; the three tactile tools fail for any other gripper.
+Readings are raw taxel counts, made meaningful by subtracting a baseline
+averaged over many samples with the fingers open (the first read takes it
+automatically if the gripper is open; `gripper_tare_tactile` retakes it).
+The tare also sets the contact threshold: the datasheet floor, or `noise_margin`
+times the peak rest signal its own frames showed, whichever is higher, so pads
+noisier than the twin the floor was tuned on do not read an empty gripper as a
+hold. `gripper_verify_grasp` gives one of:
+
+| Verdict | Meaning |
+|---|---|
+| `held` | Pads register contact and the fingers stopped before meeting |
+| `closed_on_nothing` | Fingers fully closed |
+| `no_contact` | Fingers apart, pads quiet: the object slipped, or the stop was outside the pads |
+
+The ROS source on `robotiq_tsf`'s `TactileSensor/StaticData` topic is next;
+until it lands, `build_services` refuses a `tactile` entry by name. The tests
+drive the tools from a scripted pad model under `tests/fakes/`.
 
 ## Quick start
 
@@ -85,8 +110,9 @@ Two layers, deliberately split:
 - `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq model, the same
   on every host. The command joint's name and range come straight from
   `robotiq_description`'s URDF. Supporting another model is adding a file.
-- `grippers.yaml`: the cell's wiring, which grippers exist, their model and the
-  ROS namespace their driver runs under. Host-specific, so only
+- `grippers.yaml`: the cell's wiring, which grippers exist, their model, the
+  ROS namespace their driver runs under and an optional tactile source.
+  Host-specific, so only
   `grippers.yaml.example` ships.
 
 ## Not a ROS package

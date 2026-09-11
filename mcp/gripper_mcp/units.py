@@ -49,6 +49,9 @@ class Stroke:
     def fingers_met(self, opening_mm: float) -> bool:
         return opening_mm <= self.min_opening_mm + self.closed_tolerance_mm
 
+    def fingers_open(self, opening_mm: float) -> bool:
+        return opening_mm >= self.max_opening_mm - self.closed_tolerance_mm
+
 
 @dataclass(frozen=True)
 class JointGeometry:

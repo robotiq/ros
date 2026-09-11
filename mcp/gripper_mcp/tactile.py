@@ -16,6 +16,10 @@ pad, and a firm one-sided grasp could report no contact at all.
 pads sits at the working ceiling, so a firm one-sided contact reads about half
 of what the same force spread over both pads reads. Thresholds against it are
 in those units.
+
+`rest_noise` is the largest `contact_signal` any tare sample shows against the
+baseline they average to: the noise floor, measured for free at tare time, that
+a runtime threshold has to sit above.
 """
 
 from dataclasses import dataclass
@@ -71,6 +75,14 @@ def contact_signal(
         )
 
     return sum(pad_sums(reading, baseline)) / full_scale_counts
+
+
+def rest_noise(
+    readings: list[TactileReading], baseline: TactileBaseline, full_scale_counts: float
+) -> float:
+    return max(
+        contact_signal(reading, baseline, full_scale_counts) for reading in readings
+    )
 
 
 def _average_pad(readings: list[TactileReading], pad_name: str) -> tuple[float, ...]:

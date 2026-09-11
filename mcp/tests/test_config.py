@@ -10,6 +10,7 @@ from gripper_mcp.config import (
     load_gripper_configs,
     load_model_spec,
     load_model_specs,
+    load_tactile_spec,
 )
 
 MCP_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +20,8 @@ MODELS = {
     "robotiq_2f_85": (85.0, 20.0, 235.0),
     "robotiq_2f_140": (140.0, 10.0, 125.0),
 }
+TSF_85_TAXELS_PER_PAD = 28
+TACTILE_SPEC_DIR = SPEC_DIR / "tactile"
 
 
 def wiring_file(tmp_path, entries):
@@ -93,11 +96,68 @@ def test_a_default_effort_outside_the_rated_grip_force_is_rejected(tmp_path):
         load_model_spec(write_datasheet(tmp_path, too_strong))
 
 
+def test_the_2f_85_datasheet_names_the_tsf_85_pads():
+    spec = load_model_spec(SPEC_DIR / "robotiq_2f_85.yaml")
+
+    assert spec.tactile_model == "robotiq_tsf_85"
+    assert spec.tactile.layout.taxels_per_pad == TSF_85_TAXELS_PER_PAD
+    assert spec.tactile.layout.pad_names == ("left", "right")
+    assert 0.0 < spec.tactile.contact_threshold < 1.0
+
+
+def test_the_2f_140_datasheet_has_no_tactile_option():
+    spec = load_model_spec(SPEC_DIR / "robotiq_2f_140.yaml")
+
+    assert spec.tactile_model is None
+    assert spec.tactile is None
+
+
+def test_every_shipped_tactile_datasheet_is_named_by_a_gripper():
+    named = {load_model_spec(path).tactile_model for path in SPEC_DIR.glob("*.yaml")}
+
+    assert {path.stem for path in TACTILE_SPEC_DIR.glob("*.yaml")} <= named
+
+
+def test_a_tactile_block_inside_a_gripper_datasheet_is_rejected(tmp_path):
+    inlined = datasheet_2f_85()
+    inlined["tactile"] = yaml.safe_load(
+        (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml").read_text()
+    )
+
+    with pytest.raises(ValidationError, match="tactile_model"):
+        load_model_spec(write_datasheet(tmp_path, inlined))
+
+
+def test_a_missing_tactile_datasheet_is_named(tmp_path):
+    orphan = datasheet_2f_85()
+    orphan["tactile_model"] = "robotiq_tsf_140"
+
+    with pytest.raises(FileNotFoundError, match="robotiq_tsf_140"):
+        load_model_spec(write_datasheet(tmp_path, orphan))
+
+
 def test_the_example_wiring_loads_and_names_a_namespace_per_gripper():
     configs = load_gripper_configs(EXAMPLE_WIRING)
 
     assert {config.model for config in configs} <= set(MODELS)
     assert all(config.namespace.startswith("/") for config in configs)
+
+
+def test_a_mock_tactile_source_is_not_a_wiring_option(tmp_path):
+    path = wiring_file(
+        tmp_path,
+        [
+            {
+                "name": "left",
+                "model": "robotiq_2f_85",
+                "namespace": "/left",
+                "tactile": "mock",
+            }
+        ],
+    )
+
+    with pytest.raises(ValidationError, match="tactile"):
+        load_gripper_configs(path)
 
 
 def test_a_gripper_without_a_namespace_is_rejected(tmp_path):
@@ -160,3 +220,27 @@ def test_a_missing_wiring_file_names_the_path(tmp_path):
 
     with pytest.raises(FileNotFoundError, match=str(missing.resolve())):
         load_gripper_configs(missing)
+
+
+def test_a_tactile_datasheet_with_no_samples_to_average_is_rejected(tmp_path):
+    sheet = tmp_path / "robotiq_tsf_85.yaml"
+    sheet.write_text(
+        (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml")
+        .read_text()
+        .replace("baseline_samples: 1000", "baseline_samples: 0")
+    )
+
+    with pytest.raises(ValidationError, match="baseline_samples"):
+        load_tactile_spec(sheet)
+
+
+def test_a_tactile_datasheet_whose_margin_would_lower_the_noise_is_rejected(tmp_path):
+    sheet = tmp_path / "robotiq_tsf_85.yaml"
+    sheet.write_text(
+        (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml")
+        .read_text()
+        .replace("noise_margin: 2.0", "noise_margin: 0.5")
+    )
+
+    with pytest.raises(ValidationError, match="noise_margin"):
+        load_tactile_spec(sheet)
