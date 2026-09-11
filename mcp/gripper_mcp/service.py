@@ -24,13 +24,13 @@ from gripper_mcp.models import (
 )
 from gripper_mcp.units import (
     GripperGeometry,
+    Stroke,
     clamp_opening_mm,
     knuckle_rad_to_opening_mm,
     opening_mm_to_fraction,
     opening_mm_to_knuckle_rad,
 )
 
-OPENING_TOLERANCE_MM = 0.5
 MM_DECIMALS = 2
 RAD_DECIMALS = 4
 FRACTION_DECIMALS = 4
@@ -115,7 +115,7 @@ class GripperService:
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
-        stopped_on_object = stopped_on_something(motion, achieved_mm, geometry)
+        stopped_on_object = stopped_on_something(motion, achieved_mm, spec.stroke)
 
         return GripperMotionResult(
             robot_name=robot_name,
@@ -167,11 +167,9 @@ def geometry_of(spec: GripperModelSpec, backend: GripperBackend) -> GripperGeome
 
 
 def stopped_on_something(
-    motion: BackendMotion, achieved_mm: float, geometry: GripperGeometry
+    motion: BackendMotion, achieved_mm: float, stroke: Stroke
 ) -> bool:
-    return (
-        motion.stalled and achieved_mm > geometry.min_opening_mm + OPENING_TOLERANCE_MM
-    )
+    return motion.stalled and not stroke.fingers_met(achieved_mm)
 
 
 def classify(motion: BackendMotion, stopped_on_object: bool, is_grasp: bool) -> Outcome:

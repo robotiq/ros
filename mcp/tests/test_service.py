@@ -3,7 +3,13 @@ from fakes.gripper import MockGripperBackend
 
 from gripper_mcp.backend import BackendMotion
 from gripper_mcp.config import SPEC_DIR, GripperConfig, load_model_specs
-from gripper_mcp.service import GripperService, UnknownGripperError, classify
+from gripper_mcp.service import (
+    GripperService,
+    UnknownGripperError,
+    classify,
+    stopped_on_something,
+)
+from gripper_mcp.units import Stroke
 
 NARROW = "robotiq_2f_85"
 WIDE = "robotiq_2f_140"
@@ -192,3 +198,27 @@ def test_classify_covers_every_way_a_motion_can_end(
     result, stopped_on_object, is_grasp, outcome
 ):
     assert classify(result, stopped_on_object, is_grasp) == outcome
+
+
+STROKE_2F_140 = Stroke(max_opening_mm=140.0, closed_tolerance_mm=1.5)
+ONE_COUNT_2F_140_MM = 140.0 / 227
+TSF_CLOSED_MM = 0.75
+
+
+@pytest.mark.parametrize(
+    ("result", "achieved_mm", "stopped"),
+    [
+        (motion(reached_goal=False, stalled=True), ONE_COUNT_2F_140_MM, False),
+        (motion(reached_goal=False, stalled=True), TSF_CLOSED_MM, False),
+        (motion(reached_goal=False, stalled=True), 40.0, True),
+        (motion(reached_goal=True), 40.0, False),
+    ],
+    ids=[
+        "a count short of the stop is an empty close",
+        "thicker fingers meeting early is an empty close",
+        "a stall well before the stop is a grasp",
+        "no stall is no object",
+    ],
+)
+def test_the_closed_tolerance_decides_an_empty_close(result, achieved_mm, stopped):
+    assert stopped_on_something(result, achieved_mm, STROKE_2F_140) is stopped
