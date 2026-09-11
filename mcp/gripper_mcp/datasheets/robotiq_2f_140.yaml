@@ -5,6 +5,12 @@ model: robotiq_2f_140
 stroke:
   max_opening_mm: 140.0
   min_opening_mm: 0.0
+  # Fallback margin for "the fingers met": an opening within this of
+  # min_opening_mm counts as closed on nothing. A real 2F-85 wearing TSF
+  # fingers settles 0.75 mm short of the description's closed angle, and one
+  # position-register count is stroke/227 (0.62 mm on this model), so a
+  # close can legitimately land a count or two short of the stop.
+  closed_tolerance_mm: 1.5
 
 grip_force:
   min_n: 10.0

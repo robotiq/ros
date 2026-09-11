@@ -29,7 +29,7 @@ from gripper_mcp.units import (
 )
 
 MOCK_JOINT = JointGeometry(name="mock_knuckle_joint", rad_open=0.0, rad_closed=0.8)
-MOCK_STROKE = Stroke(max_opening_mm=85.0)
+MOCK_STROKE = Stroke(max_opening_mm=85.0, closed_tolerance_mm=1.5)
 MOCK_GEOMETRY = GripperGeometry.of(MOCK_STROKE, MOCK_JOINT)
 
 NOMINAL_TRAVEL_SPEED_MM_S = 150.0
