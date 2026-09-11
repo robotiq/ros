@@ -5,10 +5,18 @@ between, unit conversion, outcome classification, per-gripper dispatch, lives
 here so it can be tested without a FastMCP server or a ROS graph.
 
 The one piece of domain judgement in this file is `classify`: a close that
-stalls before the fingers meet is a *successful grasp*, not a failure, and a
-close that stalls with the fingers together grasped nothing. That semantic used
+stops before the fingers meet is a *successful grasp*, not a failure, and a
+close that ends with the fingers together grasped nothing. That semantic used
 to live as prose in an agent prompt, where it can be forgotten; here it is in
 the type system.
+
+The verdict is read from where the fingers ended up against where they were
+sent, never from the controller's `stalled` flag. On the real driver that flag
+is set on every goal (robotiq/ros#29: no velocity is ever computed, so stall
+detection trips at once), so it is reported to the caller as-is but does not
+steer the outcome. This is a stopgap in its own right: the gripper's firmware
+reports object detection outright (gOBJ, the `object_status` state interface)
+and once a broadcaster carries it the position comparison goes too.
 """
 
 from datetime import datetime, timezone
@@ -64,7 +72,7 @@ class GripperService:
 
     def get_state(self, robot_name: str) -> GripperState:
         backend = self._backend(robot_name)
-        geometry = self._geometry(robot_name)
+        geometry = geometry_of(self._spec(robot_name), backend)
         state = backend.read_state()
         opening_mm = knuckle_rad_to_opening_mm(state.position_rad, geometry)
 
@@ -105,7 +113,7 @@ class GripperService:
     ) -> GripperMotionResult:
         backend = self._backend(robot_name)
         spec = self._spec(robot_name)
-        geometry = self._geometry(robot_name)
+        geometry = geometry_of(spec, backend)
         target_mm = clamp_opening_mm(opening_mm, geometry)
         motion = backend.move_to(
             position_rad=opening_mm_to_knuckle_rad(target_mm, geometry),
@@ -115,7 +123,7 @@ class GripperService:
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
-        stopped_on_object = stopped_on_something(motion, achieved_mm, spec.stroke)
+        stopped_on_object = stopped_on_something(target_mm, achieved_mm, spec.stroke)
 
         return GripperMotionResult(
             robot_name=robot_name,
@@ -126,8 +134,8 @@ class GripperService:
             reached_goal=motion.reached_goal,
             stalled=motion.stalled,
             object_grasped=stopped_on_object if is_grasp else None,
-            outcome=classify(motion, stopped_on_object, is_grasp),
-            detail=motion.detail,
+            outcome=classify(motion, target_mm, achieved_mm, spec.stroke, is_grasp),
+            detail=clamp_note(opening_mm, target_mm) + motion.detail,
             backend=backend.name,
         )
 
@@ -158,29 +166,42 @@ class GripperService:
         self.assert_known(robot_name)
         return self._specs[self._configs[robot_name].model]
 
-    def _geometry(self, robot_name: str):
-        return geometry_of(self._spec(robot_name), self._backend(robot_name))
-
 
 def geometry_of(spec: GripperModelSpec, backend: GripperBackend) -> GripperGeometry:
     return GripperGeometry.of(spec.stroke, backend.joint_geometry())
 
 
+def clamp_note(requested_mm: float, target_mm: float) -> str:
+    if requested_mm == target_mm:
+        return ""
+    return f"Requested {requested_mm:.1f} mm, clamped to {target_mm:.1f} mm. "
+
+
+def missed_target(commanded_mm: float, achieved_mm: float, stroke: Stroke) -> bool:
+    return abs(achieved_mm - commanded_mm) > stroke.closed_tolerance_mm
+
+
 def stopped_on_something(
-    motion: BackendMotion, achieved_mm: float, stroke: Stroke
+    commanded_mm: float, achieved_mm: float, stroke: Stroke
 ) -> bool:
-    return motion.stalled and not stroke.fingers_met(achieved_mm)
+    return achieved_mm - commanded_mm > stroke.closed_tolerance_mm
 
 
-def classify(motion: BackendMotion, stopped_on_object: bool, is_grasp: bool) -> Outcome:
+def classify(
+    motion: BackendMotion,
+    commanded_mm: float,
+    achieved_mm: float,
+    stroke: Stroke,
+    is_grasp: bool,
+) -> Outcome:
     if motion.refused:
         return "refused"
     if motion.timed_out:
         return "incomplete"
-    if is_grasp and (motion.stalled or motion.reached_goal):
-        return "grasped" if stopped_on_object else "closed_without_object"
-    if motion.stalled:
+    if is_grasp:
+        if stopped_on_something(commanded_mm, achieved_mm, stroke):
+            return "grasped"
+        return "closed_without_object"
+    if missed_target(commanded_mm, achieved_mm, stroke):
         return "stalled_unexpectedly"
-    if motion.reached_goal:
-        return "reached"
-    return "incomplete"
+    return "reached"
