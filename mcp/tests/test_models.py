@@ -13,8 +13,8 @@ def motion_result(**overrides):
         achieved_opening_mm=31.2,
         reached_goal=False,
         stalled=True,
-        object_grasped=True,
-        outcome="grasped",
+        object_detected=True,
+        outcome="stopped_on_object",
         detail="stalled on object",
         backend="ros",
     )

@@ -37,7 +37,9 @@ INSTRUCTIONS = (
     "to discover available names, and pass one as gripper_name to every other tool. "
     "Openings are in millimetres: 0.0 is fully closed; fully open is the model's max "
     "opening, reported by gripper_list_grippers. Every motion returns an outcome "
-    "field that says how it ended; read that rather than inferring from the flags."
+    "field that says how it ended; read that rather than inferring from the flags. "
+    "stopped_on_object means the fingers met something; whether that is a grasp "
+    "is for the caller to judge."
 )
 
 READ_ONLY = {
@@ -58,7 +60,6 @@ CLOSES = {
     "idempotent_hint": True,
     "open_world_hint": True,
 }
-GRASPS = {**CLOSES, "idempotent_hint": False}
 
 
 def describe(text: str) -> str:
@@ -133,13 +134,21 @@ def build_mcp(service: GripperService) -> FastMCP:
             """
         Open one gripper fully, releasing anything it holds.
 
+        Stopping on something before the commanded position is
+        outcome="stopped_on_object" with object_detected=true; whether that is
+        a grasp or an obstruction is the caller's call.
+
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
+            max_effort_n: Force ceiling in newtons. Omit for the model's
+                default. Lower it for fragile objects.
             """
         ),
     )
-    def gripper_open(gripper_name: str) -> GripperMotionResult:
-        return service.open_fully(gripper_name)
+    def gripper_open(
+        gripper_name: str, max_effort_n: float | None = None
+    ) -> GripperMotionResult:
+        return service.open_fully(gripper_name, max_effort_n)
 
     @mcp.tool(
         name="gripper_close",
@@ -148,17 +157,22 @@ def build_mcp(service: GripperService) -> FastMCP:
             """
         Close one gripper fully.
 
-        Use gripper_grasp instead when the intent is to pick something up: here
-        the fingers stopping short is outcome="stalled_unexpectedly", whereas
-        gripper_grasp reports it as outcome="grasped".
+        Stopping on something before the commanded position is
+        outcome="stopped_on_object" with object_detected=true; whether that is
+        a grasp or an obstruction is the caller's call.
+        A full close with nothing between the fingers is outcome="reached".
 
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
+            max_effort_n: Force ceiling in newtons. Omit for the model's
+                default. Lower it for fragile objects.
             """
         ),
     )
-    def gripper_close(gripper_name: str) -> GripperMotionResult:
-        return service.close_fully(gripper_name)
+    def gripper_close(
+        gripper_name: str, max_effort_n: float | None = None
+    ) -> GripperMotionResult:
+        return service.close_fully(gripper_name, max_effort_n)
 
     @mcp.tool(
         name="gripper_move_to",
@@ -167,39 +181,23 @@ def build_mcp(service: GripperService) -> FastMCP:
             """
         Move one gripper to a specific position.
 
+        Stopping on something before the commanded position is
+        outcome="stopped_on_object" with object_detected=true; whether that is
+        a grasp or an obstruction is the caller's call.
+
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
             position_mm: Target opening in millimetres, 0.0 (closed) up to the
                 model's max opening. Values outside that range are clamped.
-            """
-        ),
-    )
-    def gripper_move_to(gripper_name: str, position_mm: float) -> GripperMotionResult:
-        return service.move_to_opening(gripper_name, position_mm)
-
-    @mcp.tool(
-        name="gripper_grasp",
-        annotations=GRASPS,
-        description=describe(
-            """
-        Close one gripper onto an object.
-
-        Same motion as gripper_close, different reading of the result: stopping
-        on something is outcome="grasped" with object_grasped=true, and the
-        fingers meeting with nothing between them is
-        outcome="closed_without_object".
-
-        Args:
-            gripper_name: Name of the gripper (see gripper_list_grippers).
-            max_effort_n: Grip force ceiling in newtons. Omit for the model's
+            max_effort_n: Force ceiling in newtons. Omit for the model's
                 default. Lower it for fragile objects.
             """
         ),
     )
-    def gripper_grasp(
-        gripper_name: str, max_effort_n: float | None = None
+    def gripper_move_to(
+        gripper_name: str, position_mm: float, max_effort_n: float | None = None
     ) -> GripperMotionResult:
-        return service.grasp(gripper_name, max_effort_n)
+        return service.move_to_opening(gripper_name, position_mm, max_effort_n)
 
     @mcp.tool(
         name="gripper_get_health",
