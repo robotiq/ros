@@ -12,6 +12,14 @@ model: robotiq_2f_85
 stroke:
   max_opening_mm: 85.0
   min_opening_mm: 0.0
+  # Margin for every position comparison the service makes: a move that
+  # ends within this of its target reached it, a close that ends further
+  # than this from the stop found something. One position-register count
+  # is stroke/227 = 0.37 mm on this model and the driver truncates, so a
+  # correct move can land a count or two off; 1.5 mm sits above two counts
+  # and covers a real 2F-85 wearing TSF fingers, which settles 0.75 mm short
+  # of the description's closed angle.
+  closed_tolerance_mm: 1.5
 
 # Rated grip force, product datasheet. Distinct from the URDF's joint effort
 # limit, which is a torque in N-m.

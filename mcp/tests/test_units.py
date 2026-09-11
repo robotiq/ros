@@ -9,7 +9,7 @@ from gripper_mcp.units import (
     opening_mm_to_knuckle_rad,
 )
 
-STROKE_2F_85 = Stroke(max_opening_mm=85.0)
+STROKE_2F_85 = Stroke(max_opening_mm=85.0, closed_tolerance_mm=1.5)
 KNUCKLE_2F_85 = JointGeometry(
     name="robotiq_85_left_knuckle_joint", rad_open=0.0, rad_closed=0.8
 )
@@ -27,7 +27,7 @@ def test_a_geometry_is_the_datasheet_stroke_on_the_robot_joint():
 
 def test_a_stroke_with_no_travel_is_rejected():
     with pytest.raises(ValueError, match="max_opening_mm"):
-        Stroke(max_opening_mm=0.0)
+        Stroke(max_opening_mm=0.0, closed_tolerance_mm=1.5)
 
 
 def test_a_joint_with_no_travel_is_rejected():
@@ -89,3 +89,14 @@ def test_opening_round_trips_through_the_knuckle_angle(opening_mm):
     assert knuckle_rad_to_opening_mm(knuckle_rad, GEOMETRY_2F_85) == pytest.approx(
         opening_mm
     )
+
+
+@pytest.mark.parametrize("tolerance_mm", [0.0, -1.0, 85.0])
+def test_a_closed_tolerance_outside_the_stroke_is_rejected(tolerance_mm):
+    with pytest.raises(ValueError, match="closed_tolerance_mm"):
+        Stroke(max_opening_mm=85.0, closed_tolerance_mm=tolerance_mm)
+
+
+def test_the_fingers_have_met_within_the_closed_tolerance():
+    assert STROKE_2F_85.fingers_met(1.4)
+    assert not STROKE_2F_85.fingers_met(1.6)

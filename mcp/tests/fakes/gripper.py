@@ -8,8 +8,8 @@ A width outside the stroke is refused up front, since a real gripper cannot
 stall before it starts moving.
 
 It is deliberately not part of the shipped package. Running the MCP without
-hardware is the ROS driver's job, on the SDK's fake gripper (`use_dummy`), so
-that the driver, the controller and the action are exercised too.
+hardware is the ROS driver's job, on ros2_control's fake hardware
+(`use_fake_hardware`), so that the controller and the action are exercised too.
 
 Travel is simulated through an injected `sleep_fn` so tests run instantly while
 a container still moves in something like real time.
@@ -29,7 +29,7 @@ from gripper_mcp.units import (
 )
 
 MOCK_JOINT = JointGeometry(name="mock_knuckle_joint", rad_open=0.0, rad_closed=0.8)
-MOCK_STROKE = Stroke(max_opening_mm=85.0)
+MOCK_STROKE = Stroke(max_opening_mm=85.0, closed_tolerance_mm=1.5)
 MOCK_GEOMETRY = GripperGeometry.of(MOCK_STROKE, MOCK_JOINT)
 
 NOMINAL_TRAVEL_SPEED_MM_S = 150.0
