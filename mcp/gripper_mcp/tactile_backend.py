@@ -9,6 +9,11 @@ backend has to refuse.
 Taxel counts are raw and uncalibrated, exactly as the sensor reports them. They
 only mean something once a baseline is subtracted; that arithmetic lives in
 `tactile.py`, in one place, so no source does it differently.
+
+`read_tactile` answers with the latest frame and never waits. `sample(count)`
+delivers `count` distinct frames, one per sensor update, never the same frame
+twice: a baseline averaged from repeated reads of one cached frame would
+report an averaging that never happened.
 """
 
 from dataclasses import dataclass
@@ -43,3 +48,5 @@ class TactileBackend(Protocol):
     name: str
 
     def read_tactile(self) -> TactileReading: ...
+
+    def sample(self, count: int) -> list[TactileReading]: ...

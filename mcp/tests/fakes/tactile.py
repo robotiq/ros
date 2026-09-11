@@ -60,6 +60,9 @@ class MockTactileBackend:
             layout=self._layout,
         )
 
+    def sample(self, count: int) -> list[TactileReading]:
+        return [self.read_tactile() for _ in range(count)]
+
     def _taxel_counts(self) -> int:
         penetration_mm = self._penetration_mm()
         if penetration_mm is None:
