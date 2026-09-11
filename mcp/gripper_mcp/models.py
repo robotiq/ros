@@ -15,9 +15,7 @@ Backend = Literal["ros", "mock"]
 
 Outcome = Literal[
     "reached",
-    "grasped",
-    "closed_without_object",
-    "stalled_unexpectedly",
+    "stopped_on_object",
     "incomplete",
     "not_supported",
     "refused",
@@ -55,9 +53,11 @@ class GripperMotionResult(BaseModel):
     achieved_opening_mm: float | None = None
     reached_goal: bool
     stalled: bool = Field(description="Stopped early against resistance")
-    object_grasped: bool | None = Field(
-        default=None,
-        description="Set by gripper_grasp: stopped on something before fully closing",
+    object_detected: bool = Field(
+        description=(
+            "The fingers stopped on something before the commanded position, "
+            "in either direction"
+        )
     )
     outcome: Outcome
     detail: str = Field(description="Verbatim backend message; never invented")

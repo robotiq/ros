@@ -13,10 +13,9 @@ EXPECTED_TOOLS = {
     "gripper_open",
     "gripper_close",
     "gripper_move_to",
-    "gripper_grasp",
     "gripper_get_health",
 }
-CLOSING_TOOLS = {"gripper_close", "gripper_move_to", "gripper_grasp"}
+CLOSING_TOOLS = {"gripper_close", "gripper_move_to"}
 CUBE_WIDTH_MM = 40.0
 
 
@@ -87,17 +86,16 @@ def test_opening_is_not_destructive_and_reads_are_read_only(tools):
     assert tools["gripper_get_health"].annotations.read_only_hint is True
 
 
-def test_a_grasp_is_the_one_motion_not_safe_to_repeat(tools):
-    assert tools["gripper_grasp"].annotations.idempotent_hint is False
+def test_every_motion_is_safe_to_repeat(tools):
     assert tools["gripper_close"].annotations.idempotent_hint is True
     assert tools["gripper_open"].annotations.idempotent_hint is True
 
 
-def test_a_grasp_through_the_wire_stops_on_the_virtual_cube(mcp):
-    result = call(mcp, "gripper_grasp", gripper_name="left")
+def test_a_close_through_the_wire_stops_on_the_virtual_cube(mcp):
+    result = call(mcp, "gripper_close", gripper_name="left")
 
-    assert result.outcome == "grasped"
-    assert result.object_grasped is True
+    assert result.outcome == "stopped_on_object"
+    assert result.object_detected is True
     assert result.achieved_opening_mm == pytest.approx(CUBE_WIDTH_MM)
     assert result.backend == "mock"
 
