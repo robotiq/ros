@@ -26,9 +26,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// The activation controller only ever compiles against the handle API of the
-// distro it is built on, so the branch that distro does not use would otherwise
-// go untested. These fakes stand in for both LoanedCommandInterface shapes so
+// The controllers only ever compile against the handle and realtime-publisher
+// APIs of the distro they are built on, so the branch that distro does not use
+// would otherwise go untested. These fakes stand in for both shapes of each so
 // that every distro exercises both.
 //
 // Humble EOL: delete this file with the shims it covers.
@@ -36,12 +36,14 @@
 #include <gtest/gtest.h>
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include <robotiq_controllers/ros2_control_compat.hpp>
 
 namespace robotiq_controllers::test {
 
-/// Humble (ros2_control 2.x): writes cannot fail, reads always yield a value.
+// Humble: writes cannot fail, reads always yield a value.
 class OldApiHandle
 {
 public:
@@ -52,7 +54,7 @@ private:
    double value_ = 0.0;
 };
 
-/// Jazzy 4.x and later: writes report success, reads may come back empty.
+// Jazzy and later: writes report success, reads may come back empty.
 class NewApiHandle
 {
 public:
@@ -75,6 +77,45 @@ private:
    double value_ = 0.0;
    bool writable_ = true;
    bool readable_ = true;
+};
+
+// Humble: publishing goes through the lock and msg_.
+class OldApiPublisher
+{
+public:
+   bool trylock() { return lockable_; }
+   void unlockAndPublish() { published_.push_back(msg_); }
+
+   void setLockable(bool lockable) { lockable_ = lockable; }
+   const std::vector<std::string>& published() const { return published_; }
+
+   std::string msg_;
+
+private:
+   bool lockable_ = true;
+   std::vector<std::string> published_;
+};
+
+// Jazzy and later: one non-blocking call.
+class NewApiPublisher
+{
+public:
+   bool try_publish(const std::string& message)
+   {
+      if(!lockable_)
+      {
+         return false;
+      }
+      published_.push_back(message);
+      return true;
+   }
+
+   void setLockable(bool lockable) { lockable_ = lockable; }
+   const std::vector<std::string>& published() const { return published_; }
+
+private:
+   bool lockable_ = true;
+   std::vector<std::string> published_;
 };
 
 TEST(TestRos2ControlCompat, detects_each_handle_shape)
@@ -115,6 +156,46 @@ TEST(TestRos2ControlCompat, new_api_propagates_empty_read)
    handle.setReadable(false);
 
    EXPECT_EQ(compat::getValue(handle), std::nullopt);
+}
+
+TEST(TestRos2ControlCompat, detects_each_publisher_shape)
+{
+   EXPECT_FALSE((compat::detail::HasTryPublish<OldApiPublisher, std::string>::value));
+   EXPECT_TRUE((compat::detail::HasTryPublish<NewApiPublisher, std::string>::value));
+}
+
+TEST(TestRos2ControlCompat, old_publisher_api_publishes_the_message)
+{
+   OldApiPublisher publisher;
+
+   EXPECT_TRUE(compat::tryPublish(publisher, std::string{"status"}));
+   EXPECT_EQ(publisher.published(), std::vector<std::string>{"status"});
+}
+
+TEST(TestRos2ControlCompat, old_publisher_api_drops_the_message_when_the_buffer_is_taken)
+{
+   OldApiPublisher publisher;
+   publisher.setLockable(false);
+
+   EXPECT_FALSE(compat::tryPublish(publisher, std::string{"status"}));
+   EXPECT_TRUE(publisher.published().empty());
+}
+
+TEST(TestRos2ControlCompat, new_publisher_api_publishes_the_message)
+{
+   NewApiPublisher publisher;
+
+   EXPECT_TRUE(compat::tryPublish(publisher, std::string{"status"}));
+   EXPECT_EQ(publisher.published(), std::vector<std::string>{"status"});
+}
+
+TEST(TestRos2ControlCompat, new_publisher_api_propagates_a_refused_publish)
+{
+   NewApiPublisher publisher;
+   publisher.setLockable(false);
+
+   EXPECT_FALSE(compat::tryPublish(publisher, std::string{"status"}));
+   EXPECT_TRUE(publisher.published().empty());
 }
 
 } // namespace robotiq_controllers::test

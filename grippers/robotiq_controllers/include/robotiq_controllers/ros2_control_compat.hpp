@@ -32,22 +32,27 @@
 #include <type_traits>
 #include <utility>
 
-// ros2_control command-handle API differences across the ROS 2 distros this
-// package supports (Humble, Jazzy, Lyrical).
+// ros2_control and realtime_tools API differences across Humble, Jazzy and
+// Lyrical. Each shim keys off the shape of the operation rather than a version
+// threshold, because Jazzy's 4.x line keeps moving.
 //
 // Humble (ros2_control 2.x) exposes `void set_value(double)` and
 // `double get_value()`. From Jazzy's 4.x line on, writes report success
 // (`bool set_value(double)`) and reads can fail (`std::optional<double>
 // get_optional()`), because the handles took a lock internally.
 //
+// realtime_tools split the same way: Humble publishes over `trylock()` /
+// `msg_` / `unlockAndPublish()`, and newer ones over a single `try_publish(msg)`
+// that deprecates the lock API.
+//
 // Each shim keys off the shape of the operation it wraps rather than a
 // HARDWARE_INTERFACE_VERSION_GTE threshold — Jazzy's 4.x line keeps moving, so
 // there is no stable version number to compare against.
 //
 // Humble EOL: delete this header, its test and its CMake entries; the call
-// sites use set_value and get_optional directly. The shims are templates so
-// that the branch a distro lacks is never instantiated, a constraint that goes
-// with the last of them.
+// sites use set_value, get_optional and try_publish directly. The shims are
+// templates so that the branch a distro lacks is never instantiated, a
+// constraint that goes with the last of them.
 
 namespace robotiq_controllers::compat {
 namespace detail {
@@ -65,9 +70,21 @@ template <typename HandleT>
 struct SetValueReturnsBool : std::is_same<decltype(std::declval<HandleT&>().set_value(0.0)), bool>
 {
 };
+
+template <typename PublisherT, typename MessageT, typename = void>
+struct HasTryPublish : std::false_type
+{
+};
+
+template <typename PublisherT, typename MessageT>
+struct HasTryPublish<PublisherT,
+                     MessageT,
+                     std::void_t<decltype(std::declval<PublisherT&>().try_publish(std::declval<const MessageT&>()))>>
+   : std::true_type
+{
+};
 } // namespace detail
 
-/// Write `value` to `handle`.
 /// @returns whether the write succeeded; always true where the API cannot report failure.
 template <typename HandleT>
 bool setValue(HandleT& handle, double value)
@@ -83,7 +100,6 @@ bool setValue(HandleT& handle, double value)
    }
 }
 
-/// Read `handle`.
 /// @returns the value, or std::nullopt where the API can report a failed read.
 template <typename HandleT>
 std::optional<double> getValue(const HandleT& handle)
@@ -95,6 +111,26 @@ std::optional<double> getValue(const HandleT& handle)
    else
    {
       return handle.get_value();
+   }
+}
+
+/// @returns whether the message was taken; false when another thread holds the buffer.
+template <typename PublisherT, typename MessageT>
+bool tryPublish(PublisherT& publisher, const MessageT& message)
+{
+   if constexpr(detail::HasTryPublish<PublisherT, MessageT>::value)
+   {
+      return publisher.try_publish(message);
+   }
+   else
+   {
+      if(!publisher.trylock())
+      {
+         return false;
+      }
+      publisher.msg_ = message;
+      publisher.unlockAndPublish();
+      return true;
    }
 }
 } // namespace robotiq_controllers::compat
