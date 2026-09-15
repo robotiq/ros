@@ -5,10 +5,11 @@
 # position and keeps robotiq_controllers.humble.yaml. Same controller as
 # that file — Humble's stock
 # position_controllers/GripperActionController, since parallel_gripper_controller
-# only arrived in Jazzy — with the two departures robotiq_controllers.topic_based.yaml
-# explains: no activation controller (no reactivate GPIO to claim) and a stall
-# that aborts rather than succeeds (a simulator without joint velocities would
-# otherwise pass every failed grasp).
+# only arrived in Jazzy — with the departures robotiq_controllers.topic_based.yaml
+# explains: no activation controller (no reactivate GPIO to claim), a status
+# broadcaster that activates with nothing to publish, and a stall that aborts
+# rather than succeeds (a simulator without joint velocities would otherwise
+# pass every failed grasp).
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
@@ -16,6 +17,8 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
     robotiq_gripper_controller:
       type: position_controllers/GripperActionController
+    robotiq_gripper_status_broadcaster:
+      type: robotiq_controllers/GripperStatusBroadcaster
 
 robotiq_gripper_controller:
   ros__parameters:
