@@ -338,7 +338,7 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 
 `position` is the joint angle in radians (≈ `0.0` open → ~`0.8` closed on a 2F-85); on Jazzy/Lyrical `effort` and `velocity` are optional max limits, mapped to the controller's `set_gripper_max_effort` / `set_gripper_max_velocity` interfaces.
 
-`effort` sets the gripper's grip threshold, as a fraction of `gripper_max_force` written to rFR. It is what the fingers push with once they meet an object, not a force the gripper regulates to or reports back — nothing reads a force out of the gripper, and `motor_current` is not convertible to one.
+`effort` sets the gripper's grip threshold, as a fraction of `gripper_max_force` written to rFR. It sets the maximum current at the motor, and does **not** directly control the maximum force the gripper applies: that is also largely influenced by the closing speed. Nothing reads a force out of the gripper, and `motor_current` is not convertible to one.
 
 ### State interfaces
 
@@ -361,7 +361,7 @@ The driver reports the fault code and its severity separately because the SDK de
 
 The byte also carries kFLT, the controller's own fault, which nothing exposes. Nobody has needed it, and it is a different failure from the gripper's; open an issue if you do.
 
-The codes are numbers on the wire, so the driver also names the fault in its own throttled warning, for example `reports fault OverTemperature (gFLT 0x08)`. A consumer that wants the name in its own output takes it from the SDK's `toString`.
+The codes are numbers on the wire, so the driver also names the fault in its own throttled warning, for example `reports gripper fault OverTemperature`. A consumer that wants the name in its own output takes it from the SDK's `toString`.
 
 None of the four beyond `position` and `velocity` are `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for any of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and the topic-based plugin never write them — so under `use_fake_hardware:=true` all four are absent rather than wrong.
 
@@ -378,7 +378,7 @@ None of the four beyond `position` and `velocity` are `ros2_control` standard in
 | `slave_address` | `0x09` | Modbus slave address; `0x09` as the manual prints it, a bare number as the decimal it looks like |
 | `connection_frequency` | `100` | Rate of the SDK's background exchange cycle, in Hz; `0` free-runs |
 | `activation_timeout` | `15` | Seconds allowed for activation and for fault recovery |
-| `gripper_max_speed` / `gripper_max_force` | `0.150` m/s / `235` N | Full scale used to turn the speed/effort command interfaces into rSP / rFR register fractions. rFR is a grip threshold, not a regulated force — see [Commanding the gripper](#commanding-the-gripper). Command-side only, and nothing scales a state interface by them. Rejected unless finite and above zero |
+| `gripper_max_speed` / `gripper_max_force` | `0.150` m/s / `235` N | Full scale used to turn the speed/effort command interfaces into rSP / rFR register fractions. rFR caps the motor current rather than the applied force — see [Commanding the gripper](#commanding-the-gripper). Command-side only, and nothing scales a state interface by them. Rejected unless finite and above zero |
 | `gripper_speed_multiplier` / `gripper_force_multiplier` | `1.0` | Initial fractions published on those interfaces |
 | `use_dummy` | `false` | Drive a fake gripper instead of hardware. Off for the usual falsey spellings — empty, `0`, `false`, `no`, `off`, in any case — on for anything else |
 

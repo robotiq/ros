@@ -196,9 +196,21 @@ protected:
    double gripper_object_status_ = std::numeric_limits<double>::quiet_NaN();
 
    // gFLT and its severity, both decoded through the SDK so that no consumer
-   // re-derives either from the raw byte.
-   double gripper_fault_ = std::numeric_limits<double>::quiet_NaN();
-   double fault_severity_ = std::numeric_limits<double>::quiet_NaN();
+   // re-derives either from the raw byte. A StateInterface binds to each member
+   // by address, so they are doubles like the readings around them.
+   struct FaultState
+   {
+      double code = std::numeric_limits<double>::quiet_NaN();
+      double severity = std::numeric_limits<double>::quiet_NaN();
+
+      void set(Robotiq::FaultStatus status)
+      {
+         code = static_cast<double>(status.gripperFault());
+         severity = static_cast<double>(Robotiq::severity(status.gripperFault()));
+      }
+   };
+
+   FaultState fault_;
 
    double gripper_position_command_ = 0.0;
 
