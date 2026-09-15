@@ -4,4 +4,9 @@
             This controller provides an interface to (re-)activate the Robotiq gripper.
         </description>
     </class>
+    <class name="robotiq_controllers/GripperStatusBroadcaster" type="robotiq_controllers::GripperStatusBroadcaster" base_class_type="controller_interface::ControllerInterface">
+        <description>
+            This controller publishes the Robotiq gripper's object detection, motor current and fault.
+        </description>
+    </class>
 </library>

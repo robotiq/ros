@@ -8,16 +8,29 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(controller_interface REQUIRED)
+find_package(realtime_tools REQUIRED)
 find_package(std_srvs REQUIRED)
+
+# dev/CMakeLists.txt builds robotiq_msgs in-tree, where there is no config file
+# to find and the typesupport target already exists.
+if(TARGET robotiq_msgs)
+  rosidl_get_typesupport_target(robotiq_msgs_TARGETS robotiq_msgs "rosidl_typesupport_cpp")
+else()
+  find_package(robotiq_msgs REQUIRED)
+endif()
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_interface
+  realtime_tools
+  robotiq_msgs
   std_srvs
 )
 
 include_directories(include)
 
 add_library(${PROJECT_NAME} SHARED
+  src/gripper_status.cpp
+  src/gripper_status_broadcaster.cpp
   src/robotiq_activation_controller.cpp
 )
 
@@ -27,6 +40,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME}
   controller_interface::controller_interface
+  realtime_tools::realtime_tools
+  ${robotiq_msgs_TARGETS}
   ${std_srvs_TARGETS}
 )
 
