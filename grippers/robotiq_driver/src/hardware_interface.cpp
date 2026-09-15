@@ -88,7 +88,7 @@ bool declaresOnlySupportedStateInterfaces(const hardware_interface::ComponentInf
                                               kMotorCurrentInterface,
                                               kObjectStatusInterface,
                                               kGripperFaultInterface,
-                                              kFaultSeverityInterface};
+                                              kGripperFaultSeverityInterface};
 
    for(const hardware_interface::InterfaceInfo& state_interface : joint.state_interfaces)
    {
@@ -171,7 +171,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_init(cons
    gripper_velocity_ = std::numeric_limits<double>::quiet_NaN();
    gripper_motor_current_ = std::numeric_limits<double>::quiet_NaN();
    gripper_object_status_ = std::numeric_limits<double>::quiet_NaN();
-   fault_ = {};
+   gripper_fault_ = {};
    gripper_position_command_ = std::numeric_limits<double>::quiet_NaN();
    reactivate_gripper_cmd_ = NO_NEW_CMD_;
 
@@ -282,9 +282,10 @@ std::vector<hardware_interface::StateInterface> RobotiqGripperHardwareInterface:
    state_interfaces.emplace_back(
       hardware_interface::StateInterface(info_.joints[0].name, kObjectStatusInterface, &gripper_object_status_));
    state_interfaces.emplace_back(
-      hardware_interface::StateInterface(info_.joints[0].name, kGripperFaultInterface, &fault_.code));
-   state_interfaces.emplace_back(
-      hardware_interface::StateInterface(info_.joints[0].name, kFaultSeverityInterface, &fault_.severity));
+      hardware_interface::StateInterface(info_.joints[0].name, kGripperFaultInterface, &gripper_fault_.code));
+   state_interfaces.emplace_back(hardware_interface::StateInterface(info_.joints[0].name,
+                                                                    kGripperFaultSeverityInterface,
+                                                                    &gripper_fault_.severity));
 
    return state_interfaces;
 }
@@ -394,7 +395,8 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
-   fault_.set(status.faultStatus);
+   gripper_fault_ = {gripperFaultFromRegister(status.faultStatus),
+                     gripperFaultSeverityFromRegister(status.faultStatus)};
    gripper_position_command_ = gripper_position_;
 
    RCLCPP_INFO(kLogger, "Robotiq Gripper successfully activated!");
@@ -450,7 +452,8 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
-   fault_.set(status.faultStatus);
+   gripper_fault_ = {gripperFaultFromRegister(status.faultStatus),
+                     gripperFaultSeverityFromRegister(status.faultStatus)};
 
    // A faulted link recovers by itself on the next successful exchange, so
    // this warns rather than errors; the position above is the last good

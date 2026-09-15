@@ -97,7 +97,7 @@ std::string minimalRobotUrdf(const std::string& extra_hardware_params = "")
               <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
               <state_interface name="gripper_fault"/>
-              <state_interface name="fault_severity"/>
+              <state_interface name="gripper_fault_severity"/>
             </joint>
             <gpio name="reactivate_gripper">
               <command_interface name="reactivate_gripper_cmd" />
@@ -188,7 +188,7 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsExpectedStateInterfaces)
                                              "robotiq_85_left_knuckle_joint/motor_current",
                                              "robotiq_85_left_knuckle_joint/object_status",
                                              "robotiq_85_left_knuckle_joint/gripper_fault",
-                                             "robotiq_85_left_knuckle_joint/fault_severity"));
+                                             "robotiq_85_left_knuckle_joint/gripper_fault_severity"));
 }
 
 TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheDescriptionDeclares)
@@ -197,7 +197,7 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
    const std::string declared = R"(              <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
               <state_interface name="gripper_fault"/>
-              <state_interface name="fault_severity"/>
+              <state_interface name="gripper_fault_severity"/>
 )";
    ASSERT_NE(std::string::npos, urdf.find(declared));
    urdf.erase(urdf.find(declared), declared.size());
@@ -214,7 +214,7 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
                testing::IsSupersetOf({"robotiq_85_left_knuckle_joint/motor_current",
                                       "robotiq_85_left_knuckle_joint/object_status",
                                       "robotiq_85_left_knuckle_joint/gripper_fault",
-                                      "robotiq_85_left_knuckle_joint/fault_severity"}));
+                                      "robotiq_85_left_knuckle_joint/gripper_fault_severity"}));
 }
 
 /**
@@ -297,7 +297,7 @@ TEST(TestRobotiqGripperHardwareInterface, FaultInterfacesReadNoFaultOnAHealthyGr
    ASSERT_EQ(hardware_interface::return_type::OK, rm.set_component_state(kComponentName, active));
 
    auto gripper_fault = rm.claim_state_interface("robotiq_85_left_knuckle_joint/gripper_fault");
-   auto severity = rm.claim_state_interface("robotiq_85_left_knuckle_joint/fault_severity");
+   auto severity = rm.claim_state_interface("robotiq_85_left_knuckle_joint/gripper_fault_severity");
 
    ASSERT_TRUE(compat::readWriteOk(rm.read(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01))));
 
@@ -355,7 +355,7 @@ TEST(TestRobotiqGripperHardwareInterface, AcceptsEveryStateInterfaceItExports)
    RobotiqGripperHardwareInterface driver;
 
    EXPECT_EQ(hardware_interface::CallbackReturn::SUCCESS,
-             driver.on_init(compat::onInitParams(hardwareInfo(urdfDeclaring("fault_severity")))));
+             driver.on_init(compat::onInitParams(hardwareInfo(urdfDeclaring("gripper_fault_severity")))));
 }
 
 /**
@@ -379,7 +379,7 @@ TEST(TestRobotiqGripperHardwareInterface, StateInterfacesReadNaNBeforeActivation
                                     hardware_interface::lifecycle_state_names::INACTIVE};
    ASSERT_EQ(hardware_interface::return_type::OK, rm.set_component_state(kComponentName, inactive));
 
-   for(const char* interface : {"motor_current", "object_status", "gripper_fault", "fault_severity"})
+   for(const char* interface : {"motor_current", "object_status", "gripper_fault", "gripper_fault_severity"})
    {
       auto handle = rm.claim_state_interface(std::string{"robotiq_85_left_knuckle_joint/"} + interface);
       EXPECT_TRUE(std::isnan(compat::getValue(handle).value_or(0.0))) << interface << " had a value to report";

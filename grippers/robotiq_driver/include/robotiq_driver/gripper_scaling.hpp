@@ -111,7 +111,7 @@ inline constexpr double kAmperesPerCurrentCount = 0.010;
 
 // The SDK ranks a code it does not recognize as Major, so an undocumented
 // fault is never reported as harmless.
-[[nodiscard]] inline double faultSeverityFromRegister(Robotiq::FaultStatus fault)
+[[nodiscard]] inline double gripperFaultSeverityFromRegister(Robotiq::FaultStatus fault)
 {
    return static_cast<double>(Robotiq::severity(fault.gripperFault()));
 }

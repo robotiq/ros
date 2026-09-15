@@ -158,7 +158,7 @@ TEST(GripperScaling, TheFaultInterfacesReadTheGripperFaultAndItsOwnSeverity)
 
    const auto expectedGripperFault = Robotiq::GripperFault::InternalFault;
    EXPECT_EQ(static_cast<double>(expectedGripperFault), gripperFaultFromRegister(fault));
-   EXPECT_EQ(static_cast<double>(Robotiq::severity(expectedGripperFault)), faultSeverityFromRegister(fault));
+   EXPECT_EQ(static_cast<double>(Robotiq::severity(expectedGripperFault)), gripperFaultSeverityFromRegister(fault));
 }
 
 } // namespace robotiq_driver::test

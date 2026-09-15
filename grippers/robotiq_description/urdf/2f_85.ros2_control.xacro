@@ -61,7 +61,7 @@
                     <state_interface name="motor_current"/>
                     <state_interface name="object_status"/>
                     <state_interface name="gripper_fault"/>
-                    <state_interface name="fault_severity"/>
+                    <state_interface name="gripper_fault_severity"/>
                 </xacro:unless>
             </joint>
             <!-- When simulating we need to include the rest of the gripper joints -->

@@ -75,7 +75,7 @@ HARDWARE_ONLY_STATE_INTERFACES = {
     "motor_current",
     "object_status",
     "gripper_fault",
-    "fault_severity",
+    "gripper_fault_severity",
 }
 
 requires_xacro = pytest.mark.skipif(

@@ -42,7 +42,6 @@
 #include <memory>
 #include <vector>
 
-#include <robotiq_driver/gripper_scaling.hpp>
 #include <robotiq_driver/hardware_parameters.hpp>
 #include <robotiq_driver/visibility_control.hpp>
 
@@ -63,7 +62,7 @@ namespace robotiq_driver {
 inline constexpr const char* kObjectStatusInterface = "object_status";
 inline constexpr const char* kMotorCurrentInterface = "motor_current";
 inline constexpr const char* kGripperFaultInterface = "gripper_fault";
-inline constexpr const char* kFaultSeverityInterface = "fault_severity";
+inline constexpr const char* kGripperFaultSeverityInterface = "gripper_fault_severity";
 
 //! ros2_control hardware interface for a Robotiq 2F gripper, driven through the
 //! gripper SDK.
@@ -199,19 +198,16 @@ protected:
    // gFLT and its severity, both decoded through the SDK so that no consumer
    // re-derives either from the raw byte. A StateInterface binds to each member
    // by address, so they are doubles like the readings around them.
+   //
+   // The members say which fault they hold; the type does not, so the
+   // controller's own fault can reuse it.
    struct FaultState
    {
       double code = std::numeric_limits<double>::quiet_NaN();
       double severity = std::numeric_limits<double>::quiet_NaN();
-
-      void set(Robotiq::FaultStatus status)
-      {
-         code = gripperFaultFromRegister(status);
-         severity = faultSeverityFromRegister(status);
-      }
    };
 
-   FaultState fault_;
+   FaultState gripper_fault_;
 
    double gripper_position_command_ = 0.0;
 
