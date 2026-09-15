@@ -262,7 +262,8 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 | Package | Description |
 |---|---|
 | `robotiq_driver` | `ros2_control` hardware interface, over the `extern/grippers` SDK (Modbus RTU on serial) |
-| `robotiq_controllers` | Gripper command / activation controllers |
+| `robotiq_msgs` | Messages the driver and controllers publish |
+| `robotiq_controllers` | Gripper command / activation controllers, and the status broadcaster |
 | `robotiq_description` | URDF/xacro, meshes, RViz + bringup launch |
 | `robotiq_hardware_tests` | Hardware integration tests |
 
@@ -277,7 +278,7 @@ ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true 
   sim_joint_commands_topic:=/sim/joint_commands sim_joint_states_topic:=/sim/joint_states  # topic_based_ros2_control
 ```
 
-This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, and `robotiq_activation_controller`.
+This activates `joint_state_broadcaster`, `robotiq_gripper_controller`, `robotiq_activation_controller` and `robotiq_gripper_status_broadcaster`.
 
 `sim_topic_based` swaps the hardware plugin for `topic_based_ros2_control/TopicBasedSystem`: any
 simulator that exchanges `sensor_msgs/JointState` on two topics (Isaac Sim, or a bridge of your
@@ -285,7 +286,8 @@ own), named by `sim_joint_commands_topic` / `sim_joint_states_topic`. That plugi
 `config/robotiq_controllers.topic_based.yaml` for it (per-goal `effort`/`velocity` are accepted and ignored;
 a stall aborts the goal rather than succeeding, since a simulator that publishes no joint velocities
 would otherwise report every failed grasp as success) and skips `robotiq_activation_controller`,
-whose `reactivate_gripper` GPIO only the driver and the mock declare. Renamed in 1.2.0: PickNik's
+whose `reactivate_gripper` GPIO only the driver and the mock declare. `robotiq_gripper_status_broadcaster`
+is still spawned, and publishes nothing, because the plugin reports none of the gripper's own status. Renamed in 1.2.0: PickNik's
 `sim_isaac`, `isaac_joint_commands` and `isaac_joint_states` (launch arguments and macro parameters,
 shipped in 1.1.0) still work and log a deprecation warning, `sim_isaac:=true` keeping its old
 `/isaac_joint_commands` / `/isaac_joint_states` topic defaults; they are removed in the next major
@@ -350,9 +352,21 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 
 `effort` sets the gripper's grip threshold, as a fraction of `gripper_max_force` written to rFR. It sets the maximum current at the motor, and does **not** directly control the maximum force the gripper applies: that is also largely influenced by the closing speed. Nothing reads a force out of the gripper, and `motor_current` is not convertible to one.
 
+### Gripper status
+
+`robotiq_gripper_status_broadcaster` publishes the gripper's own status on `/robotiq_gripper_status_broadcaster/status`, as a `robotiq_msgs/GripperStatus`, at the controller rate:
+
+```bash
+ros2 topic echo /robotiq_gripper_status_broadcaster/status
+```
+
+`object_detection` is the gripper's own answer to "am I holding something", and the only authoritative one. Prefer it to the `gripper_cmd` action's `stalled` flag, which is a stall heuristic, and to comparing the commanded opening against the achieved one. The message names all four of its states, and every fault code, as constants.
+
+The broadcaster is spawned in every hardware mode. Only the driver reports these values, so under `use_fake_hardware:=true` and `sim_topic_based:=true` it activates, says so once, and publishes nothing. `use_dummy` keeps the driver loaded and does publish. While the driver reports a link fault, the topic repeats the last reading it got from the gripper.
+
 ### State interfaces
 
-`robotiq_driver` exports six state interfaces on the gripper joint, all read out of the same status block the SDK exchanges every cycle. Read them from `/dynamic_joint_states`, or with `ros2 control list_hardware_interfaces`.
+The same values reach a controller as state interfaces. `robotiq_driver` exports six on the gripper joint, all read out of the status block the SDK exchanges every cycle. Read them from `/dynamic_joint_states`, or with `ros2 control list_hardware_interfaces`.
 
 | Interface | Unit | Description |
 |---|---|---|
@@ -418,7 +432,7 @@ ros2 launch robotiq_description view_gripper.launch.py
 
 Drag the `robotiq_85_left_knuckle_joint` slider; the five finger joints follow it via URDF `mimic` (≈ `0.0` open → ~`0.8` closed).
 
-Goal-based commanding also works without hardware: `robotiq_control.launch.py use_fake_hardware:=true launch_rviz:=true` brings up all three controllers against `mock_components/GenericSystem`, and `gripper_cmd` goals drive the model — the five finger joints follow the knuckle via URDF `mimic`, exactly as on hardware. Use the slider above when you want to pose the model by hand instead.
+Goal-based commanding also works without hardware: `robotiq_control.launch.py use_fake_hardware:=true launch_rviz:=true` brings up all four controllers against `mock_components/GenericSystem`, and `gripper_cmd` goals drive the model — the five finger joints follow the knuckle via URDF `mimic`, exactly as on hardware. Use the slider above when you want to pose the model by hand instead.
 
 Mock and hardware publish the same `/joint_states` contract on every distro: the knuckle joint alone, with `robot_state_publisher` deriving the mimicked finger joints from the URDF. Only the Gazebo and topic-based paths (`sim_gazebo`, `sim_topic_based`) declare the mimicked joints to `ros2_control`, since those simulators supply their own joint state.
 
