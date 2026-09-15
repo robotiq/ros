@@ -34,6 +34,7 @@ jobs:
           linter: ${{ matrix.linter }}
           package-name: >-
             robotiq_driver
+            robotiq_msgs
             robotiq_controllers
             robotiq_description
             robotiq_hardware_tests
@@ -56,6 +57,7 @@ jobs:
           arguments: "--linelength=121 --filter=-whitespace/newline,-whitespace/comments"
           package-name: >-
             robotiq_driver
+            robotiq_msgs
             robotiq_controllers
             robotiq_description
             robotiq_hardware_tests

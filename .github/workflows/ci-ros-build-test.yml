@@ -69,6 +69,7 @@ jobs:
           package-name: >-
             robotiq_tsf
             robotiq_driver
+            robotiq_msgs
             robotiq_controllers
             robotiq_description
             robotiq_hardware_tests
