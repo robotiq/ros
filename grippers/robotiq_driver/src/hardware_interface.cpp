@@ -36,6 +36,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <robotiq_driver/gripper_scaling.hpp>
@@ -43,6 +44,7 @@
 #include <robotiq_driver/rclcpp_logger.hpp>
 
 #include <Robotiq/gripper/fake/gripper_factory.hpp>
+#include <Robotiq/gripper/to_string.hpp>
 #include <Robotiq/gripper/wait.hpp>
 
 #include <hardware_interface/actuator_interface.hpp>
@@ -76,20 +78,11 @@ constexpr auto kMotionTimeout = std::chrono::seconds{5};
 
 namespace robotiq_driver {
 namespace {
-const char* toString(Robotiq::ConnectionState state)
+// The SDK names its enumerators through std::string_view; a printf conversion
+// needs the null terminator back.
+std::string printable(std::string_view name)
 {
-   switch(state)
-   {
-   case Robotiq::ConnectionState::Disconnected:
-      return "Disconnected";
-   case Robotiq::ConnectionState::Connecting:
-      return "Connecting";
-   case Robotiq::ConnectionState::Operational:
-      return "Operational";
-   case Robotiq::ConnectionState::Faulted:
-      return "Faulted";
-   }
-   return "Unknown";
+   return std::string{name};
 }
 
 // export_state_interfaces() exports all four whatever the description says, so
@@ -462,7 +455,7 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
                            kDiagnosticThrottleMs,
                            "The Robotiq gripper on %s: link is %s; the reported position may be stale.",
                            parameters_.connection.serial.port.c_str(),
-                           toString(connection));
+                           printable(Robotiq::toString(connection)).c_str());
    }
 
    if(status.faultStatus.gripperFault() != Robotiq::GripperFault::None)
