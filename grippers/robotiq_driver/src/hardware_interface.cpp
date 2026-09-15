@@ -27,6 +27,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <future>
@@ -85,24 +87,31 @@ std::string printable(std::string_view name)
    return std::string{name};
 }
 
-// export_state_interfaces() exports all four whatever the description says, so
-// the names below are the whole contract: nothing here gates what appears.
+// export_state_interfaces() exports all of these whatever the description says,
+// so the names below are the whole contract: nothing here gates what appears.
 bool declaresOnlySupportedStateInterfaces(const hardware_interface::ComponentInfo& joint)
 {
+   const std::array<const char*, 6> supported{hardware_interface::HW_IF_POSITION,
+                                              hardware_interface::HW_IF_VELOCITY,
+                                              kMotorCurrentInterface,
+                                              kObjectStatusInterface,
+                                              kGripperFaultInterface,
+                                              kFaultSeverityInterface};
+
    for(const hardware_interface::InterfaceInfo& state_interface : joint.state_interfaces)
    {
-      if(!(state_interface.name == hardware_interface::HW_IF_POSITION
-           || state_interface.name == hardware_interface::HW_IF_VELOCITY
-           || state_interface.name == kMotorCurrentInterface || state_interface.name == kObjectStatusInterface))
+      if(std::find(supported.begin(), supported.end(), state_interface.name) == supported.end())
       {
+         std::ostringstream expected;
+         for(std::size_t i = 0; i < supported.size(); ++i)
+         {
+            expected << (i == 0 ? "" : ", ") << supported[i];
+         }
          RCLCPP_FATAL(kLogger,
-                      "Joint '%s' has %s state interface. Expected %s, %s, %s or %s.",
+                      "Joint '%s' has %s state interface. Expected one of %s.",
                       joint.name.c_str(),
                       state_interface.name.c_str(),
-                      hardware_interface::HW_IF_POSITION,
-                      hardware_interface::HW_IF_VELOCITY,
-                      kMotorCurrentInterface,
-                      kObjectStatusInterface);
+                      expected.str().c_str());
          return false;
       }
    }
@@ -170,6 +179,8 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_init(cons
    gripper_velocity_ = std::numeric_limits<double>::quiet_NaN();
    gripper_motor_current_ = std::numeric_limits<double>::quiet_NaN();
    gripper_object_status_ = std::numeric_limits<double>::quiet_NaN();
+   gripper_fault_ = std::numeric_limits<double>::quiet_NaN();
+   fault_severity_ = std::numeric_limits<double>::quiet_NaN();
    gripper_position_command_ = std::numeric_limits<double>::quiet_NaN();
    reactivate_gripper_cmd_ = NO_NEW_CMD_;
 
@@ -279,6 +290,10 @@ std::vector<hardware_interface::StateInterface> RobotiqGripperHardwareInterface:
       hardware_interface::StateInterface(info_.joints[0].name, kMotorCurrentInterface, &gripper_motor_current_));
    state_interfaces.emplace_back(
       hardware_interface::StateInterface(info_.joints[0].name, kObjectStatusInterface, &gripper_object_status_));
+   state_interfaces.emplace_back(
+      hardware_interface::StateInterface(info_.joints[0].name, kGripperFaultInterface, &gripper_fault_));
+   state_interfaces.emplace_back(
+      hardware_interface::StateInterface(info_.joints[0].name, kFaultSeverityInterface, &fault_severity_));
 
    return state_interfaces;
 }
@@ -388,6 +403,8 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
+   gripper_fault_ = static_cast<double>(status.faultStatus.gripperFault());
+   fault_severity_ = static_cast<double>(Robotiq::severity(status.faultStatus.gripperFault()));
    gripper_position_command_ = gripper_position_;
 
    RCLCPP_INFO(kLogger, "Robotiq Gripper successfully activated!");
@@ -443,6 +460,8 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
+   gripper_fault_ = static_cast<double>(status.faultStatus.gripperFault());
+   fault_severity_ = static_cast<double>(Robotiq::severity(status.faultStatus.gripperFault()));
 
    // A faulted link recovers by itself on the next successful exchange, so
    // this warns rather than errors; the position above is the last good
@@ -463,8 +482,9 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
       RCLCPP_WARN_THROTTLE(kLogger,
                            diagnostic_clock_,
                            kDiagnosticThrottleMs,
-                           "The Robotiq gripper on %s reports fault status 0x%02X.",
+                           "The Robotiq gripper on %s reports fault %s (gFLT 0x%02X).",
                            parameters_.connection.serial.port.c_str(),
+                           printable(Robotiq::toString(status.faultStatus.gripperFault())).c_str(),
                            status.faultStatus.raw());
    }
 

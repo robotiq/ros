@@ -95,6 +95,8 @@ std::string minimalRobotUrdf(const std::string& extra_hardware_params = "")
               <state_interface name="velocity"/>
               <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
+              <state_interface name="gripper_fault"/>
+              <state_interface name="fault_severity"/>
             </joint>
             <gpio name="reactivate_gripper">
               <command_interface name="reactivate_gripper_cmd" />
@@ -183,7 +185,9 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsExpectedStateInterfaces)
                testing::UnorderedElementsAre("robotiq_85_left_knuckle_joint/position",
                                              "robotiq_85_left_knuckle_joint/velocity",
                                              "robotiq_85_left_knuckle_joint/motor_current",
-                                             "robotiq_85_left_knuckle_joint/object_status"));
+                                             "robotiq_85_left_knuckle_joint/object_status",
+                                             "robotiq_85_left_knuckle_joint/gripper_fault",
+                                             "robotiq_85_left_knuckle_joint/fault_severity"));
 }
 
 TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheDescriptionDeclares)
@@ -191,6 +195,8 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
    std::string urdf = minimalRobotUrdf();
    const std::string declared = R"(              <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
+              <state_interface name="gripper_fault"/>
+              <state_interface name="fault_severity"/>
 )";
    ASSERT_NE(std::string::npos, urdf.find(declared));
    urdf.erase(urdf.find(declared), declared.size());
@@ -204,8 +210,10 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
 #endif
 
    EXPECT_THAT(rm.state_interface_keys(),
-               testing::IsSupersetOf(
-                  {"robotiq_85_left_knuckle_joint/motor_current", "robotiq_85_left_knuckle_joint/object_status"}));
+               testing::IsSupersetOf({"robotiq_85_left_knuckle_joint/motor_current",
+                                      "robotiq_85_left_knuckle_joint/object_status",
+                                      "robotiq_85_left_knuckle_joint/gripper_fault",
+                                      "robotiq_85_left_knuckle_joint/fault_severity"}));
 }
 
 /**
@@ -264,6 +272,36 @@ TEST(TestRobotiqGripperHardwareInterface, UseDummyActivatesAndFollowsCommands)
    }
    EXPECT_TRUE(reached) << "joint position never followed the command; last read "
                         << compat::getValue(position).value_or(0.0);
+}
+
+/**
+ * The fault interfaces carry the SDK's decoded code and severity, not the raw
+ * byte, so no consumer decodes either itself. An unfaulted gripper reads None
+ * on both.
+ */
+TEST(TestRobotiqGripperHardwareInterface, FaultInterfacesReportDecodedCodes)
+{
+   const std::string urdf = minimalRobotUrdf(R"(<param name="use_dummy">true</param>)");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   rclcpp_lifecycle::State active{lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE,
+                                  hardware_interface::lifecycle_state_names::ACTIVE};
+   ASSERT_EQ(hardware_interface::return_type::OK, rm.set_component_state(kComponentName, active));
+
+   auto gripper_fault = rm.claim_state_interface("robotiq_85_left_knuckle_joint/gripper_fault");
+   auto severity = rm.claim_state_interface("robotiq_85_left_knuckle_joint/fault_severity");
+
+   ASSERT_TRUE(compat::readWriteOk(rm.read(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01))));
+
+   EXPECT_DOUBLE_EQ(static_cast<double>(Robotiq::GripperFault::None), compat::getValue(gripper_fault).value_or(-1.0));
+   EXPECT_DOUBLE_EQ(static_cast<double>(Robotiq::FaultSeverity::None), compat::getValue(severity).value_or(-1.0));
 }
 
 namespace {

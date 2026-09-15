@@ -37,8 +37,8 @@ silent until a controller fails to activate at runtime:
 * Mock hardware exposes only what the URDF declares, so those two interfaces have
   to be declared there or parallel_gripper_action_controller cannot claim them and
   never activates under use_fake_hardware:=true.
-* motor_current and object_status are the reverse case: only the real driver
-  writes them.
+* motor_current, object_status and the two fault fields are the reverse case:
+  only the real driver writes them.
 """
 
 import shutil
@@ -71,7 +71,12 @@ MIMIC_JOINT_COUNT = 5
 # Exported by the driver at runtime; needed from the URDF under mock hardware.
 EXTRA_MOCK_COMMAND_INTERFACES = {"set_gripper_max_velocity", "set_gripper_max_effort"}
 
-HARDWARE_ONLY_STATE_INTERFACES = {"motor_current", "object_status"}
+HARDWARE_ONLY_STATE_INTERFACES = {
+    "motor_current",
+    "object_status",
+    "gripper_fault",
+    "fault_severity",
+}
 
 requires_xacro = pytest.mark.skipif(
     shutil.which("xacro") is None, reason="xacro not on PATH"
