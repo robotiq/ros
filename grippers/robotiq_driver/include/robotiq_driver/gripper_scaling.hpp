@@ -41,6 +41,8 @@
 #include <limits>
 #include <optional>
 
+#include <Robotiq/gripper/fault_status.hpp>
+
 namespace robotiq_driver {
 
 // The usable travel band of the 2F fingers in register counts. The gripper
@@ -98,5 +100,19 @@ inline constexpr double kAmperesPerCurrentCount = 0.010;
 [[nodiscard]] inline constexpr double motorCurrentFromRegister(uint8_t register_value)
 {
    return kAmperesPerCurrentCount * register_value;
+}
+
+// gFLT alone: the fault byte's high nibble is kFLT, a fault of the controller
+// rather than of the gripper, and nothing exports it.
+[[nodiscard]] inline double gripperFaultFromRegister(Robotiq::FaultStatus fault)
+{
+   return static_cast<double>(fault.gripperFault());
+}
+
+// The SDK ranks a code it does not recognize as Major, so an undocumented
+// fault is never reported as harmless.
+[[nodiscard]] inline double gripperFaultSeverityFromRegister(Robotiq::FaultStatus fault)
+{
+   return static_cast<double>(Robotiq::severity(fault.gripperFault()));
 }
 } // namespace robotiq_driver

@@ -32,7 +32,10 @@
 #include <type_traits>
 #include <utility>
 
+#include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
+
+#include <robotiq_driver/ros2_control_compat.hpp>
 
 // Only the tests drive ros2_control's handles and ResourceManager directly, so
 // these shims live here rather than in the package's installed headers.
@@ -115,6 +118,23 @@ bool readWriteOk(const StatusT& status)
    else
    {
       return status.ok;
+   }
+}
+
+/// Wrap `info` in whatever SystemInterface::on_init() takes on this distro.
+/// Templated so the branch this distro does not have is never instantiated.
+template <typename ParamsT = robotiq_driver::OnInitParams>
+ParamsT onInitParams(const hardware_interface::HardwareInfo& info)
+{
+   if constexpr(std::is_same_v<ParamsT, hardware_interface::HardwareInfo>)
+   {
+      return info;
+   }
+   else
+   {
+      ParamsT params;
+      params.hardware_info = info;
+      return params;
    }
 }
 } // namespace robotiq_driver::test::compat

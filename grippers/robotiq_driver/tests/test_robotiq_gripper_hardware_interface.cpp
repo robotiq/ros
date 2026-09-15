@@ -38,6 +38,7 @@
 #include <thread>
 #include <vector>
 
+#include <hardware_interface/component_parser.hpp>
 #include <hardware_interface/resource_manager.hpp>
 #include <hardware_interface/types/lifecycle_state_names.hpp>
 #include <lifecycle_msgs/msg/state.hpp>
@@ -95,6 +96,8 @@ std::string minimalRobotUrdf(const std::string& extra_hardware_params = "")
               <state_interface name="velocity"/>
               <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
+              <state_interface name="gripper_fault"/>
+              <state_interface name="gripper_fault_severity"/>
             </joint>
             <gpio name="reactivate_gripper">
               <command_interface name="reactivate_gripper_cmd" />
@@ -183,7 +186,9 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsExpectedStateInterfaces)
                testing::UnorderedElementsAre("robotiq_85_left_knuckle_joint/position",
                                              "robotiq_85_left_knuckle_joint/velocity",
                                              "robotiq_85_left_knuckle_joint/motor_current",
-                                             "robotiq_85_left_knuckle_joint/object_status"));
+                                             "robotiq_85_left_knuckle_joint/object_status",
+                                             "robotiq_85_left_knuckle_joint/gripper_fault",
+                                             "robotiq_85_left_knuckle_joint/gripper_fault_severity"));
 }
 
 TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheDescriptionDeclares)
@@ -191,6 +196,8 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
    std::string urdf = minimalRobotUrdf();
    const std::string declared = R"(              <state_interface name="motor_current"/>
               <state_interface name="object_status"/>
+              <state_interface name="gripper_fault"/>
+              <state_interface name="gripper_fault_severity"/>
 )";
    ASSERT_NE(std::string::npos, urdf.find(declared));
    urdf.erase(urdf.find(declared), declared.size());
@@ -204,8 +211,10 @@ TEST(TestRobotiqGripperHardwareInterface, ExportsEveryStateInterfaceWhateverTheD
 #endif
 
    EXPECT_THAT(rm.state_interface_keys(),
-               testing::IsSupersetOf(
-                  {"robotiq_85_left_knuckle_joint/motor_current", "robotiq_85_left_knuckle_joint/object_status"}));
+               testing::IsSupersetOf({"robotiq_85_left_knuckle_joint/motor_current",
+                                      "robotiq_85_left_knuckle_joint/object_status",
+                                      "robotiq_85_left_knuckle_joint/gripper_fault",
+                                      "robotiq_85_left_knuckle_joint/gripper_fault_severity"}));
 }
 
 /**
@@ -264,6 +273,117 @@ TEST(TestRobotiqGripperHardwareInterface, UseDummyActivatesAndFollowsCommands)
    }
    EXPECT_TRUE(reached) << "joint position never followed the command; last read "
                         << compat::getValue(position).value_or(0.0);
+}
+
+/**
+ * A smoke check on the unfaulted path: both fault interfaces exist and read
+ * None. It cannot say more, because the fake gripper has no fault injection —
+ * the decode itself is pinned over the whole nibble in test_gripper_scaling.
+ */
+TEST(TestRobotiqGripperHardwareInterface, FaultInterfacesReadNoFaultOnAHealthyGripper)
+{
+   const std::string urdf = minimalRobotUrdf(R"(<param name="use_dummy">true</param>)");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   rclcpp_lifecycle::State active{lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE,
+                                  hardware_interface::lifecycle_state_names::ACTIVE};
+   ASSERT_EQ(hardware_interface::return_type::OK, rm.set_component_state(kComponentName, active));
+
+   auto gripper_fault = rm.claim_state_interface("robotiq_85_left_knuckle_joint/gripper_fault");
+   auto severity = rm.claim_state_interface("robotiq_85_left_knuckle_joint/gripper_fault_severity");
+
+   ASSERT_TRUE(compat::readWriteOk(rm.read(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01))));
+
+   EXPECT_DOUBLE_EQ(static_cast<double>(Robotiq::GripperFault::None), compat::getValue(gripper_fault).value_or(-1.0));
+   EXPECT_DOUBLE_EQ(static_cast<double>(Robotiq::FaultSeverity::None), compat::getValue(severity).value_or(-1.0));
+}
+
+namespace {
+//! The component's own ros2_control block, as on_init receives it.
+hardware_interface::HardwareInfo hardwareInfo(const std::string& urdf)
+{
+   for(const hardware_interface::HardwareInfo& info : hardware_interface::parse_control_resources_from_urdf(urdf))
+   {
+      if(info.name == kComponentName)
+      {
+         return info;
+      }
+   }
+   return {};
+}
+
+//! A description declaring one extra state interface, by name.
+std::string urdfDeclaring(const std::string& interface)
+{
+   std::string urdf = minimalRobotUrdf();
+   const std::string anchor = R"(              <state_interface name="velocity"/>
+)";
+   const std::size_t at = urdf.find(anchor);
+   urdf.insert(at + anchor.size(), "              <state_interface name=\"" + interface + "\"/>\n");
+   return urdf;
+}
+} // namespace
+
+/**
+ * A description may declare a subset of the exported interfaces, but not a name
+ * the driver does not write: the joint would then carry a state nothing ever
+ * updates. on_init is driven directly, because the resource manager rejects
+ * such a description for its own reasons and would hide this one.
+ */
+TEST(TestRobotiqGripperHardwareInterface, RejectsAStateInterfaceTheDriverDoesNotExport)
+{
+   RobotiqGripperHardwareInterface driver;
+
+   EXPECT_EQ(hardware_interface::CallbackReturn::ERROR,
+             driver.on_init(compat::onInitParams(hardwareInfo(urdfDeclaring("effort")))))
+      << "on_init accepted a state interface the driver never writes";
+}
+
+/**
+ * The reverse: a name the driver does export is accepted, so the rejection
+ * above is about the name and not about declaring an interface at all.
+ */
+TEST(TestRobotiqGripperHardwareInterface, AcceptsEveryStateInterfaceItExports)
+{
+   RobotiqGripperHardwareInterface driver;
+
+   EXPECT_EQ(hardware_interface::CallbackReturn::SUCCESS,
+             driver.on_init(compat::onInitParams(hardwareInfo(urdfDeclaring("gripper_fault_severity")))));
+}
+
+/**
+ * Every state interface reads NaN until the gripper has answered. The sentinel
+ * is load-bearing for object_status and gripper_fault, where 0 is a real
+ * reading: "moving" and "no fault".
+ */
+TEST(TestRobotiqGripperHardwareInterface, StateInterfacesReadNaNBeforeActivation)
+{
+   const std::string urdf = minimalRobotUrdf(R"(<param name="use_dummy">true</param>)");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   rclcpp_lifecycle::State inactive{lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE,
+                                    hardware_interface::lifecycle_state_names::INACTIVE};
+   ASSERT_EQ(hardware_interface::return_type::OK, rm.set_component_state(kComponentName, inactive));
+
+   for(const char* interface : {"motor_current", "object_status", "gripper_fault", "gripper_fault_severity"})
+   {
+      auto handle = rm.claim_state_interface(std::string{"robotiq_85_left_knuckle_joint/"} + interface);
+      EXPECT_TRUE(std::isnan(compat::getValue(handle).value_or(0.0))) << interface << " had a value to report";
+   }
 }
 
 namespace {

@@ -53,6 +53,8 @@
                 <xacro:unless value="${use_fake_hardware or sim_gazebo or sim_topic_based}">
                     <state_interface name="motor_current"/>
                     <state_interface name="object_status"/>
+                    <state_interface name="gripper_fault"/>
+                    <state_interface name="gripper_fault_severity"/>
                 </xacro:unless>
             </joint>
             <!-- When simulating we need to include the rest of the gripper joints -->

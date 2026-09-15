@@ -40,6 +40,7 @@
 #include <Robotiq/gripper/command.hpp>
 #include <Robotiq/gripper/connection_config.hpp>
 #include <Robotiq/gripper/status.hpp>
+#include <Robotiq/gripper/to_string.hpp>
 #include <Robotiq/gripper/wait.hpp>
 
 #include "command_line_utility.hpp"
@@ -53,22 +54,6 @@ constexpr int kSlaveAddress = 0x09;
 // Generous: a full open-to-close sweep at the slowest speed still lands well
 // inside it, and overshooting only costs a failed run its error message.
 constexpr auto kMotionTimeout = std::chrono::seconds{10};
-
-const char* toString(Robotiq::ActivationResult result)
-{
-   switch(result)
-   {
-   case Robotiq::ActivationResult::Activated:
-      return "activated";
-   case Robotiq::ActivationResult::AlreadyActive:
-      return "already active";
-   case Robotiq::ActivationResult::FaultLatched:
-      return "refused: a major fault is latched";
-   case Robotiq::ActivationResult::Timeout:
-      return "timed out";
-   }
-   return "unknown";
-}
 
 //! Command a position and block until the gripper stops moving — either it
 //! arrived, or it closed on something.
@@ -165,7 +150,7 @@ int main(int argc, char* argv[])
 
       std::cout << "Activating the gripper..." << std::endl;
       const Robotiq::ActivationResult activation = Robotiq::activate(gripper);
-      std::cout << "  " << toString(activation) << std::endl;
+      std::cout << "  " << Robotiq::toString(activation) << std::endl;
       if(activation != Robotiq::ActivationResult::Activated && activation != Robotiq::ActivationResult::AlreadyActive)
       {
          // A latched fault is deliberately not cleared here: the recovery
