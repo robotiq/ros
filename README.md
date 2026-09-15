@@ -350,8 +350,8 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 | `velocity` | rad/s | Always `0.0`. The status block carries no velocity, and the driver does not differentiate the position |
 | `motor_current` | A | gCU, the motor current the manual gives as 10 mA per count, so `0.0` to `2.55` |
 | `object_status` | — | gOBJ verbatim: `0` moving, `1` object held while opening, `2` object held while closing, `3` at the requested position |
-| `gripper_fault` | — | gFLT as the manual numbers it: `0` none, `5` action delayed, `7` activation required, `8` over temperature, `9` no communication, `10` under voltage, `11` automatic release running, `12` internal fault, `13` activation fault, `14` overcurrent, `15` automatic release complete |
-| `fault_severity` | — | How bad the gripper fault is: `0` none, `1` warning, `2` minor, `3` major. A major fault clears only on a reactivation |
+| `gripper_fault` | — | gFLT as the manual numbers it: `0` none, `5` action delayed, `7` activation required, `8` over temperature, `9` no communication, `10` under voltage, `11` automatic release running, `12` internal fault, `13` activation fault, `14` overcurrent, `15` automatic release complete. The register is four bits wide, so `1`, `2`, `3`, `4` and `6` can also arrive; they are undefined faults, not "no fault" |
+| `fault_severity` | — | How bad the gripper fault is: `0` none, `1` warning, `2` minor, `3` major. A major fault clears only on a reactivation. An undefined code reports `3`, so a switch over the codes above cannot silently drop one |
 
 All six read `NaN` until the component is activated; activation seeds them from the gripper's first settled status read, and `read()` refreshes them every cycle after that. The sentinel matters most for `object_status`, where every value in range is meaningful — `0` is "moving", not "no reading" — so `NaN` is the only way to say the gripper has not answered yet. Test for it before comparing against `0`..`3`.
 
@@ -361,7 +361,7 @@ The driver reports the fault code and its severity separately because the SDK de
 
 The byte also carries kFLT, the controller's own fault, which nothing exposes. Nobody has needed it, and it is a different failure from the gripper's; open an issue if you do.
 
-The codes are numbers on the wire, so the driver also names the fault in its own throttled warning, for example `reports gripper fault OverTemperature`. A consumer that wants the name in its own output takes it from the SDK's `toString`.
+The codes are numbers on the wire, so the driver also names the fault in its own throttled warning, for example `reports gripper fault OverTemperature (code 8)`. An undefined code reads `Unrecognized`. A consumer that wants the name in its own output takes it from the SDK's `toString`.
 
 None of the four beyond `position` and `velocity` are `ros2_control` standard interface names (there are `HW_IF_` constants for position, velocity and effort, and nothing for any of these), so consumers spell them out. The descriptions declare them on the real-hardware branch only — `mock_components/GenericSystem`, Gazebo and the topic-based plugin never write them — so under `use_fake_hardware:=true` all four are absent rather than wrong.
 

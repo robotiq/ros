@@ -150,4 +150,15 @@ TEST(GripperScaling, MotorCurrentTakesNoScaleFromTheDescription)
    static_assert(std::is_invocable_r_v<double, decltype(motorCurrentFromRegister), uint8_t>);
    EXPECT_DOUBLE_EQ(1.0, motorCurrentFromRegister(100));
 }
+
+TEST(GripperScaling, TheFaultInterfacesReadTheGripperFaultAndItsOwnSeverity)
+{
+   const Robotiq::FaultStatus fault = Robotiq::FaultStatus::fromRaw(0x5C);
+   //            \__ gripper fault: 0xC Internal; controller fault: 0x5 NoDeviceDetected
+
+   const auto expectedGripperFault = Robotiq::GripperFault::InternalFault;
+   EXPECT_EQ(static_cast<double>(expectedGripperFault), gripperFaultFromRegister(fault));
+   EXPECT_EQ(static_cast<double>(Robotiq::severity(expectedGripperFault)), faultSeverityFromRegister(fault));
+}
+
 } // namespace robotiq_driver::test

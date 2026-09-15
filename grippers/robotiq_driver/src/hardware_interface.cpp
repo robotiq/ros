@@ -469,12 +469,14 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
 
    if(status.faultStatus.gripperFault() != Robotiq::GripperFault::None)
    {
+      const Robotiq::GripperFault fault = status.faultStatus.gripperFault();
       RCLCPP_WARN_THROTTLE(kLogger,
                            diagnostic_clock_,
                            kDiagnosticThrottleMs,
                            "%s",
                            ("The Robotiq gripper on " + parameters_.connection.serial.port + " reports gripper fault "
-                            + std::string{Robotiq::toString(status.faultStatus.gripperFault())} + ".")
+                            + std::string{Robotiq::toString(fault)} + " (code "
+                            + std::to_string(static_cast<unsigned>(fault)) + ").")
                               .c_str());
    }
 

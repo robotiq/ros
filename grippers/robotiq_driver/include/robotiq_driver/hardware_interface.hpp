@@ -42,6 +42,7 @@
 #include <memory>
 #include <vector>
 
+#include <robotiq_driver/gripper_scaling.hpp>
 #include <robotiq_driver/hardware_parameters.hpp>
 #include <robotiq_driver/visibility_control.hpp>
 
@@ -205,8 +206,8 @@ protected:
 
       void set(Robotiq::FaultStatus status)
       {
-         code = static_cast<double>(status.gripperFault());
-         severity = static_cast<double>(Robotiq::severity(status.gripperFault()));
+         code = gripperFaultFromRegister(status);
+         severity = faultSeverityFromRegister(status);
       }
    };
 
