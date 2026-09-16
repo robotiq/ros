@@ -54,9 +54,11 @@ from gripper_mcp.backend import BackendHealth, BackendMotion, BackendState
 from gripper_mcp.robot_description import command_joint
 from gripper_mcp.units import JointGeometry
 from gripper_mcp.ros_messages import (
+    JOINT_STATES_TOPIC,
     advertised_type,
     cancel_note,
     motion_from_result,
+    no_state_message,
     position_of,
     refused,
     timed_out,
@@ -67,7 +69,6 @@ ACTION_TYPES = {
     "control_msgs/action/ParallelGripperCommand": ParallelGripperCommand,
     "control_msgs/action/GripperCommand": GripperCommand,
 }
-JOINT_STATES_TOPIC = "joint_states"
 DESCRIPTION_TOPIC = "robot_description"
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 DRIVER_FULL_SCALE_EFFORT_N = 235.0
@@ -145,6 +146,15 @@ class JointStateFeed:
     def follow(self, joint_name: str) -> None:
         self._joint_name = joint_name
 
+    def age_s(self) -> float | None:
+        if self.latest is None:
+            return None
+        return time.monotonic() - self.latest_at
+
+    def fresh(self) -> bool:
+        age = self.age_s()
+        return age is not None and age < STALE_STATE_S
+
     def _on_joint_states(self, message: JointState) -> None:
         if self._joint_name is not None and self._joint_name in message.name:
             self.latest = message
@@ -185,9 +195,12 @@ class RosGripperBackend:
         joint = self.joint_geometry().name
         if not self._await_state():
             raise RuntimeError(
-                f"No {JOINT_STATES_TOPIC} naming '{joint}' under "
-                f"'{self._node.get_namespace()}' within {STATE_WAIT_S:.0f} s; "
-                "is the controller running?"
+                no_state_message(
+                    self._states.age_s(),
+                    joint,
+                    self._node.get_namespace(),
+                    STALE_STATE_S,
+                )
             )
         return BackendState(position_rad=position_of(self._states.latest, joint, 0.0))
 
@@ -237,11 +250,7 @@ class RosGripperBackend:
 
     def health(self) -> BackendHealth:
         client = self._ready_client()
-        state_fresh = (
-            self._joint_known()
-            and self._await_state()
-            and time.monotonic() - self._states.latest_at < STALE_STATE_S
-        )
+        state_fresh = self._joint_known() and self._await_state()
         return BackendHealth(
             reachable=client is not None or state_fresh,
             controller_active=client is not None,
@@ -274,7 +283,9 @@ class RosGripperBackend:
         return poll_until(lambda: self._description, DESCRIPTION_WAIT_S) is not None
 
     def _await_state(self) -> bool:
-        return poll_until(lambda: self._states.latest, STATE_WAIT_S) is not None
+        return (
+            poll_until(lambda: self._states.fresh() or None, STATE_WAIT_S) is not None
+        )
 
     def _ready_client(self) -> ActionClient | None:
         with self._client_lock:

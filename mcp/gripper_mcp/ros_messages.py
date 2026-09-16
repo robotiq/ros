@@ -9,6 +9,8 @@ on an object, so it comes through as a stall, not as a failure.
 
 from gripper_mcp.backend import BackendMotion
 
+JOINT_STATES_TOPIC = "joint_states"
+
 STATUS_SUCCEEDED = 4
 STATUS_CANCELED = 5
 STATUS_ABORTED = 6
@@ -47,6 +49,20 @@ def refused(position_rad: float, detail: str) -> BackendMotion:
         stalled=False,
         refused=True,
         detail=detail,
+    )
+
+
+def no_state_message(
+    age_s: float | None, joint: str, namespace: str, limit_s: float
+) -> str:
+    if age_s is None:
+        return (
+            f"No {JOINT_STATES_TOPIC} naming '{joint}' under '{namespace}' "
+            f"within {limit_s:.0f} s; is the controller running?"
+        )
+    return (
+        f"The last {JOINT_STATES_TOPIC} naming '{joint}' under '{namespace}' is "
+        f"{age_s:.1f} s old (limit {limit_s:.0f} s); has the controller stopped?"
     )
 
 
