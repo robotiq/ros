@@ -2,16 +2,19 @@
 # lives. Copy to grippers.yaml and edit. Every entry needs a name (what agents
 # pass as gripper_name), a model (a file in datasheets/) and the namespace its
 # robotiq_gripper_controller runs under. Without hardware, launch the driver on
-# ros2_control's fake hardware (use_fake_hardware) and point an entry at it the
-# same way.
+# ros2_control's fake hardware (use_fake_hardware:=true) and point an entry at
+# it the same way.
 #
-# tactile: ros   optional; TSF-85 pads read from robotiq_tsf under the same
-#                namespace. Only for models whose datasheet names a tactile_model.
+# tactile: ros   optional; TSF-85 pads read from robotiq_tsf's TactileSensor/*
+#                topics. Only for models whose datasheet names a tactile_model.
+# tactile_namespace: /left_tsf   optional; where the robotiq_tsf driver runs
+#                when it is not under the gripper's own namespace.
 
 - name: left
   model: robotiq_2f_85
+  tactile: ros
   namespace: /left
-  description: Robotiq 2F-85 on the left arm
+  description: Robotiq 2F-85 with TSF-85 pads on the left arm
 
 - name: right
   model: robotiq_2f_140
