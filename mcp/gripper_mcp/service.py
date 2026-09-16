@@ -35,6 +35,7 @@ from gripper_mcp.models import (
 from gripper_mcp.units import (
     GripperGeometry,
     Stroke,
+    clamp,
     clamp_opening_mm,
     knuckle_rad_to_opening_mm,
     opening_mm_to_fraction,
@@ -119,11 +120,10 @@ class GripperService:
         spec = self._spec(gripper_name)
         geometry = geometry_of(spec, backend)
         target_mm = clamp_opening_mm(opening_mm, geometry)
+        effort_n = clamp_effort_n(max_effort_n, spec)
         motion = backend.move_to(
             position_rad=opening_mm_to_knuckle_rad(target_mm, geometry),
-            max_effort_n=(
-                spec.defaults.max_effort_n if max_effort_n is None else max_effort_n
-            ),
+            max_effort_n=effort_n,
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
@@ -139,7 +139,11 @@ class GripperService:
             stalled=motion.stalled,
             object_detected=stopped_on_object,
             outcome=classify(motion, target_mm, achieved_mm, spec.stroke),
-            detail=clamp_note(opening_mm, target_mm) + motion.detail,
+            detail=(
+                clamp_note(opening_mm, target_mm)
+                + effort_note(max_effort_n, effort_n)
+                + motion.detail
+            ),
             backend=backend.name,
         )
 
@@ -183,6 +187,18 @@ def clamp_note(requested_mm: float, target_mm: float) -> str:
     if requested_mm == target_mm:
         return ""
     return f"Requested {requested_mm:.1f} mm, clamped to {target_mm:.1f} mm. "
+
+
+def clamp_effort_n(requested_n: float | None, spec: GripperModelSpec) -> float:
+    if requested_n is None:
+        return spec.defaults.max_effort_n
+    return clamp(requested_n, spec.grip_force.min_n, spec.grip_force.max_n)
+
+
+def effort_note(requested_n: float | None, effort_n: float) -> str:
+    if requested_n is None or requested_n == effort_n:
+        return ""
+    return f"Requested {requested_n:.0f} N, clamped to {effort_n:.0f} N. "
 
 
 def stopped_on_something(
