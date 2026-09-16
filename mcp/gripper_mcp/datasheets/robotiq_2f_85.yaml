@@ -21,15 +21,12 @@ stroke:
   # of the description's closed angle.
   closed_tolerance_mm: 1.5
 
-# Rated grip force, product datasheet. Distinct from the URDF's joint effort
-# limit, which is a torque in N-m.
-grip_force:
-  min_n: 20.0
-  max_n: 235.0
-
 defaults:
-  # Requested grip force when a call does not name one; must sit in grip_force.
-  max_effort_n: 50.0
+  # Effort when a call does not name one, 0.0 = the gripper's minimum force,
+  # 1.0 = its maximum. The product datasheet's 20-235 N is not used: the force
+  # register has no newton equivalent (grip force depends on the speed, the
+  # fingers and the object), so the MCP commands effort the way the SDK does.
+  effort: 0.2
   motion_timeout_s: 10.0
 
 # Tactile pads that fit this gripper: datasheets/tactile/<tactile_model>.yaml.

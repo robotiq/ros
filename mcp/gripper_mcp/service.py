@@ -35,12 +35,15 @@ from gripper_mcp.models import (
 from gripper_mcp.units import (
     GripperGeometry,
     Stroke,
+    clamp,
     clamp_opening_mm,
     knuckle_rad_to_opening_mm,
     opening_mm_to_fraction,
     opening_mm_to_knuckle_rad,
 )
 
+MIN_EFFORT = 0.0
+MAX_EFFORT = 1.0
 MM_DECIMALS = 2
 RAD_DECIMALS = 4
 FRACTION_DECIMALS = 4
@@ -92,38 +95,37 @@ class GripperService:
                 opening_mm_to_fraction(opening_mm, geometry), FRACTION_DECIMALS
             ),
             knuckle_rad=round(state.position_rad, RAD_DECIMALS),
-            force_n=state.force_n,
+            holding_effort=state.holding_effort,
             backend=backend.name,
             measured_at=timestamp(),
         )
 
     def open_fully(
-        self, gripper_name: str, max_effort_n: float | None = None
+        self, gripper_name: str, effort: float | None = None
     ) -> GripperMotionResult:
         stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.max_opening_mm, max_effort_n)
+        return self.move_to_opening(gripper_name, stroke.max_opening_mm, effort)
 
     def close_fully(
-        self, gripper_name: str, max_effort_n: float | None = None
+        self, gripper_name: str, effort: float | None = None
     ) -> GripperMotionResult:
         stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.min_opening_mm, max_effort_n)
+        return self.move_to_opening(gripper_name, stroke.min_opening_mm, effort)
 
     def move_to_opening(
         self,
         gripper_name: str,
         opening_mm: float,
-        max_effort_n: float | None = None,
+        effort: float | None = None,
     ) -> GripperMotionResult:
         backend = self._backend(gripper_name)
         spec = self._spec(gripper_name)
         geometry = geometry_of(spec, backend)
         target_mm = clamp_opening_mm(opening_mm, geometry)
+        applied_effort = clamp_effort(effort, spec)
         motion = backend.move_to(
             position_rad=opening_mm_to_knuckle_rad(target_mm, geometry),
-            max_effort_n=(
-                spec.defaults.max_effort_n if max_effort_n is None else max_effort_n
-            ),
+            effort=applied_effort,
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
@@ -139,7 +141,11 @@ class GripperService:
             stalled=motion.stalled,
             object_detected=stopped_on_object,
             outcome=classify(motion, target_mm, achieved_mm, spec.stroke),
-            detail=clamp_note(opening_mm, target_mm) + motion.detail,
+            detail=(
+                clamp_note(opening_mm, target_mm)
+                + effort_note(effort, applied_effort)
+                + motion.detail
+            ),
             backend=backend.name,
         )
 
@@ -183,6 +189,18 @@ def clamp_note(requested_mm: float, target_mm: float) -> str:
     if requested_mm == target_mm:
         return ""
     return f"Requested {requested_mm:.1f} mm, clamped to {target_mm:.1f} mm. "
+
+
+def clamp_effort(requested: float | None, spec: GripperModelSpec) -> float:
+    if requested is None:
+        return spec.defaults.effort
+    return clamp(requested, MIN_EFFORT, MAX_EFFORT)
+
+
+def effort_note(requested: float | None, applied: float) -> str:
+    if requested is None or requested == applied:
+        return ""
+    return f"Requested effort {requested:g}, clamped to {applied:g}. "
 
 
 def stopped_on_something(

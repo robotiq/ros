@@ -10,10 +10,10 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 | Tool | What it does |
 |---|---|
 | `gripper_list_grippers` | Discover configured gripper names |
-| `gripper_get_state` | Opening (mm, fraction, joint rad); the driver reports no force |
-| `gripper_open` | Open fully; optional `max_effort_n` |
-| `gripper_close` | Close fully; optional `max_effort_n` |
-| `gripper_move_to` | Move to a specific position, in mm of opening; optional `max_effort_n` |
+| `gripper_get_state` | Opening (mm, fraction, joint rad); the driver reports no holding effort |
+| `gripper_open` | Open fully; optional `effort` 0-1 |
+| `gripper_close` | Close fully; optional `effort` 0-1 |
+| `gripper_move_to` | Move to a specific position, in mm of opening; optional `effort` 0-1 |
 | `gripper_get_health` | Reachable, controller active |
 | `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
 | `gripper_tare_tactile` | Re-zero the pads (fingers empty) |

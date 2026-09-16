@@ -61,7 +61,7 @@ class MockGripperBackend:
         self._geometry = GripperGeometry.of(stroke, self._joint)
 
         self._position_rad = self._joint.rad_open
-        self._holding_force_n = 0.0
+        self._holding_effort = 0.0
 
     def joint_geometry(self) -> JointGeometry:
         return self._joint
@@ -74,11 +74,11 @@ class MockGripperBackend:
 
     def read_state(self) -> BackendState:
         return BackendState(
-            position_rad=self._position_rad, force_n=self._holding_force_n
+            position_rad=self._position_rad, holding_effort=self._holding_effort
         )
 
     def move_to(
-        self, position_rad: float, max_effort_n: float, timeout_s: float
+        self, position_rad: float, effort: float, timeout_s: float
     ) -> BackendMotion:
         target = clamp(position_rad, self._joint.rad_open, self._joint.rad_closed)
         stop_at, stalled = self._resolve_stop(target)
@@ -102,7 +102,7 @@ class MockGripperBackend:
 
         self._sleep(duration_s)
         self._position_rad = stop_at
-        self._holding_force_n = max_effort_n if stalled else 0.0
+        self._holding_effort = effort if stalled else 0.0
 
         return BackendMotion(
             final_position_rad=stop_at,
