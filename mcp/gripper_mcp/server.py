@@ -219,7 +219,8 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
             max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+                default. Lower it for fragile objects. Values outside the
+                model's rated range are clamped.
             """
         ),
     )
@@ -243,7 +244,8 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
             max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+                default. Lower it for fragile objects. Values outside the
+                model's rated range are clamped.
             """
         ),
     )
@@ -268,7 +270,8 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
             position_mm: Target opening in millimetres, 0.0 (closed) up to the
                 model's max opening. Values outside that range are clamped.
             max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+                default. Lower it for fragile objects. Values outside the
+                model's rated range are clamped.
             """
         ),
     )

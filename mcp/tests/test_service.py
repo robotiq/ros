@@ -20,6 +20,8 @@ FULLY_CLOSED_MM = 0.0
 HALF_OPEN_MM = 42.5
 DATASHEET_EFFORT_N = 50.0
 GENTLE_EFFORT_N = 20.0
+RATED_MIN_EFFORT_N = 20.0
+RATED_MAX_EFFORT_N = 235.0
 
 
 def service_with(**backend_kwargs) -> tuple[GripperService, MockGripperBackend]:
@@ -120,6 +122,32 @@ def test_a_close_uses_the_datasheet_effort_unless_told_otherwise():
 
     assert default_force == DATASHEET_EFFORT_N
     assert backend.read_state().force_n == GENTLE_EFFORT_N
+
+
+def test_an_effort_beyond_the_rated_grip_force_is_clamped_and_said():
+    service, backend = service_with(object_width_mm=CUBE_WIDTH_MM)
+
+    result = service.close_fully(ARM, max_effort_n=300.0)
+
+    assert backend.read_state().force_n == pytest.approx(RATED_MAX_EFFORT_N)
+    assert "Requested 300 N, clamped to 235 N." in result.detail
+
+
+def test_an_effort_below_the_rated_grip_force_is_raised_to_the_minimum():
+    service, backend = service_with(object_width_mm=CUBE_WIDTH_MM)
+
+    result = service.close_fully(ARM, max_effort_n=0.0)
+
+    assert backend.read_state().force_n == pytest.approx(RATED_MIN_EFFORT_N)
+    assert "clamped to 20 N" in result.detail
+
+
+def test_an_effort_within_the_rated_grip_force_leaves_no_note():
+    service, _ = service_with()
+
+    result = service.close_fully(ARM, max_effort_n=GENTLE_EFFORT_N)
+
+    assert "clamped" not in result.detail
 
 
 def test_an_opening_beyond_the_stroke_is_clamped():
