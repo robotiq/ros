@@ -48,6 +48,7 @@ class GripperConfig(StrictModel):
     namespace: str
     description: str = ""
     tactile: Literal["ros"] | None = None
+    tactile_namespace: str | None = None
 
     @model_validator(mode="after")
     def _needs_a_namespace(self) -> "GripperConfig":
