@@ -218,15 +218,18 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
 
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
-            max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+            effort: Grip effort from 0.0 (the gripper's minimum force) to
+                1.0 (its maximum). Omit for the model's default. Lower it for
+                fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
+                force in newtons: the force actually applied depends on the
+                speed, the fingers and the object.
             """
         ),
     )
     def gripper_open(
-        gripper_name: str, max_effort_n: float | None = None
+        gripper_name: str, effort: float | None = None
     ) -> GripperMotionResult:
-        return service.open_fully(gripper_name, max_effort_n)
+        return service.open_fully(gripper_name, effort)
 
     @mcp.tool(
         name="gripper_close",
@@ -242,15 +245,18 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
 
         Args:
             gripper_name: Name of the gripper (see gripper_list_grippers).
-            max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+            effort: Grip effort from 0.0 (the gripper's minimum force) to
+                1.0 (its maximum). Omit for the model's default. Lower it for
+                fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
+                force in newtons: the force actually applied depends on the
+                speed, the fingers and the object.
             """
         ),
     )
     def gripper_close(
-        gripper_name: str, max_effort_n: float | None = None
+        gripper_name: str, effort: float | None = None
     ) -> GripperMotionResult:
-        return service.close_fully(gripper_name, max_effort_n)
+        return service.close_fully(gripper_name, effort)
 
     @mcp.tool(
         name="gripper_move_to",
@@ -267,15 +273,18 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
             gripper_name: Name of the gripper (see gripper_list_grippers).
             position_mm: Target opening in millimetres, 0.0 (closed) up to the
                 model's max opening. Values outside that range are clamped.
-            max_effort_n: Force ceiling in newtons. Omit for the model's
-                default. Lower it for fragile objects.
+            effort: Grip effort from 0.0 (the gripper's minimum force) to
+                1.0 (its maximum). Omit for the model's default. Lower it for
+                fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
+                force in newtons: the force actually applied depends on the
+                speed, the fingers and the object.
             """
         ),
     )
     def gripper_move_to(
-        gripper_name: str, position_mm: float, max_effort_n: float | None = None
+        gripper_name: str, position_mm: float, effort: float | None = None
     ) -> GripperMotionResult:
-        return service.move_to_opening(gripper_name, position_mm, max_effort_n)
+        return service.move_to_opening(gripper_name, position_mm, effort)
 
     @mcp.tool(
         name="gripper_get_health",

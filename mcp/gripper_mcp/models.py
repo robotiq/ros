@@ -46,8 +46,12 @@ class GripperState(BaseModel):
             "Diagnostics only; command openings in opening_mm"
         )
     )
-    force_n: float | None = Field(
-        default=None, description="Measured grip force in newtons; null when unmeasured"
+    holding_effort: float | None = Field(
+        default=None,
+        description=(
+            "Effort the gripper is holding with, 0.0 = its minimum force, "
+            "1.0 = its maximum; null when the backend does not report one"
+        ),
     )
     backend: Backend
     measured_at: datetime = Field(description="UTC, timezone-aware")

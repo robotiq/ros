@@ -17,10 +17,7 @@ from gripper_mcp.config import (
 MCP_DIR = Path(__file__).resolve().parent.parent
 EXAMPLE_WIRING = MCP_DIR / "grippers.yaml.example"
 
-MODELS = {
-    "robotiq_2f_85": (85.0, 20.0, 235.0),
-    "robotiq_2f_140": (140.0, 10.0, 125.0),
-}
+MODELS = {"robotiq_2f_85": 85.0, "robotiq_2f_140": 140.0}
 TSF_85_TAXELS_PER_PAD = 28
 TACTILE_SPEC_DIR = SPEC_DIR / "tactile"
 
@@ -43,14 +40,11 @@ def write_datasheet(tmp_path, datasheet):
 
 @pytest.mark.parametrize("model", sorted(MODELS))
 def test_each_datasheet_matches_the_product_sheet(model):
-    max_opening_mm, min_force_n, max_force_n = MODELS[model]
-
     spec = load_model_spec(SPEC_DIR / f"{model}.yaml")
 
     assert spec.model == model
-    assert spec.stroke.max_opening_mm == max_opening_mm
+    assert spec.stroke.max_opening_mm == MODELS[model]
     assert spec.stroke.min_opening_mm == 0.0
-    assert (spec.grip_force.min_n, spec.grip_force.max_n) == (min_force_n, max_force_n)
 
 
 def test_the_datasheets_ship_inside_the_package():
@@ -89,11 +83,11 @@ def test_a_datasheet_no_longer_carries_the_urdf_joint(tmp_path):
         load_model_spec(write_datasheet(tmp_path, stale))
 
 
-def test_a_default_effort_outside_the_rated_grip_force_is_rejected(tmp_path):
+def test_a_default_effort_above_one_is_rejected(tmp_path):
     too_strong = datasheet_2f_85()
-    too_strong["defaults"]["max_effort_n"] = 300.0
+    too_strong["defaults"]["effort"] = 1.5
 
-    with pytest.raises(ValidationError, match="outside the rated grip_force"):
+    with pytest.raises(ValidationError, match="less than or equal to 1"):
         load_model_spec(write_datasheet(tmp_path, too_strong))
 
 
