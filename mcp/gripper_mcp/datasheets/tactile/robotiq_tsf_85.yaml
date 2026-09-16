@@ -28,5 +28,8 @@ contact_threshold: 0.02
 # hold reads about 0.8, so 2x the noise separates the two with room.
 noise_margin: 2.0
 
-# Matches the tactile SDK's findBaseline(), which averages 1000 samples.
-baseline_samples: 1000
+# Distinct frames averaged by a tare. The SDK's findBaseline() takes 1000, but
+# measured in the #66 live run, about 110 frames a second reach Python whatever
+# the pads publish, so 1000 is a 9 s tool call; 100 is about 1 s and the rest
+# noise is +-2 counts.
+baseline_samples: 100
