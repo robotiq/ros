@@ -127,7 +127,7 @@ class GripperService:
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
-        stopped_on_object = stopped_on_something(target_mm, achieved_mm, spec.stroke)
+        outcome = classify(motion, target_mm, achieved_mm, spec.stroke)
 
         return GripperMotionResult(
             gripper_name=gripper_name,
@@ -137,8 +137,8 @@ class GripperService:
             ),
             reached_goal=motion.reached_goal,
             stalled=motion.stalled,
-            object_detected=stopped_on_object,
-            outcome=classify(motion, target_mm, achieved_mm, spec.stroke),
+            object_detected=outcome == "stopped_on_object",
+            outcome=outcome,
             detail=(
                 clamp_note(opening_mm, target_mm)
                 + effort_note(max_effort_n, effort_n)
