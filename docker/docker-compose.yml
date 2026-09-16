@@ -1,0 +1,38 @@
+# The gripper MCP server (mcp/) as a container, on the host's network so it
+# joins the same DDS graph as the gripper driver. The base image comes first:
+#
+#   docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
+#   cp mcp/grippers.yaml.example mcp/grippers.yaml   # edit for the cell
+#   GRIPPERS_YAML=./../mcp/grippers.yaml docker compose -f docker/docker-compose.yml up --build
+#
+# Then point an MCP client at http://127.0.0.1:8300/mcp. Environment knobs,
+# all optional: ROBOTIQ_ROS2_IMAGE (base image), GRIPPER_MCP_IMAGE (tag this
+# build lands on; keep it in step with the base), GRIPPERS_YAML (wiring file),
+# ROS_DOMAIN_ID, RMW_IMPLEMENTATION, GRIPPER_MCP_PORT.
+#
+# GRIPPERS_YAML is a compose bind source, not a plain path: it must be absolute
+# or start with ./ (resolved against this directory, docker/), or compose reads
+# it as a named volume and mounts an empty directory over the wiring file. It
+# defaults to the shipped example so a fresh checkout starts with the example
+# wiring instead of a root-owned directory where grippers.yaml should be.
+services:
+  gripper-mcp:
+    build:
+      context: ../mcp
+      args:
+        BASE_IMAGE: ${ROBOTIQ_ROS2_IMAGE:-robotiq_ros2:jazzy}
+    image: ${GRIPPER_MCP_IMAGE:-robotiq_gripper_mcp:jazzy}
+    container_name: robotiq_gripper_mcp
+    network_mode: host
+    ipc: host
+    restart: unless-stopped
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+    volumes:
+      - ${GRIPPERS_YAML:-../mcp/grippers.yaml.example}:/config/grippers.yaml:ro
+    command:
+      - --config
+      - /config/grippers.yaml
+      - --port
+      - ${GRIPPER_MCP_PORT:-8300}
