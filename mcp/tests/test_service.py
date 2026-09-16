@@ -22,6 +22,7 @@ DATASHEET_EFFORT = 0.2
 GENTLE_EFFORT = 0.1
 MIN_EFFORT = 0.0
 MAX_EFFORT = 1.0
+CRAWL_SPEED_MM_S = 1.0
 
 
 def service_with(**backend_kwargs) -> tuple[GripperService, MockGripperBackend]:
@@ -110,6 +111,17 @@ def test_a_close_on_empty_space_reaches_the_stop_with_nothing_detected():
 
     assert result.outcome == "reached"
     assert result.object_detected is False
+
+
+def test_a_close_that_outlives_its_timeout_detects_no_object():
+    service, _ = service_with(travel_speed_mm_s=CRAWL_SPEED_MM_S)
+
+    result = service.close_fully(ARM)
+
+    assert result.outcome == "incomplete"
+    assert result.object_detected is False
+    assert result.reached_goal is False
+    assert result.achieved_opening_mm == pytest.approx(FULLY_OPEN_MM)
 
 
 def test_a_close_uses_the_datasheet_effort_unless_told_otherwise():
