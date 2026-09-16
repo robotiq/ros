@@ -9,7 +9,8 @@ stall before it starts moving.
 
 It is deliberately not part of the shipped package. Running the MCP without
 hardware is the ROS driver's job, on ros2_control's fake hardware
-(`use_fake_hardware`), so that the controller and the action are exercised too.
+(`use_fake_hardware`, see mcp/demo), so that the controller and the action are
+exercised too.
 
 Travel is simulated through an injected `sleep_fn` so tests run instantly while
 a container still moves in something like real time.
