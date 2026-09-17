@@ -71,6 +71,8 @@ cpplint check is suppressed in CI — don't reformat code to satisfy cpplint.
 
 ## Building and testing
 
+<!-- Humble EOL: simplify the distro list in the source line below. -->
+
 ```bash
 source /opt/ros/jazzy/setup.bash    # or humble / lyrical
 colcon build
@@ -94,7 +96,7 @@ gripper model, firmware version and how it behaved.
 
 ## Compatibility
 
-Two constraints shape most reviews here:
+Two constraints shape most reviews here, and one convention keeps the first from becoming expensive later:
 
 **All three LTS distros build from one branch.** Humble, Jazzy and Lyrical each
 get a CI job, and all three gate the merge. Rolling is built too but does not
@@ -108,6 +110,7 @@ The distros genuinely differ in two places — see
 controller, and what a missing gripper does to `ros2_control_node` at bringup.
 Keep changes to controller configuration working on both sides of that split.
 
+<!-- Humble EOL: delete this constraint and the paragraph under it; nothing then targets PickNik's branch. -->
 **Humble stays a drop-in replacement for PickNik's `humble` branch** (see
 [Migrating from PickNik's ros2_robotiq_gripper](README.md#migrating-from-pickniks-ros2_robotiq_gripper)).
 The names that migration relies on — packages, controllers, topics and actions,
@@ -115,6 +118,22 @@ the xacro macro arguments — are a compatibility surface, not implementation
 detail. If your change needs to break one of them, raise it in an issue first;
 the usual answer is to put the new behaviour behind a parameter or launch
 argument that defaults to the old behaviour.
+
+**Code that exists only for Humble carries a `Humble EOL:` tag.** Humble is the first of the three to go, and most of what supports it is a branch inside a shim rather than a file with `humble` in its name. Anything that will be removed or shrink when the distro is dropped — a compat shim, a config file, a launch branch, a CI matrix entry, a paragraph of documentation — gets a comment, in whatever syntax the file uses, saying what happens to it when the distro goes:
+
+```cpp
+// Humble EOL: delete this branch, Jazzy and newer always report failure.
+```
+
+```yaml
+# Humble EOL: delete this file.
+```
+
+`grep -ri "humble eol"` then turns the removal into a mechanical pass. The verb carries the shape of each site — **delete** where the code goes away, **simplify** where it shrinks — so put it in the tag's text rather than in the tag itself, and a reader sees what each one costs without opening the file.
+
+Not every version guard is a Humble guard. `HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)` in the driver tests separates older Jazzy from newer Jazzy and Lyrical, and dropping Humble does not touch it. Tag only what Humble support itself costs.
+
+Tag new Humble-only code as you write it: an untagged Humble branch is a review comment.
 
 ## Commits and pull requests
 

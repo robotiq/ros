@@ -155,6 +155,7 @@ def test_mock_publishes_the_same_joints_as_hardware(model, joint):
     # Jazzy and Lyrical apply the URDF multipliers. Leaving them out makes
     # robot_state_publisher derive them from the <mimic> tags on every distro,
     # exactly as it already does for real hardware.
+    # Humble EOL: simplify this comment; the mimic joints stay out either way.
     mock = joints_of(expand(model, use_fake_hardware=True))
     real = joints_of(expand(model, use_fake_hardware=False))
     assert mock == real == {joint}

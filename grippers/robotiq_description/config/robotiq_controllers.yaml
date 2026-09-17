@@ -1,13 +1,14 @@
 # Jazzy / Lyrical controller configuration. Humble uses
 # config/robotiq_controllers.humble.yaml instead (no parallel_gripper_controller
 # package there); launch/robotiq_control.launch.py selects per $ROS_DISTRO.
+# Humble EOL: simplify — this becomes the only controller configuration.
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
     # Jazzy defaults this to true and takes ros2_control_node down when the
     # gripper is not connected; Lyrical defaults to false. Set explicitly so every
     # distro keeps the node up and the connection can be retried from the CLI.
-    # Humble has no such parameter.
+    # Humble has no such parameter.  Humble EOL: delete this sentence.
     hardware_components_initial_state:
       shutdown_on_initial_state_failure: false
     joint_state_broadcaster:

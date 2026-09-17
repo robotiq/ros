@@ -1,3 +1,4 @@
+# Humble EOL: delete this file, and the HUMBLE_* selection in launch/robotiq_control.launch.py with it.
 # Humble controller configuration.
 #
 # Humble has no `parallel_gripper_controller` package — it arrived in Jazzy — so

@@ -55,6 +55,7 @@
 
 #include <robotiq_driver/hardware_interface.hpp>
 
+// Humble EOL: delete this include and the compat:: calls throughout the file.
 #include "ros2_control_compat.hpp"
 
 namespace robotiq_driver::test {
@@ -382,6 +383,7 @@ TEST(TestRobotiqGripperHardwareInterface, StateInterfacesReadNaNBeforeActivation
    for(const char* interface : {"motor_current", "object_status", "gripper_fault", "gripper_fault_severity"})
    {
       auto handle = rm.claim_state_interface(std::string{"robotiq_85_left_knuckle_joint/"} + interface);
+      // Humble EOL: simplify to testing::IsNan, which Humble's bundled gmock does not have.
       EXPECT_TRUE(std::isnan(compat::getValue(handle).value_or(0.0))) << interface << " had a value to report";
    }
 }

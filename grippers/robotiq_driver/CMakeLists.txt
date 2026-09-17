@@ -59,6 +59,7 @@ add_library(
   include/robotiq_driver/hardware_interface.hpp
   include/robotiq_driver/hardware_parameters.hpp
   include/robotiq_driver/rclcpp_logger.hpp
+  # Humble EOL: delete the next line with the header.
   include/robotiq_driver/ros2_control_compat.hpp
   include/robotiq_driver/visibility_control.hpp
   # Signposts for the headers this package used to install, so downstream

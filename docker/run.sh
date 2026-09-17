@@ -7,6 +7,7 @@
 #   ./run.sh [gripper|sensor|both]  # build if needed, then launch a shell with
 #                                   # that product's devices mapped (default: gripper)
 #
+# Humble EOL: simplify the two lines below to name lyrical.
 # Distro defaults to jazzy; humble and lyrical are equally supported:
 #   ROS_DISTRO=humble ./run.sh gripper
 #

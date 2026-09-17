@@ -2,6 +2,7 @@
 # robotiq_tsf. Adapted from PickNik's ros2_robotiq_gripper CI: distribution ->
 # jazzy, runner -> ubuntu-24.04 (Noble).
 #
+# Humble EOL: simplify the distro list in the next line.
 # Deliberately not matrixed over humble/jazzy/lyrical like ci-ros-build-test:
 # these linters check style, not API, so a second and third distro would only
 # re-run the same checks against different linter versions. Jazzy is the

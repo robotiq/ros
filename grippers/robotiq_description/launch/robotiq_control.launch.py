@@ -51,6 +51,11 @@ import re
 # controller config, and the topic_based plugin exports a different
 # interface set from the driver and the mock, so it needs its own too.
 # See config/robotiq_controllers*.yaml.
+#
+# Humble EOL: delete the two HUMBLE_* names and the first clause above. One
+# config per hardware kind then remains, so controllers_file_for_distro,
+# ControllersFile and the `distro` local in generate_launch_description all lose
+# their reason to exist.
 JAZZY_CONTROLLERS_FILE = "robotiq_controllers.yaml"
 HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
 JAZZY_TOPIC_BASED_CONTROLLERS_FILE = "robotiq_controllers.topic_based.yaml"
@@ -62,6 +67,7 @@ def controllers_file_for_distro(distro, topic_based=False):
 
     `topic_based` selects the config for the sim_topic_based hardware plugin.
     """
+    # Humble EOL: delete this branch.
     if distro == "humble":
         return (
             HUMBLE_TOPIC_BASED_CONTROLLERS_FILE
@@ -295,6 +301,7 @@ def generate_launch_description():
                 description=f"Deprecated since 1.2.0: use {new}",
             )
         )
+    # Humble EOL: simplify the description — drop the "or, on Humble" clause.
     args.append(
         launch.actions.DeclareLaunchArgument(
             name="shutdown_on_failure",
@@ -390,6 +397,7 @@ def generate_launch_description():
     def uses_real_gripper(context):
         return not any(is_set(context, flag) for flag in HARDWARE_FLAGS)
 
+    # Humble EOL: delete relaunch_hint and the two exit handlers' uses of it.
     relaunch_hint = launch.actions.LogInfo(
         msg="The bringup failed. If the error above says the gripper could not be "
         "connected, connect it and relaunch: on Humble, ros2_control_node cannot "
@@ -430,6 +438,7 @@ def generate_launch_description():
         if not any(code > 0 for code in returncodes):
             return None
         actions = []
+        # Humble EOL: delete this branch, keeping the recovery hint unconditional.
         if distro == "humble":
             if uses_real_gripper(context):
                 actions.append(relaunch_hint)
@@ -443,6 +452,7 @@ def generate_launch_description():
 
     def on_control_node_exit(_event, context):
         actions = []
+        # Humble EOL: delete this branch.
         if distro == "humble" and uses_real_gripper(context):
             actions.append(relaunch_hint)
         if is_set(context, "shutdown_on_failure"):

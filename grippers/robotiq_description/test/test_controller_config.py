@@ -35,6 +35,10 @@
 # There are two configs — Humble has no parallel_gripper_controller package — and
 # robotiq_control.launch.py picks one per $ROS_DISTRO. Both are checked here
 # regardless of the distro the tests run on, so neither can rot unnoticed.
+#
+# Humble EOL: simplify — one config per hardware kind remains, so every HUMBLE_*
+# constant, every "humble" parametrisation and every test named for Humble below
+# goes, and the surviving checks stop being parametrised over configs.
 
 import importlib.util
 import logging
@@ -49,6 +53,7 @@ from launch.substitutions import LaunchConfiguration
 
 CONFIG_DIR = Path(__file__).parents[1] / "config"
 JAZZY_CONFIG = CONFIG_DIR / "robotiq_controllers.yaml"
+# Humble EOL: delete.
 HUMBLE_CONFIG = CONFIG_DIR / "robotiq_controllers.humble.yaml"
 ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 
@@ -60,6 +65,7 @@ JOINT_PLACEHOLDER = "$(var gripper_joint)"
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
 # distro, selected by the same launch file.
 JAZZY_TOPIC_BASED_CONFIG = CONFIG_DIR / "robotiq_controllers.topic_based.yaml"
+# Humble EOL: delete.
 HUMBLE_TOPIC_BASED_CONFIG = CONFIG_DIR / "robotiq_controllers.topic_based.humble.yaml"
 TOPIC_BASED_CONFIGS = (JAZZY_TOPIC_BASED_CONFIG, HUMBLE_TOPIC_BASED_CONFIG)
 TOPIC_BASED_OF = {
@@ -96,6 +102,7 @@ def exported_command_interfaces(joint):
 # Plugin the launch expects per distro. Humble's stock controller takes a
 # control_msgs/GripperCommand goal, matching PickNik's humble branch; Jazzy and
 # newer take ParallelGripperCommand.
+# Humble EOL: simplify — one plugin remains, so this mapping collapses.
 EXPECTED_CONTROLLER_TYPES = {
     JAZZY_CONFIG: "parallel_gripper_action_controller/GripperActionController",
     HUMBLE_CONFIG: "position_controllers/GripperActionController",
@@ -145,6 +152,7 @@ def test_claimed_interfaces_follow_the_joint(joint):
     assert claimed <= exported_command_interfaces(joint)
 
 
+# Humble EOL: delete this test.
 def test_humble_config_claims_no_unsupported_interfaces():
     # Humble's gripper_controllers declares neither parameter; leaving them in
     # would read as working speed/force control that Humble silently ignores.
@@ -294,7 +302,7 @@ def test_controller_type_matches_distro(config):
 @pytest.mark.parametrize(
     "distro,expected",
     [
-        ("humble", HUMBLE_CONFIG),
+        ("humble", HUMBLE_CONFIG),  # Humble EOL: delete.
         ("jazzy", JAZZY_CONFIG),
         ("lyrical", JAZZY_CONFIG),
         (None, JAZZY_CONFIG),  # ROS_DISTRO unset: newest layout is the default
@@ -378,7 +386,7 @@ def resolved(config, joint=JOINT):
 @pytest.mark.parametrize(
     "distro,hardware_config,sim_config",
     [
-        ("humble", HUMBLE_CONFIG, HUMBLE_TOPIC_BASED_CONFIG),
+        ("humble", HUMBLE_CONFIG, HUMBLE_TOPIC_BASED_CONFIG),  # Humble EOL: delete.
         ("jazzy", JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
         (None, JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
     ],
@@ -472,6 +480,7 @@ def test_jazzy_config_keeps_the_node_alive_without_a_gripper():
     assert initial_state["shutdown_on_initial_state_failure"] is False
 
 
+# Humble EOL: delete this test.
 def test_humble_config_declares_no_initial_state_policy():
     controllers = load(HUMBLE_CONFIG)["controller_manager"]["ros__parameters"]
     assert "hardware_components_initial_state" not in controllers
@@ -603,6 +612,8 @@ def test_launch_gives_no_reconnect_advice_without_a_gripper(
     assert emitted == [[] for _ in returncodes]
 
 
+# Humble EOL: delete this test and the two below it; the launch has no
+# spawner-failure shutdown left once the Humble branch goes.
 @requires_launch
 def test_launch_ends_on_humble_where_the_node_cannot_survive(monkeypatch):
     # Humble's controller_manager aborts, or wedges, on a failed connect, so the
@@ -652,6 +663,7 @@ def test_launch_ends_when_the_control_node_exits(monkeypatch):
     assert isinstance(emitted[0], Shutdown)
 
 
+# Humble EOL: delete this test.
 @requires_launch
 def test_launch_hints_when_the_node_aborts_on_humble(monkeypatch):
     # The abort is the common Humble failure. Its Shutdown silences the spawner

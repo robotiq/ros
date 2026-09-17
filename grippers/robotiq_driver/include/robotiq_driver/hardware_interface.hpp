@@ -45,6 +45,8 @@
 #include <robotiq_driver/hardware_parameters.hpp>
 #include <robotiq_driver/visibility_control.hpp>
 
+// Humble EOL: delete this include, name HardwareComponentInterfaceParams
+// directly, and drop the Humble half of on_init()'s @param below.
 #include <robotiq_driver/ros2_control_compat.hpp>
 
 #include <Robotiq/gripper.hpp>
@@ -190,6 +192,7 @@ protected:
    // gCU in amperes, and gOBJ verbatim. Doubles to match the other
    // interfaces: Jazzy can carry a uint8_t, but only through the
    // description-driven StateInterface constructor, and Humble cannot at all.
+   // Humble EOL: simplify this comment; the Jazzy constraint still holds.
    //
    // NaN before the first reading, because every value in range is a real one.
    double gripper_motor_current_ = std::numeric_limits<double>::quiet_NaN();

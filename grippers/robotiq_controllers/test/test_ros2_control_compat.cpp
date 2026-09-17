@@ -30,6 +30,8 @@
 // distro it is built on, so the branch that distro does not use would otherwise
 // go untested. These fakes stand in for both LoanedCommandInterface shapes so
 // that every distro exercises both.
+//
+// Humble EOL: delete this file with the shims it covers.
 
 #include <gtest/gtest.h>
 

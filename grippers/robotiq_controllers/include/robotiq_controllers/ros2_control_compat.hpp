@@ -43,6 +43,11 @@
 // Each shim keys off the shape of the operation it wraps rather than a
 // HARDWARE_INTERFACE_VERSION_GTE threshold — Jazzy's 4.x line keeps moving, so
 // there is no stable version number to compare against.
+//
+// Humble EOL: delete this header, its test and its CMake entries; the call
+// sites use set_value and get_optional directly. The shims are templates so
+// that the branch a distro lacks is never instantiated, a constraint that goes
+// with the last of them.
 
 namespace robotiq_controllers::compat {
 namespace detail {
