@@ -24,6 +24,7 @@ on:
 jobs:
   build_and_test:
     name: colcon test (${{ matrix.ros_distro }})
+    # Humble EOL: simplify this comment and delete the matrix entry below.
     # The distro comes entirely from the container image (humble = jammy,
     # jazzy = noble, lyrical and rolling = resolute), so the host runner only has
     # to provide Docker. Pinning every job to one current runner label keeps the
@@ -37,6 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Humble EOL: delete this entry.
           - ros_distro: humble
             blocking: true
           - ros_distro: jazzy

@@ -28,6 +28,8 @@
 
 #include "robotiq_controllers/robotiq_activation_controller.hpp"
 
+// Humble EOL: delete this include and call set_value / get_optional on the
+// handles directly below.
 #include "robotiq_controllers/ros2_control_compat.hpp"
 
 namespace robotiq_controllers {

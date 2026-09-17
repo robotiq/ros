@@ -4,6 +4,7 @@
 # launch/robotiq_control.launch.py whenever that argument is set; see
 # config/robotiq_controllers.yaml for the config it replaces, and
 # robotiq_controllers.topic_based.humble.yaml for the Humble variant.
+# Humble EOL: simplify — drop the reference to the Humble variant.
 #
 # This is NOT the config for `use_fake_hardware:=true`. The ros2_control mock
 # (GenericSystem) declares the driver's interfaces and teleports: the position

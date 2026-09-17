@@ -26,7 +26,9 @@
 
   <!-- Gripper action controller: parallel_gripper_controller is Jazzy and newer;
        Humble only has gripper_controllers. config/robotiq_controllers*.yaml pick
-       the matching plugin. -->
+       the matching plugin.
+       Humble EOL: simplify — delete the gripper_controllers line and the
+       condition on the other. -->
   <exec_depend condition="$ROS_DISTRO != humble">parallel_gripper_controller</exec_depend>
   <exec_depend condition="$ROS_DISTRO == humble">gripper_controllers</exec_depend>
 

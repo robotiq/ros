@@ -1,3 +1,4 @@
+# Humble EOL: delete this file, and the HUMBLE_* selection in launch/robotiq_control.launch.py with it.
 # Humble controller configuration for the topic_based_ros2_control plugin
 # (`sim_topic_based:=true`).
 # Not for the `use_fake_hardware` mock, which teleports to the commanded

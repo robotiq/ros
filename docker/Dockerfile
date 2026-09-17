@@ -9,6 +9,7 @@
 #
 # Build options, examples and the build-context requirement: see the Docker
 # section in README.md. ROS_DISTRO is a build arg: humble, jazzy and lyrical.
+# Humble EOL: simplify the distro list above.
 
 ARG ROS_DISTRO=jazzy
 
@@ -22,6 +23,7 @@ ENV TZ=Etc/UTC
 # build deps (ros2_control stack). ros2-controllers brings the distro's gripper
 # action controller: gripper_controllers on Humble, parallel_gripper_controller
 # on Jazzy and newer.
+# Humble EOL: simplify — only parallel_gripper_controller remains.
 RUN apt-get update && apt-get install -y \
         pkg-config \
         python3-colcon-common-extensions python3-rosdep \

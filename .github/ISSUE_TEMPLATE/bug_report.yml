@@ -14,7 +14,7 @@ body:
     attributes:
       label: ROS distro
       options:
-        - Humble
+        - Humble  # Humble EOL: delete this option.
         - Jazzy
         - Lyrical
         - Rolling

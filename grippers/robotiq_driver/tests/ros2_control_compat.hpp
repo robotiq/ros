@@ -49,6 +49,10 @@
 // robotiq_controllers ships the same two handle shims in its own header. It does
 // not depend on this package — and should not, since that would put the gripper
 // SDK's build in front of the controllers — so the copies stay separate.
+//
+// Humble EOL: delete this header; the tests use set_value, get_optional,
+// status.result and HardwareComponentInterfaceParams directly. The near-copy in
+// robotiq_controllers needs the same pass.
 
 namespace robotiq_driver::test::compat {
 namespace detail {

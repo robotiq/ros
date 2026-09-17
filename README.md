@@ -2,12 +2,16 @@ ROS packages for Robotiq grippers and sensors.
 
 ## Packages
 
+<!-- Humble EOL: simplify — drop Humble from the ROS Version cells in the table below. -->
+
 | Package | Description | ROS Version |
 |---|---|---|
 | [robotiq_tsf](robotiq_tsf/) | TSF-85 tactile sensor driver | ROS 2 Humble / Jazzy / Lyrical ([main](https://github.com/robotiq/ros/tree/main)) / ROS 1 Noetic ([noetic](https://github.com/robotiq/ros/tree/noetic)) |
 | [grippers](grippers/) | ROS 2 `ros2_control` driver for Robotiq 2F adaptive grippers (2F-85, 2F-140), on the [Robotiq C++ SDK](https://github.com/Robotiq/grippers) | ROS 2 Humble / Jazzy / Lyrical |
 
 ## Supported ROS 2 distros
+
+<!-- Humble EOL: simplify this whole section — the Humble table row goes, and with it both differences it explains: the action type and what a missing gripper does at bringup. Dropping the Humble action type is consumer-visible, not a cleanup, so it needs its own note in the release. -->
 
 `main` supports the three live LTS distros from one branch — build it on whichever
 one your robot already runs.
@@ -180,6 +184,7 @@ git clone --recurse-submodules https://github.com/robotiq/ros.git
 cd ros && ./docker/run.sh gripper
 ```
 
+<!-- Humble EOL: simplify the distro list below. -->
 **Existing ROS 2 workspace** (Humble, Jazzy or Lyrical — same steps on all three):
 
 ```bash
@@ -205,6 +210,8 @@ colcon build --packages-up-to robotiq_description robotiq_controllers robotiq_ha
 ```
 
 #### Coming from the `humble` branch
+
+<!-- Humble EOL: simplify — "staying on Humble" and its table go, and moving to Jazzy or Lyrical becomes the only path out of PickNik's branch. -->
 
 **Staying on Humble: nothing to change.** This repository builds on Humble and
 keeps PickNik's Humble controller and action surface, so your existing action
@@ -298,6 +305,7 @@ six joint names for the model you launch, each with your `prefix`, or nothing mo
 | `2f_85` | `robotiq_85_left_knuckle_joint` | `robotiq_85_right_knuckle_joint`, `robotiq_85_left_inner_knuckle_joint`, `robotiq_85_right_inner_knuckle_joint`, `robotiq_85_left_finger_tip_joint`, `robotiq_85_right_finger_tip_joint` |
 | `2f_140` | `finger_joint` | `right_outer_knuckle_joint`, `left_inner_knuckle_joint`, `right_inner_knuckle_joint`, `left_inner_finger_joint`, `right_inner_finger_joint` |
 
+<!-- Humble EOL: simplify — the binary-release exception goes with it. -->
 The plugin is not a dependency of this package. On Humble install
 `ros-humble-topic-based-ros2-control`; on Jazzy and Lyrical it has no binary release, so build
 [topic_based_ros2_control](https://github.com/PickNikRobotics/topic_based_ros2_control) in an
@@ -316,6 +324,8 @@ for cells that embed the gripper macro in their own Gazebo description; this lau
 it, since Gazebo hosts its own `controller_manager`.
 
 ### Commanding the gripper
+
+<!-- Humble EOL: simplify — one action type and one example goal remain. -->
 
 On **Jazzy and Lyrical**, `robotiq_gripper_controller` is a `parallel_gripper_action_controller/GripperActionController`, so its action `/robotiq_gripper_controller/gripper_cmd` takes a `control_msgs/action/ParallelGripperCommand` — a `sensor_msgs/JointState` goal (not the older `GripperCommand`). On **Humble** it is `position_controllers/GripperActionController` taking `control_msgs/action/GripperCommand`; see [Supported ROS 2 distros](#supported-ros-2-distros).
 
@@ -416,6 +426,8 @@ Mock and hardware publish the same `/joint_states` contract on every distro: the
 
 Unit tests live in each package's `test/` (or `tests/`) directory and run without hardware. Build and run all tests from the repository root:
 
+<!-- Humble EOL: simplify the distro list in the source line below. -->
+
 ```bash
 source /opt/ros/jazzy/setup.bash    # or humble / lyrical
 colcon build
@@ -431,6 +443,7 @@ Test executables land under `build/<package>/`, mirroring the package's test-dir
 ./build/<package>/test/<test_executable> --gtest_filter='<TestSuite>.*'
 ```
 
+<!-- Humble EOL: simplify the distro list below. -->
 CI builds the packages and runs their unit tests on pull requests, once per supported distro — Humble, Jazzy and Lyrical ([`ci-ros-build-test.yml`](.github/workflows/ci-ros-build-test.yml)).
 
 ## Docker
@@ -475,6 +488,7 @@ docker build -f docker/Dockerfile -t robotiq_ros2:jazzy .
 
 Build options:
 
+<!-- Humble EOL: simplify the distro list below. -->
 - `--build-arg ROS_DISTRO=…` (default `jazzy`) — `humble`, `jazzy` and `lyrical` are all built in CI.
 - `--build-arg WITH_GUI=false` — **headless**: drop rviz2/rqt/joint-state-publisher-gui (and their mesa/Qt/VTK), for a much smaller image on robots that don't visualize.
 - `--target builder` — a **dev** image with the full toolchain, for building inside the container.
@@ -488,6 +502,8 @@ Then run it with the sensor/gripper devices mapped via `./docker/run.sh [gripper
 
 Pick the distro with `ROS_DISTRO` (default `jazzy`); each one gets its own image
 tag and container name, so switching does not reuse the other's build:
+
+<!-- Humble EOL: delete the humble line from the example below. -->
 
 ```bash
 ./docker/run.sh gripper                      # robotiq_ros2:jazzy   / robotiq_ros2_jazzy

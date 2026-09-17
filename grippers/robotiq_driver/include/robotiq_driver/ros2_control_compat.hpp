@@ -37,6 +37,9 @@
 // than a HARDWARE_INTERFACE_VERSION_GTE threshold: the struct arrived with its
 // own header, and Jazzy's 4.x line keeps moving, so there is no stable version
 // number to compare against.
+//
+// Humble EOL: delete this header and its CMake entry; OnInitParams collapses to
+// HardwareComponentInterfaceParams everywhere it is named.
 
 #if __has_include(<hardware_interface/types/hardware_component_interface_params.hpp>)
 #include <hardware_interface/types/hardware_component_interface_params.hpp>
