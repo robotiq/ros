@@ -24,6 +24,10 @@
 #   standard position/velocity/effort interfaces only, never the driver's
 #   `set_gripper_max_*`, and a claimed interface that does not exist stops the
 #   controller from activating. Goal effort/velocity are accepted and ignored.
+# - `robotiq_gripper_status_broadcaster` is kept, but stays silent. The plugin
+#   exports no object_status, and the broadcaster claims every state interface
+#   and publishes what it finds, so it activates here and says nothing rather
+#   than making the controller set differ per hardware mode.
 # - A stall aborts the goal instead of succeeding. A simulator that publishes no
 #   joint velocities leaves the velocity state at 0, which reads as "stalled"
 #   from the first cycle, so allow_stalling would report every out-of-tolerance
@@ -36,6 +40,8 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
     robotiq_gripper_controller:
       type: parallel_gripper_action_controller/GripperActionController
+    robotiq_gripper_status_broadcaster:
+      type: robotiq_controllers/GripperStatusBroadcaster
 
 robotiq_gripper_controller:
   ros__parameters:

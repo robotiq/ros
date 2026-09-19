@@ -24,6 +24,10 @@
 
   <exec_depend>joint_state_broadcaster</exec_depend>
 
+  <!-- config/robotiq_controllers*.yaml load the activation controller and the
+       status broadcaster from this package. -->
+  <exec_depend>robotiq_controllers</exec_depend>
+
   <!-- Gripper action controller: parallel_gripper_controller is Jazzy and newer;
        Humble only has gripper_controllers. config/robotiq_controllers*.yaml pick
        the matching plugin.

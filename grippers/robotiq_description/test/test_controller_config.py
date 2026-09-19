@@ -393,18 +393,21 @@ def resolved(config, joint=JOINT):
 )
 def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypatch):
     # Every spawner must be handed the same config the controller_manager loaded,
-    # and the activation controller only exists where its GPIO does.
+    # and the activation controller only exists where its GPIO does. The status
+    # broadcaster is spawned everywhere: it takes whichever interfaces it finds.
     hardware = spawned_controllers(distro, monkeypatch)
     assert hardware == {
         "joint_state_broadcaster": resolved(hardware_config),
         "robotiq_gripper_controller": resolved(hardware_config),
         "robotiq_activation_controller": resolved(hardware_config),
+        "robotiq_gripper_status_broadcaster": resolved(hardware_config),
     }
 
     topic_based = spawned_controllers(distro, monkeypatch, sim_topic_based="true")
     assert topic_based == {
         "joint_state_broadcaster": resolved(sim_config),
         "robotiq_gripper_controller": resolved(sim_config),
+        "robotiq_gripper_status_broadcaster": resolved(sim_config),
     }
 
 
@@ -425,6 +428,7 @@ def test_sim_configs_spawn_no_activation_controller(config):
     assert set(controllers) == CONTROLLER_MANAGER_SETTINGS[config] | {
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
+        "robotiq_gripper_status_broadcaster",
     }
     assert controllers["update_rate"] == UPDATE_RATE_HZ
     assert "robotiq_activation_controller" not in load(config)
@@ -462,11 +466,16 @@ def test_controller_names_and_update_rate_are_identical_across_distros(config):
         "joint_state_broadcaster",
         "robotiq_gripper_controller",
         "robotiq_activation_controller",
+        "robotiq_gripper_status_broadcaster",
     }
     assert controllers["update_rate"] == UPDATE_RATE_HZ
     assert (
         controllers["robotiq_activation_controller"]["type"]
         == "robotiq_controllers/RobotiqActivationController"
+    )
+    assert (
+        controllers["robotiq_gripper_status_broadcaster"]["type"]
+        == "robotiq_controllers/GripperStatusBroadcaster"
     )
     assert (
         controllers["joint_state_broadcaster"]["type"]
@@ -550,16 +559,17 @@ HARDWARE_STEP = (
 )
 CONTROLLER_STEP = (
     "ros2 run controller_manager spawner "
-    "joint_state_broadcaster robotiq_gripper_controller robotiq_activation_controller"
+    "joint_state_broadcaster robotiq_gripper_controller robotiq_activation_controller "
+    "robotiq_gripper_status_broadcaster"
 )
 
 
 @requires_launch
-@pytest.mark.parametrize("returncodes", [[1, 1, 1], [0, 1, 0], [1, 0, 0]])
+@pytest.mark.parametrize("returncodes", [[1, 1, 1, 1], [0, 1, 0, 0], [1, 0, 0, 0]])
 def test_launch_hints_once_after_the_last_spawner_exits(monkeypatch, returncodes):
     emitted = drive_spawner_exits(monkeypatch, returncodes)
-    assert hints(emitted)[:-1] == [[], []]
-    assert shutdowns(emitted) == [[], [], []]
+    assert hints(emitted)[:-1] == [[], [], []]
+    assert shutdowns(emitted) == [[], [], [], []]
     (hint,) = hints(emitted)[-1]
     # Verified on a 2F-85: the first step alone leaves the controllers loaded
     # but inactive; the second is what configures and activates them again.
@@ -570,7 +580,7 @@ def test_launch_hints_once_after_the_last_spawner_exits(monkeypatch, returncodes
 def test_launch_hints_the_spawners_exact_command_line(monkeypatch):
     # Same arguments as the spawners themselves, so the two cannot drift; the
     # param file is the one the first spawn used, and Lyrical needs it.
-    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1])
+    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1, 1])
     (hint,) = hints(emitted)[-1]
     rerun = hint[hint.index(CONTROLLER_STEP) :]
     assert "--controller-manager /controller_manager" in rerun
@@ -580,13 +590,13 @@ def test_launch_hints_the_spawners_exact_command_line(monkeypatch):
 
 @requires_launch
 def test_launch_stays_quiet_when_every_spawner_succeeds(monkeypatch):
-    assert drive_spawner_exits(monkeypatch, [0, 0, 0]) == [[], [], []]
+    assert drive_spawner_exits(monkeypatch, [0, 0, 0, 0]) == [[], [], [], []]
 
 
 @requires_launch
 def test_launch_stays_quiet_when_the_spawners_are_killed(monkeypatch):
     # SIGINT from a Ctrl-C or from the launch's own Shutdown is not a failure.
-    assert drive_spawner_exits(monkeypatch, [-2, -2, -2]) == [[], [], []]
+    assert drive_spawner_exits(monkeypatch, [-2, -2, -2, -2]) == [[], [], [], []]
 
 
 @requires_launch
@@ -603,7 +613,10 @@ def test_launch_stays_quiet_once_shutting_down(monkeypatch):
 @requires_launch
 @pytest.mark.parametrize(
     "launch_arguments,returncodes",
-    [({"sim_topic_based": "true"}, [1, 1]), ({"use_fake_hardware": "true"}, [1, 1, 1])],
+    [
+        ({"sim_topic_based": "true"}, [1, 1, 1]),
+        ({"use_fake_hardware": "true"}, [1, 1, 1, 1]),
+    ],
 )
 def test_launch_gives_no_reconnect_advice_without_a_gripper(
     monkeypatch, launch_arguments, returncodes
@@ -618,11 +631,11 @@ def test_launch_gives_no_reconnect_advice_without_a_gripper(
 def test_launch_ends_on_humble_where_the_node_cannot_survive(monkeypatch):
     # Humble's controller_manager aborts, or wedges, on a failed connect, so the
     # spawners' failure is the only exit signal the launch can act on there.
-    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1], distro="humble")
-    assert hints(emitted)[:-1] == [[], []]
+    emitted = drive_spawner_exits(monkeypatch, [1, 1, 1, 1], distro="humble")
+    assert hints(emitted)[:-1] == [[], [], []]
     assert "relaunch" in hints(emitted)[-1][0]
     assert CONTROLLER_STEP not in hints(emitted)[-1][0]
-    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
+    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 0, 1]
 
 
 @requires_launch
@@ -630,19 +643,19 @@ def test_launch_still_ends_on_humble_without_a_gripper(monkeypatch):
     # No reconnect advice under the mock, but shutdown_on_failure is not about
     # the gripper and must hold.
     emitted = drive_spawner_exits(
-        monkeypatch, [1, 1, 1], distro="humble", use_fake_hardware="true"
+        monkeypatch, [1, 1, 1, 1], distro="humble", use_fake_hardware="true"
     )
-    assert hints(emitted) == [[], [], []]
-    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 1]
+    assert hints(emitted) == [[], [], [], []]
+    assert [len(s) for s in shutdowns(emitted)] == [0, 0, 0, 1]
 
 
 @requires_launch
 def test_launch_keeps_running_on_humble_when_asked(monkeypatch):
     emitted = drive_spawner_exits(
-        monkeypatch, [1, 1, 1], distro="humble", shutdown_on_failure="false"
+        monkeypatch, [1, 1, 1, 1], distro="humble", shutdown_on_failure="false"
     )
-    assert [len(h) for h in hints(emitted)] == [0, 0, 1]
-    assert shutdowns(emitted) == [[], [], []]
+    assert [len(h) for h in hints(emitted)] == [0, 0, 0, 1]
+    assert shutdowns(emitted) == [[], [], [], []]
 
 
 def control_node_exit(monkeypatch, distro="jazzy", **launch_arguments):

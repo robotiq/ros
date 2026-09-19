@@ -18,6 +18,8 @@ controller_manager:
       type: parallel_gripper_action_controller/GripperActionController
     robotiq_activation_controller:
       type: robotiq_controllers/RobotiqActivationController
+    robotiq_gripper_status_broadcaster:
+      type: robotiq_controllers/GripperStatusBroadcaster
 
 robotiq_gripper_controller:
   ros__parameters:

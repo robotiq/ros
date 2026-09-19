@@ -383,6 +383,7 @@ def generate_launch_description():
         "joint_state_broadcaster": None,
         "robotiq_gripper_controller": None,
         "robotiq_activation_controller": UnlessCondition(topic_based),
+        "robotiq_gripper_status_broadcaster": None,
     }
     spawners = [
         spawner(name, condition) for name, condition in spawned_controllers.items()
