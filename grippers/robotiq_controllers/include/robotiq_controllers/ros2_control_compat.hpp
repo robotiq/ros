@@ -41,13 +41,8 @@
 // (`bool set_value(double)`) and reads can fail (`std::optional<double>
 // get_optional()`), because the handles took a lock internally.
 //
-// realtime_tools split the same way: Humble publishes over `trylock()` /
-// `msg_` / `unlockAndPublish()`, and newer ones over a single `try_publish(msg)`
-// that deprecates the lock API.
-//
-// Each shim keys off the shape of the operation it wraps rather than a
-// HARDWARE_INTERFACE_VERSION_GTE threshold — Jazzy's 4.x line keeps moving, so
-// there is no stable version number to compare against.
+// realtime_tools renamed rather than split: Humble offers `tryPublish(msg)`,
+// newer releases `try_publish(msg)`. Both take the message in one call.
 //
 // Humble EOL: delete this header, its test and its CMake entries; the call
 // sites use set_value, get_optional and try_publish directly. The shims are
@@ -124,13 +119,7 @@ bool tryPublish(PublisherT& publisher, const MessageT& message)
    }
    else
    {
-      if(!publisher.trylock())
-      {
-         return false;
-      }
-      publisher.msg_ = message;
-      publisher.unlockAndPublish();
-      return true;
+      return publisher.tryPublish(message);
    }
 }
 } // namespace robotiq_controllers::compat

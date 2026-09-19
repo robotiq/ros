@@ -83,13 +83,18 @@ private:
 class OldApiPublisher
 {
 public:
-   bool trylock() { return lockable_; }
-   void unlockAndPublish() { published_.push_back(msg_); }
+   bool tryPublish(const std::string& message)
+   {
+      if(!lockable_)
+      {
+         return false;
+      }
+      published_.push_back(message);
+      return true;
+   }
 
    void setLockable(bool lockable) { lockable_ = lockable; }
    const std::vector<std::string>& published() const { return published_; }
-
-   std::string msg_;
 
 private:
    bool lockable_ = true;

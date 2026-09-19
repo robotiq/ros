@@ -362,6 +362,8 @@ ros2 topic echo /robotiq_gripper_status_broadcaster/status
 
 `object_detection` is the gripper's own answer to "am I holding something", and the only authoritative one. Prefer it to the `gripper_cmd` action's `stalled` flag, which is a stall heuristic, and to comparing the commanded opening against the achieved one. The message names all four of its states, and every fault code, as constants.
 
+Where the gripper reports no fault this cycle, `gripper_fault` and `gripper_fault_severity` read `GRIPPER_FAULT_UNKNOWN`, not `NONE`. That is what a client sees under `use_fake_hardware:=true` and `sim_topic_based:=true`, whose plugins export no fault interface. Treat it as "cannot say" rather than "healthy"; `motor_current` says the same thing with `NaN`.
+
 The broadcaster is spawned in every hardware mode. Only the driver reports these values, so under `use_fake_hardware:=true` and `sim_topic_based:=true` it activates, says so once, and publishes nothing. `use_dummy` keeps the driver loaded and does publish. While the driver reports a link fault, the topic repeats the last reading it got from the gripper.
 
 ### State interfaces

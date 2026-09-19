@@ -107,14 +107,16 @@ TEST(Decode, says_nothing_until_object_status_has_a_value)
    EXPECT_TRUE(decode(all(0.0, 0.1, 0.0, 0.0), kTime).has_value());
 }
 
-TEST(Decode, reports_no_fault_for_the_fields_a_joint_does_not_export)
+TEST(Decode, reports_unknown_for_the_fields_a_joint_does_not_export)
 {
    const std::optional<Status> status = decode({1.0, std::nullopt, std::nullopt, std::nullopt}, kTime);
    ASSERT_TRUE(status.has_value());
    EXPECT_EQ(Status::DETECTED_WHILE_OPENING, status->object_detection);
    EXPECT_TRUE(std::isnan(status->motor_current));
-   EXPECT_EQ(Status::GRIPPER_FAULT_NONE, status->gripper_fault);
-   EXPECT_EQ(Status::GRIPPER_FAULT_SEVERITY_NONE, status->gripper_fault_severity);
+   EXPECT_EQ(Status::GRIPPER_FAULT_UNKNOWN, status->gripper_fault);
+   EXPECT_EQ(Status::GRIPPER_FAULT_SEVERITY_UNKNOWN, status->gripper_fault_severity);
+   EXPECT_NE(Status::GRIPPER_FAULT_NONE, status->gripper_fault)
+      << "hardware that cannot report a fault read as an unfaulted gripper";
 }
 
 TEST(Decode, rounds_a_code_that_arrived_as_a_double)

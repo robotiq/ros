@@ -74,10 +74,9 @@ gripper_status::Readings GripperStatusBroadcaster::read() const
    for(std::size_t field = 0; field < gripper_status::FIELD_COUNT; ++field)
    {
       const std::optional<std::size_t>& index = interfaces_->at(field);
-      readings.at(field) =
-         index
-            ? compat::getValue(state_interfaces_.at(index.value())).value_or(std::numeric_limits<double>::quiet_NaN())
-            : std::optional<double>{};
+      // An unbound field and a read that failed both leave the reading empty:
+      // a contended handle has no value to report this cycle either.
+      readings.at(field) = index ? compat::getValue(state_interfaces_.at(index.value())) : std::optional<double>{};
    }
    return readings;
 }

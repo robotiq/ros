@@ -57,6 +57,10 @@ std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfac
 {
    // OBJECT_STATUS anchors the binding because decode() cannot publish without
    // it: every object_detection value is a real state, so none can mean unknown.
+   //
+   // The first joint exporting it wins, and its prefix selects the rest, which
+   // is unambiguous for one gripper per controller manager. Telling two apart
+   // on one controller manager would need the joint named.
    const auto gripper = std::find_if(interfaces.begin(), interfaces.end(), [](const InterfaceName& interface) {
       return interface.name == kInterfaceNames.at(OBJECT_STATUS);
    });
@@ -98,7 +102,8 @@ std::optional<robotiq_msgs::msg::GripperStatus> decode(const Readings& readings,
    status.object_detection = object_detection.value();
    status.motor_current = readings.at(MOTOR_CURRENT).value_or(std::numeric_limits<double>::quiet_NaN());
 
-   // A fault field the joint does not export keeps the message default, no fault.
+   // A fault field with no reading keeps the message default, UNKNOWN. Saying
+   // NONE there would report an unfaulted gripper on hardware that cannot tell.
    for(const auto& [field, code] : {std::pair{GRIPPER_FAULT, &status.gripper_fault},
                                     std::pair{GRIPPER_FAULT_SEVERITY, &status.gripper_fault_severity}})
    {
