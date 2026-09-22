@@ -392,6 +392,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
    // Seed both sides from that settled reading so the first exported state, and
    // any hold target derived from it, describe where the fingers actually are.
    gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position);
+   velocity_estimator_.reset();
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
@@ -437,7 +438,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_deactivat
    return CallbackReturn::SUCCESS;
 }
 
-hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclcpp::Time& /*time*/,
+hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclcpp::Time& time,
                                                                       const rclcpp::Duration& /*period*/)
 {
    if(!gripper_)
@@ -447,9 +448,7 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
 
    const Robotiq::GripperStatus status = gripper_->getStatus();
    gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position);
-   // The status block carries no velocity — the gripper reports position and
-   // motor current only.
-   gripper_velocity_ = 0.0;
+   gripper_velocity_ = velocity_estimator_.update(gripper_position_, std::chrono::nanoseconds{time.nanoseconds()});
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
    gripper_fault_ = {gripperFaultFromRegister(status.faultStatus),
