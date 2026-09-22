@@ -223,6 +223,7 @@ TSF_CLOSED_MM = 0.75
         (motion(reached_goal=False, stalled=True), 85.0, 49.0, "stopped_on_object"),
         (motion(reached_goal=True), 30.0, 30.0, "reached"),
         (motion(reached_goal=False, stalled=True), 30.0, 30.0, "reached"),
+        (motion(reached_goal=True), 85.0, 83.1, "reached"),
     ],
     ids=[
         "refused",
@@ -233,6 +234,7 @@ TSF_CLOSED_MM = 0.75
         "open blocked part-way",
         "move landed",
         "move landed but the driver says stalled (#29)",
+        "the controller reached within its own tolerance, wider than ours",
     ],
 )
 def test_classify_decides_from_position_not_the_stall_flag(
