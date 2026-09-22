@@ -36,7 +36,7 @@ robotiq_gripper_controller:
     # Optional (recommended)
     state_interfaces: ["position", "velocity"]
     allow_stalling: true
-    stall_timeout: 0.05
+    stall_timeout: 1.0
     goal_tolerance: 0.02
 
 robotiq_activation_controller:
