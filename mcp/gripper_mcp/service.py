@@ -219,6 +219,8 @@ def classify(
         return "refused"
     if motion.timed_out:
         return "incomplete"
+    if motion.reached_goal:
+        return "reached"
     if stopped_on_something(commanded_mm, achieved_mm, stroke):
         return "stopped_on_object"
     return "reached"

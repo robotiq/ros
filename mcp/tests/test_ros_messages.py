@@ -116,6 +116,18 @@ def test_a_state_without_the_joint_yields_the_fallback():
     assert position_of(state, "knuckle_joint", FALLBACK_RAD) == FALLBACK_RAD
 
 
+def test_a_result_naming_no_joint_but_carrying_one_position_is_that_joint():
+    state = FakeState([], [KNUCKLE_RAD])
+
+    assert position_of(state, "knuckle_joint", FALLBACK_RAD) == KNUCKLE_RAD
+
+
+def test_a_result_naming_no_joint_with_no_position_yields_the_fallback():
+    state = FakeState([], [])
+
+    assert position_of(state, "knuckle_joint", FALLBACK_RAD) == FALLBACK_RAD
+
+
 class FakeCancelResponse:
     def __init__(self, return_code):
         self.return_code = return_code
