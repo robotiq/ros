@@ -223,13 +223,21 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
                 fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
                 force in newtons: the force actually applied depends on the
                 speed, the fingers and the object.
+            speed_mm_s: Finger speed in millimetres per second, within the
+                model's range (min_speed_mm_s to max_speed_mm_s from
+                gripper_list_grippers). Omit for full speed. Slow down for
+                fragile or light objects. Values outside the range are
+                clamped. Refused on a controller that takes no speed (ROS 2
+                Humble).
             """
         ),
     )
     def gripper_open(
-        gripper_name: str, effort: float | None = None
+        gripper_name: str,
+        effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
-        return service.open_fully(gripper_name, effort)
+        return service.open_fully(gripper_name, effort, speed_mm_s)
 
     @mcp.tool(
         name="gripper_close",
@@ -250,13 +258,21 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
                 fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
                 force in newtons: the force actually applied depends on the
                 speed, the fingers and the object.
+            speed_mm_s: Finger speed in millimetres per second, within the
+                model's range (min_speed_mm_s to max_speed_mm_s from
+                gripper_list_grippers). Omit for full speed. Slow down for
+                fragile or light objects. Values outside the range are
+                clamped. Refused on a controller that takes no speed (ROS 2
+                Humble).
             """
         ),
     )
     def gripper_close(
-        gripper_name: str, effort: float | None = None
+        gripper_name: str,
+        effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
-        return service.close_fully(gripper_name, effort)
+        return service.close_fully(gripper_name, effort, speed_mm_s)
 
     @mcp.tool(
         name="gripper_move_to",
@@ -278,13 +294,22 @@ def register_gripper_tools(mcp: FastMCP, service: GripperService) -> None:
                 fragile objects. Values outside 0.0 to 1.0 are clamped. Not a
                 force in newtons: the force actually applied depends on the
                 speed, the fingers and the object.
+            speed_mm_s: Finger speed in millimetres per second, within the
+                model's range (min_speed_mm_s to max_speed_mm_s from
+                gripper_list_grippers). Omit for full speed. Slow down for
+                fragile or light objects. Values outside the range are
+                clamped. Refused on a controller that takes no speed (ROS 2
+                Humble).
             """
         ),
     )
     def gripper_move_to(
-        gripper_name: str, position_mm: float, effort: float | None = None
+        gripper_name: str,
+        position_mm: float,
+        effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
-        return service.move_to_opening(gripper_name, position_mm, effort)
+        return service.move_to_opening(gripper_name, position_mm, effort, speed_mm_s)
 
     @mcp.tool(
         name="gripper_get_health",

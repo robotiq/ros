@@ -5,6 +5,7 @@ from gripper_mcp.ros_messages import (
     advertised_type,
     cancel_note,
     motion_from_result,
+    no_speed_message,
     no_state_message,
     position_of,
     refused,
@@ -17,6 +18,14 @@ HUMBLE = "control_msgs/action/GripperCommand"
 KNOWN = {PARALLEL: object(), HUMBLE: object()}
 
 HALFWAY_RAD = 0.4
+
+
+def test_a_speed_on_a_controller_without_one_says_what_to_do_instead():
+    message = no_speed_message("GripperCommand")
+
+    assert "GripperCommand" in message
+    assert "nothing moved" in message
+    assert "Omit speed_mm_s" in message
 
 
 def test_a_goal_that_succeeds_reached_its_position():

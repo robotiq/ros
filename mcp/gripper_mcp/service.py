@@ -24,7 +24,7 @@ and once a broadcaster carries it the position comparison goes too.
 from datetime import datetime, timezone
 
 from gripper_mcp.backend import BackendMotion, GripperBackend
-from gripper_mcp.config import GripperConfig, GripperModelSpec
+from gripper_mcp.config import GripperConfig, GripperModelSpec, SpeedRange
 from gripper_mcp.models import (
     GripperHealth,
     GripperInfo,
@@ -44,6 +44,7 @@ from gripper_mcp.units import (
 
 MIN_EFFORT = 0.0
 MAX_EFFORT = 1.0
+MM_PER_M = 1000.0
 MM_DECIMALS = 2
 RAD_DECIMALS = 4
 FRACTION_DECIMALS = 4
@@ -73,6 +74,8 @@ class GripperService:
                 model=config.model,
                 backend=self._backends[name].name,
                 max_opening_mm=self._specs[config.model].stroke.max_opening_mm,
+                min_speed_mm_s=self._specs[config.model].speed.min_mm_s,
+                max_speed_mm_s=self._specs[config.model].speed.max_mm_s,
                 tactile=self._tactile_sources.get(name),
                 description=config.description,
             )
@@ -101,32 +104,45 @@ class GripperService:
         )
 
     def open_fully(
-        self, gripper_name: str, effort: float | None = None
+        self,
+        gripper_name: str,
+        effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
         stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.max_opening_mm, effort)
+        return self.move_to_opening(
+            gripper_name, stroke.max_opening_mm, effort, speed_mm_s
+        )
 
     def close_fully(
-        self, gripper_name: str, effort: float | None = None
+        self,
+        gripper_name: str,
+        effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
         stroke = self._spec(gripper_name).stroke
-        return self.move_to_opening(gripper_name, stroke.min_opening_mm, effort)
+        return self.move_to_opening(
+            gripper_name, stroke.min_opening_mm, effort, speed_mm_s
+        )
 
     def move_to_opening(
         self,
         gripper_name: str,
         opening_mm: float,
         effort: float | None = None,
+        speed_mm_s: float | None = None,
     ) -> GripperMotionResult:
         backend = self._backend(gripper_name)
         spec = self._spec(gripper_name)
         geometry = geometry_of(spec, backend)
         target_mm = clamp_opening_mm(opening_mm, geometry)
         applied_effort = clamp_effort(effort, spec)
+        applied_speed = clamp_speed(speed_mm_s, spec.speed)
         motion = backend.move_to(
             position_rad=opening_mm_to_knuckle_rad(target_mm, geometry),
             effort=applied_effort,
             timeout_s=spec.defaults.motion_timeout_s,
+            speed_m_s=None if applied_speed is None else applied_speed / MM_PER_M,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
         outcome = classify(motion, target_mm, achieved_mm, spec.stroke)
@@ -144,6 +160,7 @@ class GripperService:
             detail=(
                 clamp_note(opening_mm, target_mm)
                 + effort_note(effort, applied_effort)
+                + speed_note(speed_mm_s, applied_speed)
                 + motion.detail
             ),
             backend=backend.name,
@@ -201,6 +218,18 @@ def effort_note(requested: float | None, applied: float) -> str:
     if requested is None or requested == applied:
         return ""
     return f"Requested effort {requested:g}, clamped to {applied:g}. "
+
+
+def clamp_speed(requested: float | None, speed: SpeedRange) -> float | None:
+    if requested is None:
+        return None
+    return clamp(requested, speed.min_mm_s, speed.max_mm_s)
+
+
+def speed_note(requested: float | None, applied: float | None) -> str:
+    if requested is None or requested == applied:
+        return ""
+    return f"Requested speed {requested:g} mm/s, clamped to {applied:g} mm/s. "
 
 
 def stopped_on_something(

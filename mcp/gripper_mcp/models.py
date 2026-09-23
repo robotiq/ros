@@ -30,6 +30,12 @@ class GripperInfo(BaseModel):
     model: str
     backend: Backend
     max_opening_mm: float = Field(description="Fully open, in millimetres")
+    min_speed_mm_s: float = Field(
+        description="Slowest finger speed a move can ask for, in mm/s"
+    )
+    max_speed_mm_s: float = Field(
+        description="Fastest finger speed, in mm/s; a move naming none runs at it"
+    )
     tactile: TactileSource | None = Field(
         default=None, description="Tactile source when the gripper has pads"
     )

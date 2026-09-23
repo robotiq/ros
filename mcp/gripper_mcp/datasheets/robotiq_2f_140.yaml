@@ -13,6 +13,10 @@ stroke:
   # with room for mechanical settle, which nobody has measured on a 2F-140.
   closed_tolerance_mm: 1.5
 
+speed:
+  min_mm_s: 30.0
+  max_mm_s: 250.0
+
 defaults:
   effort: 0.4
   motion_timeout_s: 10.0

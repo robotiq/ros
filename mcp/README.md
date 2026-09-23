@@ -11,15 +11,19 @@ hardware and against a simulator launched with `sim_topic_based:=true`.
 |---|---|
 | `gripper_list_grippers` | Discover configured gripper names |
 | `gripper_get_state` | Opening (mm, fraction, joint rad); the driver reports no holding effort |
-| `gripper_open` | Open fully; optional `effort` 0-1 |
-| `gripper_close` | Close fully; optional `effort` 0-1 |
-| `gripper_move_to` | Move to a specific position, in mm of opening; optional `effort` 0-1 |
+| `gripper_open` | Open fully; optional `effort` 0-1 and `speed_mm_s` |
+| `gripper_close` | Close fully; optional `effort` 0-1 and `speed_mm_s` |
+| `gripper_move_to` | Move to a specific position, in mm of opening; optional `effort` 0-1 and `speed_mm_s` |
 | `gripper_get_health` | Reachable, controller active |
 | `gripper_read_tactile` | TSF-85 pads: contact signal, per-pad split, hottest taxel |
 | `gripper_tare_tactile` | Re-zero the pads (fingers empty) |
 | `gripper_verify_grasp` | Confirm a hold from touch plus opening |
 
 Every tool takes an explicit `gripper_name`; nothing fans out to every gripper.
+A motion's `speed_mm_s` is clamped to the model's range, which
+`gripper_list_grippers` reports (20-150 mm/s on a 2F-85); leaving it out runs at
+full speed. Humble's gripper controller carries no speed, so there a move that
+names one is refused rather than run fast.
 Openings are in **millimetres**: `0.0` closed, the model's max opening (`85.0`
 on a 2F-85, `140.0` on a 2F-140) fully open. Every motion result carries an
 `outcome`:

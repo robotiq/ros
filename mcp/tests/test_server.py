@@ -175,6 +175,20 @@ def test_a_close_through_the_wire_stops_on_the_virtual_cube(mcp):
     assert result.backend == "mock"
 
 
+def test_every_motion_tool_takes_an_optional_speed(tools):
+    for name in ("gripper_open", "gripper_close", "gripper_move_to"):
+        parameters = tools[name].parameters
+        assert "speed_mm_s" in parameters["properties"], name
+        assert "speed_mm_s" not in parameters.get("required", []), name
+
+
+def test_a_slow_close_through_the_wire_still_stops_on_the_virtual_cube(mcp):
+    result = call(mcp, "gripper_close", gripper_name="left", speed_mm_s=20.0)
+
+    assert result.outcome == "stopped_on_object"
+    assert result.achieved_opening_mm == pytest.approx(CUBE_WIDTH_MM)
+
+
 def test_the_listing_names_the_configured_gripper(mcp):
     (entry,) = call(mcp, "gripper_list_grippers")
 

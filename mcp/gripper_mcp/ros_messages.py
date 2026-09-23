@@ -42,6 +42,14 @@ def motion_from_result(
     )
 
 
+def no_speed_message(action_type: str) -> str:
+    return (
+        f"The controller takes {action_type} goals, which carry no speed "
+        "(ROS 2 Humble's gripper controller); nothing moved. Omit speed_mm_s "
+        "to move at the controller's own speed."
+    )
+
+
 def refused(position_rad: float, detail: str) -> BackendMotion:
     return BackendMotion(
         final_position_rad=position_rad,

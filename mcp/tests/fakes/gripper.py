@@ -12,6 +12,9 @@ hardware is the ROS driver's job, on ros2_control's fake hardware
 (`use_fake_hardware`, see mcp/demo), so that the controller and the action are
 exercised too.
 
+A move that names a speed travels at it and remembers it (`last_speed_m_s`);
+one that names none travels at `travel_speed_mm_s`.
+
 Travel is simulated through an injected `sleep_fn` so tests run instantly while
 a container still moves in something like real time.
 """
@@ -34,6 +37,7 @@ MOCK_STROKE = Stroke(max_opening_mm=85.0, closed_tolerance_mm=1.5)
 MOCK_GEOMETRY = GripperGeometry.of(MOCK_STROKE, MOCK_JOINT)
 
 NOMINAL_TRAVEL_SPEED_MM_S = 150.0
+MM_PER_M = 1000.0
 
 
 class MockGripperBackend:
@@ -62,6 +66,7 @@ class MockGripperBackend:
 
         self._position_rad = self._joint.rad_open
         self._holding_effort = 0.0
+        self.last_speed_m_s: float | None = None
 
     def joint_geometry(self) -> JointGeometry:
         return self._joint
@@ -78,15 +83,23 @@ class MockGripperBackend:
         )
 
     def move_to(
-        self, position_rad: float, effort: float, timeout_s: float
+        self,
+        position_rad: float,
+        effort: float,
+        timeout_s: float,
+        speed_m_s: float | None = None,
     ) -> BackendMotion:
+        self.last_speed_m_s = speed_m_s
+        speed_mm_s = (
+            self._travel_speed_mm_s if speed_m_s is None else speed_m_s * MM_PER_M
+        )
         target = clamp(position_rad, self._joint.rad_open, self._joint.rad_closed)
         stop_at, stalled = self._resolve_stop(target)
 
         travel_mm = abs(
             self.opening_mm_for(stop_at) - self.opening_mm_for(self._position_rad)
         )
-        duration_s = travel_mm / self._travel_speed_mm_s
+        duration_s = travel_mm / speed_mm_s
         if duration_s > timeout_s:
             self._sleep(timeout_s)
             return BackendMotion(

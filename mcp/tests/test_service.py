@@ -23,6 +23,9 @@ GENTLE_EFFORT = 0.1
 MIN_EFFORT = 0.0
 MAX_EFFORT = 1.0
 CRAWL_SPEED_MM_S = 1.0
+DATASHEET_MIN_SPEED_MM_S = 20.0
+DATASHEET_MAX_SPEED_MM_S = 150.0
+GENTLE_SPEED_MM_S = 40.0
 
 
 def service_with(**backend_kwargs) -> tuple[GripperService, MockGripperBackend]:
@@ -162,6 +165,50 @@ def test_an_effort_within_range_leaves_no_note():
     assert "clamped" not in result.detail
 
 
+def test_a_move_that_names_no_speed_leaves_it_to_the_controller():
+    service, backend = service_with()
+
+    result = service.close_fully(ARM)
+
+    assert backend.last_speed_m_s is None
+    assert "speed" not in result.detail
+
+
+@pytest.mark.parametrize(
+    "move",
+    [
+        lambda service: service.close_fully(ARM, speed_mm_s=GENTLE_SPEED_MM_S),
+        lambda service: service.open_fully(ARM, speed_mm_s=GENTLE_SPEED_MM_S),
+        lambda service: service.move_to_opening(
+            ARM, HALF_OPEN_MM, speed_mm_s=GENTLE_SPEED_MM_S
+        ),
+    ],
+)
+def test_a_speed_in_mm_per_s_reaches_the_backend_in_m_per_s(move):
+    service, backend = service_with()
+
+    result = move(service)
+
+    assert backend.last_speed_m_s == pytest.approx(GENTLE_SPEED_MM_S / 1000.0)
+    assert "clamped" not in result.detail
+
+
+@pytest.mark.parametrize(
+    ("requested", "applied"),
+    [(500.0, DATASHEET_MAX_SPEED_MM_S), (5.0, DATASHEET_MIN_SPEED_MM_S)],
+)
+def test_a_speed_outside_the_datasheet_range_is_clamped_and_said(requested, applied):
+    service, backend = service_with()
+
+    result = service.close_fully(ARM, speed_mm_s=requested)
+
+    assert backend.last_speed_m_s == pytest.approx(applied / 1000.0)
+    assert (
+        f"Requested speed {requested:g} mm/s, clamped to {applied:g} mm/s."
+        in result.detail
+    )
+
+
 def test_an_opening_beyond_the_stroke_is_clamped():
     service, _ = service_with()
 
@@ -177,6 +224,10 @@ def test_listed_grippers_report_their_backend():
 
     assert (entry.gripper_name, entry.model, entry.backend) == (ARM, NARROW, "mock")
     assert entry.max_opening_mm == pytest.approx(FULLY_OPEN_MM)
+    assert (entry.min_speed_mm_s, entry.max_speed_mm_s) == (
+        DATASHEET_MIN_SPEED_MM_S,
+        DATASHEET_MAX_SPEED_MM_S,
+    )
 
 
 def test_health_passes_the_backend_verdict_through():

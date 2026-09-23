@@ -4,8 +4,8 @@ Three kinds of files, deliberately split:
 
 - `gripper_mcp/datasheets/<model>.yaml`: one datasheet per Robotiq gripper
   model, shipped inside the package so an installed wheel finds it. It carries
-  only what no robot description can tell us: the stroke in mm, the grip force
-  the product is rated for, timing defaults, and which tactile pads fit it. The
+  only what no robot description can tell us: the stroke in mm, the finger
+  speed range, timing defaults, and which tactile pads fit it. The
   command joint's name and range come from the robot at runtime. Adding a model
   is adding a file.
 - `gripper_mcp/datasheets/tactile/<model>.yaml`: one datasheet per tactile
@@ -60,6 +60,20 @@ class GripperConfig(StrictModel):
         return self
 
 
+class SpeedRange(StrictModel):
+    min_mm_s: float = Field(gt=0.0)
+    max_mm_s: float
+
+    @model_validator(mode="after")
+    def _max_above_min(self) -> "SpeedRange":
+        if self.max_mm_s <= self.min_mm_s:
+            raise ValueError(
+                f"speed max_mm_s ({self.max_mm_s}) must be above "
+                f"min_mm_s ({self.min_mm_s})"
+            )
+        return self
+
+
 class Defaults(StrictModel):
     effort: float = Field(ge=0.0, le=1.0)
     motion_timeout_s: float
@@ -83,6 +97,7 @@ class TactileSpec(StrictModel):
 class GripperModelSpec(StrictModel):
     model: str
     stroke: Stroke
+    speed: SpeedRange
     defaults: Defaults
     tactile_model: str | None = None
     tactile: TactileSpec | None = Field(default=None, exclude=True)

@@ -18,6 +18,7 @@ MCP_DIR = Path(__file__).resolve().parent.parent
 EXAMPLE_WIRING = MCP_DIR / "grippers.yaml.example"
 
 MODELS = {"robotiq_2f_85": 85.0, "robotiq_2f_140": 140.0}
+SPEED_RANGES_MM_S = {"robotiq_2f_85": (20.0, 150.0), "robotiq_2f_140": (30.0, 250.0)}
 TSF_85_TAXELS_PER_PAD = 28
 TACTILE_SPEC_DIR = SPEC_DIR / "tactile"
 
@@ -45,6 +46,7 @@ def test_each_datasheet_matches_the_product_sheet(model):
     assert spec.model == model
     assert spec.stroke.max_opening_mm == MODELS[model]
     assert spec.stroke.min_opening_mm == 0.0
+    assert (spec.speed.min_mm_s, spec.speed.max_mm_s) == SPEED_RANGES_MM_S[model]
 
 
 def test_the_datasheets_ship_inside_the_package():
@@ -81,6 +83,14 @@ def test_a_datasheet_no_longer_carries_the_urdf_joint(tmp_path):
 
     with pytest.raises(ValidationError, match="command_joint"):
         load_model_spec(write_datasheet(tmp_path, stale))
+
+
+def test_a_speed_range_that_does_not_rise_is_rejected(tmp_path):
+    backwards = datasheet_2f_85()
+    backwards["speed"] = {"min_mm_s": 150.0, "max_mm_s": 20.0}
+
+    with pytest.raises(ValidationError, match="must be above min_mm_s"):
+        load_model_spec(write_datasheet(tmp_path, backwards))
 
 
 def test_a_default_effort_above_one_is_rejected(tmp_path):
