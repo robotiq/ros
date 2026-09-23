@@ -18,6 +18,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends "ros-${ROS_DISTRO}-rmw-cyclonedds-cpp" \
     && rm -rf /var/lib/apt/lists/*
 
+# Fast DDS reaches the other containers over UDP only. With its shared-memory
+# transport on, about one MCP restart in nine came up blind: the graph listed the
+# driver's topics but no message ever arrived (4 in 34 restarts on the bench, 0 in
+# 45 over UDP only, same idle CPU). CycloneDDS ignores the variable.
+ENV FASTDDS_BUILTIN_TRANSPORTS=UDPv4
+
 COPY --from=ghcr.io/astral-sh/uv:0.12.9 /uv /usr/local/bin/uv
 
 # The venv must be the system interpreter's, with system site-packages visible:
