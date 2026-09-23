@@ -223,7 +223,7 @@ def test_a_tactile_datasheet_with_no_samples_to_average_is_rejected(tmp_path):
     sheet.write_text(
         (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml")
         .read_text()
-        .replace("baseline_samples: 100", "baseline_samples: 0")
+        .replace("baseline_samples: 1000", "baseline_samples: 0")
     )
 
     with pytest.raises(ValidationError, match="baseline_samples"):
