@@ -16,6 +16,7 @@
         gripper_speed_multiplier
         gripper_force_multiplier
         gripper_max_speed
+        gripper_min_speed
         gripper_max_force
         gripper_closed_position">
 
@@ -46,6 +47,7 @@
                 <param name="gripper_speed_multiplier">${gripper_speed_multiplier}</param>
                 <param name="gripper_force_multiplier">${gripper_force_multiplier}</param>
                 <param name="gripper_max_speed">${gripper_max_speed}</param>
+                <param name="gripper_min_speed">${gripper_min_speed}</param>
                 <param name="gripper_max_force">${gripper_max_force}</param>
             </xacro:unless>
         </hardware>

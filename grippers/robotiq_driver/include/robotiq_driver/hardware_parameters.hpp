@@ -59,6 +59,9 @@ inline constexpr double kConnectionFrequencyDefault = 100.0;
 //! Full scale of the shipped 2F-85, and so the default for
 //! gripper_max_speed / gripper_max_force.
 inline constexpr double kMaxSpeedDefault = 0.150; // m/s
+//! Slowest speed of the shipped 2F-85, what rSP 0 moves at, and so the
+//! default for gripper_min_speed. Robotiq::profiles::k2F85.minSpeed.
+inline constexpr double kMinSpeedDefault = 0.020; // m/s
 inline constexpr double kMaxForceDefault = 235.0; // N
 
 struct GripperParameters
@@ -75,6 +78,9 @@ struct GripperParameters
    //! set_gripper_max_velocity / set_gripper_max_effort command interfaces
    //! into rSP / rFR register fractions.
    double max_speed = kMaxSpeedDefault;
+   //! Speed at rSP 0. A speed command maps linearly from here (register 0)
+   //! to max_speed (register 255), the SDK's speedToRegister rule.
+   double min_speed = kMinSpeedDefault;
    double max_force = kMaxForceDefault;
 
    //! Initial fractions of the above published on those command interfaces.

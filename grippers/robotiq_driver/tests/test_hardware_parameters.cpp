@@ -150,6 +150,7 @@ TEST(HardwareParameters, TimeoutsAreSecondsInTheUrdfAndMillisecondsInTheConfig)
 TEST(HardwareParameters, ReadsTheScalingParameters)
 {
    const GripperParameters parameters = parseParameters(info_with({{"gripper_max_speed", "0.2"},
+                                                                   {"gripper_min_speed", "0.03"},
                                                                    {"gripper_max_force", "185"},
                                                                    {"gripper_speed_multiplier", "0.75"},
                                                                    {"gripper_force_multiplier", "0.5"}}),
@@ -157,6 +158,7 @@ TEST(HardwareParameters, ReadsTheScalingParameters)
 
    EXPECT_DOUBLE_EQ(0.7929, parameters.closed_position);
    EXPECT_DOUBLE_EQ(0.2, parameters.max_speed);
+   EXPECT_DOUBLE_EQ(0.03, parameters.min_speed);
    EXPECT_DOUBLE_EQ(185.0, parameters.max_force);
    EXPECT_DOUBLE_EQ(0.75, parameters.speed_multiplier);
    EXPECT_DOUBLE_EQ(0.5, parameters.force_multiplier);
@@ -179,11 +181,13 @@ TEST(HardwareParameters, AnUnusableScaleFallsBackToItsDefault)
    // here rather than at each use.
    for(const char* unusable : {"0", "-1", "-235", "nan", "-inf"})
    {
-      const GripperParameters parameters =
-         parseParameters(info_with({{"gripper_max_force", unusable}, {"gripper_max_speed", unusable}}), logger());
+      const GripperParameters parameters = parseParameters(
+         info_with({{"gripper_max_force", unusable}, {"gripper_max_speed", unusable}, {"gripper_min_speed", unusable}}),
+         logger());
 
       EXPECT_DOUBLE_EQ(kMaxForceDefault, parameters.max_force) << "gripper_max_force '" << unusable << "'";
       EXPECT_DOUBLE_EQ(kMaxSpeedDefault, parameters.max_speed) << "gripper_max_speed '" << unusable << "'";
+      EXPECT_DOUBLE_EQ(kMinSpeedDefault, parameters.min_speed) << "gripper_min_speed '" << unusable << "'";
    }
 }
 

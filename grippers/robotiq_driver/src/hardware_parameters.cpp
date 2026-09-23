@@ -48,6 +48,7 @@ constexpr const char* kSlaveAddressParam = "slave_address";
 constexpr const char* kConnectionFrequencyParam = "connection_frequency";
 constexpr const char* kClosedPositionParam = "gripper_closed_position";
 constexpr const char* kMaxSpeedParam = "gripper_max_speed";
+constexpr const char* kMinSpeedParam = "gripper_min_speed";
 constexpr const char* kMaxForceParam = "gripper_max_force";
 constexpr const char* kSpeedMultiplierParam = "gripper_speed_multiplier";
 constexpr const char* kForceMultiplierParam = "gripper_force_multiplier";
@@ -174,6 +175,7 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
    }
 
    parameters.max_speed = parameterOr<double>(info, logger, kMaxSpeedParam, parameters.max_speed, asPositiveDouble);
+   parameters.min_speed = parameterOr<double>(info, logger, kMinSpeedParam, parameters.min_speed, asPositiveDouble);
    parameters.max_force = parameterOr<double>(info, logger, kMaxForceParam, parameters.max_force, asPositiveDouble);
    parameters.speed_multiplier =
       parameterOr<double>(info, logger, kSpeedMultiplierParam, parameters.speed_multiplier, asDouble);

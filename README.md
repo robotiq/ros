@@ -404,7 +404,8 @@ None of the four beyond `position` and `velocity` are `ros2_control` standard in
 | `slave_address` | `0x09` | Modbus slave address; `0x09` as the manual prints it, a bare number as the decimal it looks like |
 | `connection_frequency` | `100` | Rate of the SDK's background exchange cycle, in Hz; `0` free-runs |
 | `activation_timeout` | `15` | Seconds allowed for activation and for fault recovery |
-| `gripper_max_speed` / `gripper_max_force` | `0.150` m/s / `235` N | Full scale used to turn the speed/effort command interfaces into rSP / rFR register fractions. rFR caps the motor current rather than the applied force — see [Commanding the gripper](#commanding-the-gripper). Command-side only, and nothing scales a state interface by them. Rejected unless finite and above zero |
+| `gripper_min_speed` | `0.020` m/s | The speed rSP 0 moves at, the gripper's slowest. A speed command maps linearly from it (rSP 0) to `gripper_max_speed` (rSP 255), the SDK's `speedToRegister` rule, and a slower one floors at rSP 0. `0.030` on the 2F-140. Rejected unless finite and above zero |
+| `gripper_max_speed` / `gripper_max_force` | `0.150` m/s / `235` N | Full scale used to turn the speed/effort command interfaces into rSP / rFR registers. rFR caps the motor current rather than the applied force — see [Commanding the gripper](#commanding-the-gripper). Command-side only, and nothing scales a state interface by them. Rejected unless finite and above zero |
 | `gripper_speed_multiplier` / `gripper_force_multiplier` | `1.0` | Initial fractions published on those interfaces |
 | `use_dummy` | `false` | Drive a fake gripper instead of hardware. Off for the usual falsey spellings — empty, `0`, `false`, `no`, `off`, in any case — on for anything else |
 

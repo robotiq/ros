@@ -46,6 +46,7 @@
 
 #include <Robotiq/gripper/fake/gripper_factory.hpp>
 #include <Robotiq/gripper/to_string.hpp>
+#include <Robotiq/gripper/units.hpp>
 #include <Robotiq/gripper/wait.hpp>
 
 #include <hardware_interface/actuator_interface.hpp>
@@ -545,7 +546,8 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::write(const rcl
 
    const std::optional<uint8_t> position =
       registerFromJointPosition(gripper_position_command_, parameters_.closed_position);
-   const std::optional<uint8_t> speed = registerFromFractionOf(gripper_speed_, parameters_.max_speed);
+   const std::optional<uint8_t> speed =
+      Robotiq::units::registerFromSpan(gripper_speed_, parameters_.min_speed, parameters_.max_speed);
    const std::optional<uint8_t> force = registerFromFractionOf(gripper_force_, parameters_.max_force);
    if(!position || !speed || !force)
    {
@@ -553,12 +555,14 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::write(const rcl
                             diagnostic_clock_,
                             kDiagnosticThrottleMs,
                             "Cannot map position %f, speed %f, force %f onto gripper registers with "
-                            "gripper_closed_position %f, gripper_max_speed %f, gripper_max_force %f; "
+                            "gripper_closed_position %f, gripper_min_speed %f, gripper_max_speed %f, "
+                            "gripper_max_force %f; "
                             "keeping the previous command.",
                             gripper_position_command_,
                             gripper_speed_,
                             gripper_force_,
                             parameters_.closed_position,
+                            parameters_.min_speed,
                             parameters_.max_speed,
                             parameters_.max_force);
    }

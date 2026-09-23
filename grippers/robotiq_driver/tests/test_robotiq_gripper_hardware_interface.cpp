@@ -29,6 +29,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -36,6 +37,7 @@
 #include <limits>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <hardware_interface/component_parser.hpp>
@@ -500,6 +502,40 @@ TEST(TestRobotiqGripperHardwareInterface, AnUnmappableSpeedKeepsThePreviousOne)
    EXPECT_EQ(hardware_interface::return_type::OK, gripper.write(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01)));
    EXPECT_EQ(speed, gripper.commandedSpeedRegister()) << "a NaN speed reached the gripper as a register";
    EXPECT_NE(position, gripper.commandedPositionRegister()) << "the position command stopped following";
+
+   EXPECT_EQ(CallbackReturn::SUCCESS, gripper.on_deactivate(state));
+   EXPECT_EQ(CallbackReturn::SUCCESS, gripper.on_cleanup(state));
+}
+
+/**
+ * A speed in m/s maps onto the gripper's own range, not onto zero to full
+ * scale: rSP 0 already moves at the slowest speed, so gripper_min_speed is
+ * register 0 and anything slower floors there.
+ */
+TEST(TestRobotiqGripperHardwareInterface, ASpeedMapsOntoTheGrippersSpeedRange)
+{
+   RecoveringGripper gripper;
+   const rclcpp_lifecycle::State state;
+   using CallbackReturn = RobotiqGripperHardwareInterface::CallbackReturn;
+
+   ASSERT_EQ(CallbackReturn::SUCCESS, gripper.on_configure(state));
+   ASSERT_EQ(CallbackReturn::SUCCESS, gripper.on_activate(state));
+   gripper.commandPosition(0.0);
+
+   const std::array<std::pair<double, uint8_t>, 5> cases{{
+      {0.010, 0},
+      {kMinSpeedDefault, 0},
+      {0.085, 128},
+      {kMaxSpeedDefault, 255},
+      {0.500, 255},
+   }};
+   for(const auto& [speed, expected] : cases)
+   {
+      gripper.commandSpeed(speed);
+      ASSERT_EQ(hardware_interface::return_type::OK,
+                gripper.write(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01)));
+      EXPECT_EQ(expected, gripper.commandedSpeedRegister()) << speed << " m/s";
+   }
 
    EXPECT_EQ(CallbackReturn::SUCCESS, gripper.on_deactivate(state));
    EXPECT_EQ(CallbackReturn::SUCCESS, gripper.on_cleanup(state));

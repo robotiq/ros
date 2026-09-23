@@ -20,6 +20,7 @@
         gripper_speed_multiplier:=1.0
         gripper_force_multiplier:=0.5
         gripper_max_speed:=0.250
+        gripper_min_speed:=0.030
         gripper_max_force:=125.0
         gripper_closed_position:=0.695">
 
@@ -50,6 +51,7 @@
                 gripper_speed_multiplier="${gripper_speed_multiplier}"
                 gripper_force_multiplier="${gripper_force_multiplier}"
                 gripper_max_speed="${gripper_max_speed}"
+                gripper_min_speed="${gripper_min_speed}"
                 gripper_max_force="${gripper_max_force}"
                 gripper_closed_position="${gripper_closed_position}"/>
         </xacro:if>
