@@ -2,8 +2,8 @@
 
 One node per gripper, in the namespace the wiring gives the pads (the gripper's
 own unless `tactile_namespace` says otherwise), so `TactileSensor/StaticData`
-resolves to the pads on that gripper. It shares the executor thread with the
-gripper backends (RosGraph).
+resolves to the pads on that gripper. It spins on its own executor thread
+(RosGraph), so its 2 kHz frames never hold up the gripper backend's topics.
 
 The driver publishes with the sensor-data QoS (best effort), so the
 subscription must too: a reliable subscriber never matches a best-effort
@@ -26,7 +26,6 @@ the driver has stopped publishing.
 
 import time
 
-from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from robotiq_tsf.msg import StaticData
 
@@ -50,10 +49,7 @@ class RosTactileBackend:
         self, gripper_name: str, namespace: str, layout: TactileLayout
     ) -> None:
         self._layout = layout
-        executor = RosGraph.executor()
-        self._node = Node(
-            f"gripper_mcp_tactile_{gripper_name}", namespace=namespace or "/"
-        )
+        self._node = RosGraph.node(f"gripper_mcp_tactile_{gripper_name}", namespace)
         self._static: StaticData | None = None
         self._latest_at = 0.0
         self._collecting = False
@@ -61,7 +57,7 @@ class RosTactileBackend:
         self._node.create_subscription(
             StaticData, STATIC_TOPIC, self._on_static, qos_profile_sensor_data
         )
-        executor.add_node(self._node)
+        RosGraph.spin(self._node)
 
     def read_tactile(self) -> TactileReading:
         static = poll_until(lambda: self._static, STATIC_WAIT_S)
