@@ -16,15 +16,14 @@ and refuses to answer from a frame older than `STALE_FRAME_S`; otherwise a
 driver that stopped publishing would keep reporting its last frame forever,
 and a frozen "no contact" reads as "keep closing" to a tactile-guided close.
 
-`sample` is the exception: it asks the subscription callback to keep the next
-`count` messages and sleeps until the callback signals the buffer is full, so
-each frame is a distinct sensor update and the two threads hand off once per
-sample rather than once per frame (a per-frame handoff under the GIL was
-measured at under 100 frames/s against a 2 kHz publisher). It gives up with a
-stalled-sample error if no frame arrives for `STALE_FRAME_S` mid-sample.
+`sample` is the exception: the subscription callback keeps every frame that
+arrives during the tare window while the caller sleeps through it, so each
+frame is a distinct sensor update and the two threads never hand off per
+frame. The window is a duration rather than a frame count because the frame
+rate is the driver's to choose. A window that received no frame at all means
+the driver has stopped publishing.
 """
 
-import threading
 import time
 
 from rclpy.node import Node
@@ -57,9 +56,8 @@ class RosTactileBackend:
         )
         self._static: StaticData | None = None
         self._latest_at = 0.0
-        self._wanted = 0
+        self._collecting = False
         self._collected: list[StaticData] = []
-        self._sample_done = threading.Event()
         self._node.create_subscription(
             StaticData, STATIC_TOPIC, self._on_static, qos_profile_sensor_data
         )
@@ -77,19 +75,15 @@ class RosTactileBackend:
             raise RuntimeError(stale_frame_message(age_s, STALE_FRAME_S))
         return self._reading(static)
 
-    def sample(self, count: int) -> list[TactileReading]:
-        self._wanted = 0
+    def sample(self, duration_s: float) -> list[TactileReading]:
         self._collected = []
-        self._sample_done.clear()
-        self._wanted = count
-        seen = 0
-        while not self._sample_done.wait(STALE_FRAME_S):
-            if len(self._collected) == seen:
-                self._wanted = 0
-                raise RuntimeError(stalled_sample_message(seen, count, STALE_FRAME_S))
-            seen = len(self._collected)
-        self._wanted = 0
-        return [self._reading(message) for message in self._collected]
+        self._collecting = True
+        time.sleep(duration_s)
+        self._collecting = False
+        frames = list(self._collected)
+        if not frames:
+            raise RuntimeError(stalled_sample_message(duration_s))
+        return [self._reading(message) for message in frames]
 
     def _reading(self, static: StaticData) -> TactileReading:
         return reading_from_counts(
@@ -99,7 +93,5 @@ class RosTactileBackend:
     def _on_static(self, message: StaticData) -> None:
         self._static = message
         self._latest_at = time.monotonic()
-        if len(self._collected) < self._wanted:
+        if self._collecting:
             self._collected.append(message)
-            if len(self._collected) == self._wanted:
-                self._sample_done.set()
