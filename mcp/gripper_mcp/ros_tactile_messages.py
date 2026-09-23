@@ -46,8 +46,8 @@ def stale_frame_message(age_s: float, limit_s: float) -> str:
     )
 
 
-def stalled_sample_message(collected: int, wanted: int, limit_s: float) -> str:
+def stalled_sample_message(window_s: float) -> str:
     return (
-        f"No new {STATIC_TOPIC} frame for {limit_s:.0f} s after {collected} of "
-        f"{wanted} samples; the robotiq_tsf driver has stopped publishing."
+        f"No {STATIC_TOPIC} frame during the {window_s:g} s tare window; "
+        "the robotiq_tsf driver has stopped publishing."
     )

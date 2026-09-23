@@ -218,15 +218,15 @@ def test_a_missing_wiring_file_names_the_path(tmp_path):
         load_gripper_configs(missing)
 
 
-def test_a_tactile_datasheet_with_no_samples_to_average_is_rejected(tmp_path):
+def test_a_tactile_datasheet_with_no_tare_window_is_rejected(tmp_path):
     sheet = tmp_path / "robotiq_tsf_85.yaml"
     sheet.write_text(
         (TACTILE_SPEC_DIR / "robotiq_tsf_85.yaml")
         .read_text()
-        .replace("baseline_samples: 1000", "baseline_samples: 0")
+        .replace("baseline_s: 1.0", "baseline_s: 0")
     )
 
-    with pytest.raises(ValidationError, match="baseline_samples"):
+    with pytest.raises(ValidationError, match="baseline_s"):
         load_tactile_spec(sheet)
 
 

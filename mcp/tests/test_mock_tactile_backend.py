@@ -1,4 +1,5 @@
 from fakes.tactile import (
+    FRAME_RATE_HZ,
     REST_COUNTS,
     TAXEL_MAX_COUNTS,
     TOUCH_COUNTS,
@@ -13,7 +14,7 @@ JUST_TOUCHING_MM = 40.0
 LIGHTLY_PRESSED_MM = 38.0
 FIRMLY_PRESSED_MM = 30.0
 CRUSHED_MM = 0.0
-SAMPLE_COUNT = 3
+SAMPLE_WINDOW_S = 0.03
 
 
 def backend(opening_mm: float, object_width_mm: float | None) -> MockTactileBackend:
@@ -100,10 +101,10 @@ def test_a_sample_is_one_fresh_reading_per_frame_asked():
         read_opening_mm=lambda: opening["mm"], object_width_mm=OBJECT_WIDTH_MM
     )
 
-    resting = live.sample(SAMPLE_COUNT)
+    resting = live.sample(SAMPLE_WINDOW_S)
     opening["mm"] = FIRMLY_PRESSED_MM
-    pressed = live.sample(SAMPLE_COUNT)
+    pressed = live.sample(SAMPLE_WINDOW_S)
 
-    assert len(resting) == len(pressed) == SAMPLE_COUNT
+    assert len(resting) == len(pressed) == round(SAMPLE_WINDOW_S * FRAME_RATE_HZ)
     assert all(all_resting(frame) for frame in resting)
     assert not any(all_resting(frame) for frame in pressed)

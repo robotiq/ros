@@ -28,5 +28,9 @@ contact_threshold: 0.02
 # hold reads about 0.8, so 2x the noise separates the two with room.
 noise_margin: 2.0
 
-# Matches the tactile SDK's findBaseline(), which averages 1000 samples.
-baseline_samples: 1000
+# Seconds of frames a tare averages, however fast the pads publish. The pads
+# publish at about 1.7 kHz, so 1 s is about the 1000 samples the SDK's
+# findBaseline() takes. A shorter window misses the slow part of the rest
+# noise: on a free TSF-85, 0.06 s of frames gave 19 false contacts in 50
+# reads, 1 s gave none.
+baseline_s: 1.0
