@@ -37,6 +37,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <future>
 #include <limits>
 #include <memory>
@@ -50,6 +51,7 @@
 #include <robotiq_driver/ros2_control_compat.hpp>
 
 #include <Robotiq/gripper.hpp>
+#include <Robotiq/gripper/velocity_estimator.hpp>
 
 #include <hardware_interface/handle.hpp>
 #include <hardware_interface/hardware_info.hpp>
@@ -62,6 +64,8 @@
 namespace robotiq_driver {
 
 inline constexpr const char* kObjectStatusInterface = "object_status";
+
+inline constexpr std::chrono::milliseconds kVelocityTimeConstant{100};
 inline constexpr const char* kMotorCurrentInterface = "motor_current";
 inline constexpr const char* kGripperFaultInterface = "gripper_fault";
 inline constexpr const char* kGripperFaultSeverityInterface = "gripper_fault_severity";
@@ -188,6 +192,7 @@ protected:
 
    double gripper_position_ = 0.0;
    double gripper_velocity_ = 0.0;
+   Robotiq::VelocityEstimator velocity_estimator_{kVelocityTimeConstant};
 
    // gCU in amperes, and gOBJ verbatim. Doubles to match the other
    // interfaces: Jazzy can carry a uint8_t, but only through the
