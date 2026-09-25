@@ -13,9 +13,10 @@ controller_manager:
       shutdown_on_initial_state_failure: false
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
-    # Jazzy and newer: parallel_gripper_action_controller replaces gripper_controllers package
+    # Jazzy and newer: the stock parallel_gripper_action_controller, extended to
+    # decide goals from the gripper's object detection (use_object_status).
     robotiq_gripper_controller:
-      type: parallel_gripper_action_controller/GripperActionController
+      type: robotiq_controllers/GripperActionController
     robotiq_activation_controller:
       type: robotiq_controllers/RobotiqActivationController
     robotiq_gripper_status_broadcaster:
@@ -38,6 +39,9 @@ robotiq_gripper_controller:
     allow_stalling: true
     stall_timeout: 0.05
     goal_tolerance: 0.02
+    # Off until the bench confirms the verdict latency; on, stalled/reached come
+    # from the gripper's object detection and the stall timeout is a fallback.
+    use_object_status: false
 
 robotiq_activation_controller:
   ros__parameters:

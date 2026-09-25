@@ -104,7 +104,7 @@ def exported_command_interfaces(joint):
 # newer take ParallelGripperCommand.
 # Humble EOL: simplify — one plugin remains, so this mapping collapses.
 EXPECTED_CONTROLLER_TYPES = {
-    JAZZY_CONFIG: "parallel_gripper_action_controller/GripperActionController",
+    JAZZY_CONFIG: "robotiq_controllers/GripperActionController",
     HUMBLE_CONFIG: "position_controllers/GripperActionController",
 }
 EXPECTED_CONTROLLER_TYPES.update(
@@ -150,6 +150,14 @@ def test_claimed_interfaces_follow_the_joint(joint):
     params = gripper_controller_params(JAZZY_CONFIG, joint)
     claimed = {params["max_effort_interface"], params["max_velocity_interface"]}
     assert claimed <= exported_command_interfaces(joint)
+
+
+@pytest.mark.parametrize("config", (JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG))
+def test_jazzy_configs_spell_out_use_object_status(config):
+    # The flag decides which path reports stalled/reached; a reader of the
+    # config must not have to know the controller's default.
+    params = gripper_controller_params(config)
+    assert params["use_object_status"] is False
 
 
 # Humble EOL: delete this test.
