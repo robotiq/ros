@@ -22,10 +22,18 @@ response to result, so the tool-level ceiling is the datasheet's timeout. A goal
 that outlives it is cancelled and the cancel's answer is reported, because a
 rejected cancel means the gripper is still moving after the tool said it failed.
 
-`force_n` is never filled. `joint_states.effort` would be a joint torque in N m,
-and no shipped description exports an effort interface anyway; the gripper
-reports motor current (gCU), and turning that into a fingertip force needs a
-calibration nobody has done. The commanded force is the honest number.
+The effort is 0.0 to 1.0, the gripper's minimum to maximum force, the way the
+gripper SDK commands it: the force register has no newton equivalent, since the
+force applied depends on the speed, the fingers and the object. The controller's
+goal still carries `max_effort` in nominal newtons and the driver divides it by
+its `gripper_max_force` parameter, 235 by default, to fill the register, so the
+effort is sent as effort x 235. Temporary: robotiq/ros#70 has the driver take
+the SDK's effort directly, and this scaling goes with it.
+
+`holding_effort` is never filled. `joint_states.effort` would be a joint torque
+in N m, and no shipped description exports an effort interface anyway; the
+gripper reports motor current (gCU), and turning that into a fingertip force
+needs a calibration nobody has done.
 """
 
 import threading
@@ -46,9 +54,11 @@ from gripper_mcp.backend import BackendHealth, BackendMotion, BackendState
 from gripper_mcp.robot_description import command_joint
 from gripper_mcp.units import JointGeometry
 from gripper_mcp.ros_messages import (
+    JOINT_STATES_TOPIC,
     advertised_type,
     cancel_note,
     motion_from_result,
+    no_state_message,
     position_of,
     refused,
     timed_out,
@@ -59,9 +69,9 @@ ACTION_TYPES = {
     "control_msgs/action/ParallelGripperCommand": ParallelGripperCommand,
     "control_msgs/action/GripperCommand": GripperCommand,
 }
-JOINT_STATES_TOPIC = "joint_states"
 DESCRIPTION_TOPIC = "robot_description"
 LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+DRIVER_FULL_SCALE_EFFORT_N = 235.0
 SERVER_WAIT_S = 2.0
 DESCRIPTION_WAIT_S = 2.0
 STATE_WAIT_S = 2.0
@@ -136,10 +146,19 @@ class JointStateFeed:
     def follow(self, joint_name: str) -> None:
         self._joint_name = joint_name
 
+    def age_s(self) -> float | None:
+        if self.latest is None:
+            return None
+        return time.monotonic() - self.latest_at
+
+    def fresh(self) -> bool:
+        age = self.age_s()
+        return age is not None and age < STALE_STATE_S
+
     def _on_joint_states(self, message: JointState) -> None:
         if self._joint_name is not None and self._joint_name in message.name:
-            self.latest = message
             self.latest_at = time.monotonic()
+            self.latest = message
 
 
 class RosGripperBackend:
@@ -175,21 +194,27 @@ class RosGripperBackend:
     def read_state(self) -> BackendState:
         joint = self.joint_geometry().name
         if not self._await_state():
-            raise RuntimeError(
-                f"No {JOINT_STATES_TOPIC} naming '{joint}' under "
-                f"'{self._node.get_namespace()}' within {STATE_WAIT_S:.0f} s; "
-                "is the controller running?"
-            )
+            age = self._states.age_s()
+            if age is None or age >= STALE_STATE_S:
+                raise RuntimeError(
+                    no_state_message(
+                        age,
+                        joint,
+                        self._node.get_namespace(),
+                        STATE_WAIT_S,
+                        STALE_STATE_S,
+                    )
+                )
         return BackendState(position_rad=position_of(self._states.latest, joint, 0.0))
 
     def move_to(
-        self, position_rad: float, max_effort_n: float, timeout_s: float
+        self, position_rad: float, effort: float, timeout_s: float
     ) -> BackendMotion:
         with self._motion_lock:
-            return self._move_to(position_rad, max_effort_n, timeout_s)
+            return self._move_to(position_rad, effort, timeout_s)
 
     def _move_to(
-        self, position_rad: float, max_effort_n: float, timeout_s: float
+        self, position_rad: float, effort: float, timeout_s: float
     ) -> BackendMotion:
         deadline = time.monotonic() + timeout_s
         self.joint_geometry()
@@ -202,7 +227,7 @@ class RosGripperBackend:
                 f"'{self._node.get_namespace()}'; is the controller active?",
             )
 
-        goal = self._goal(position_rad, max_effort_n)
+        goal = self._goal(position_rad, effort)
         sent = client.send_goal_async(goal)
         handle = wait_for(sent, remaining(deadline))
         if handle is None:
@@ -228,11 +253,7 @@ class RosGripperBackend:
 
     def health(self) -> BackendHealth:
         client = self._ready_client()
-        state_fresh = (
-            self._joint_known()
-            and self._await_state()
-            and time.monotonic() - self._states.latest_at < STALE_STATE_S
-        )
+        state_fresh = self._joint_known() and self._await_state()
         return BackendHealth(
             reachable=client is not None or state_fresh,
             controller_active=client is not None,
@@ -265,7 +286,9 @@ class RosGripperBackend:
         return poll_until(lambda: self._description, DESCRIPTION_WAIT_S) is not None
 
     def _await_state(self) -> bool:
-        return poll_until(lambda: self._states.latest, STATE_WAIT_S) is not None
+        return (
+            poll_until(lambda: self._states.fresh() or None, STATE_WAIT_S) is not None
+        )
 
     def _ready_client(self) -> ActionClient | None:
         with self._client_lock:
@@ -294,15 +317,16 @@ class RosGripperBackend:
             return "absent"
         return f"ready ({self._action_type.__name__})"
 
-    def _goal(self, position_rad: float, max_effort_n: float):
+    def _goal(self, position_rad: float, effort: float):
         goal = self._action_type.Goal()
+        nominal_n = effort * DRIVER_FULL_SCALE_EFFORT_N
         if self._action_type is ParallelGripperCommand:
             goal.command.name = [self._joint.name]
             goal.command.position = [position_rad]
-            goal.command.effort = [max_effort_n]
+            goal.command.effort = [nominal_n]
         else:
             goal.command.position = position_rad
-            goal.command.max_effort = max_effort_n
+            goal.command.max_effort = nominal_n
         return goal
 
     def _result_position(self, result, fallback: float) -> float:

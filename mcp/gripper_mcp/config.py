@@ -60,19 +60,8 @@ class GripperConfig(StrictModel):
         return self
 
 
-class GripForce(StrictModel):
-    min_n: float
-    max_n: float
-
-    @model_validator(mode="after")
-    def _ordered(self) -> "GripForce":
-        if self.max_n <= self.min_n:
-            raise ValueError("max_n must exceed min_n")
-        return self
-
-
 class Defaults(StrictModel):
-    max_effort_n: float
+    effort: float = Field(ge=0.0, le=1.0)
     motion_timeout_s: float
 
 
@@ -94,7 +83,6 @@ class TactileSpec(StrictModel):
 class GripperModelSpec(StrictModel):
     model: str
     stroke: Stroke
-    grip_force: GripForce
     defaults: Defaults
     tactile_model: str | None = None
     tactile: TactileSpec | None = Field(default=None, exclude=True)
@@ -108,16 +96,6 @@ class GripperModelSpec(StrictModel):
                 f"block belongs in datasheets/{TACTILE_SUBDIR}/<tactile_model>.yaml"
             )
         return data
-
-    @model_validator(mode="after")
-    def _default_effort_within_the_rated_range(self) -> "GripperModelSpec":
-        effort = self.defaults.max_effort_n
-        if not self.grip_force.min_n <= effort <= self.grip_force.max_n:
-            raise ValueError(
-                f"defaults.max_effort_n {effort} is outside the rated grip_force "
-                f"{self.grip_force.min_n}-{self.grip_force.max_n} N"
-            )
-        return self
 
 
 def load_model_spec(path: Path) -> GripperModelSpec:

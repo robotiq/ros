@@ -5,6 +5,7 @@ from gripper_mcp.ros_messages import (
     advertised_type,
     cancel_note,
     motion_from_result,
+    no_state_message,
     position_of,
     refused,
     timed_out,
@@ -138,3 +139,16 @@ def test_a_timeout_carries_the_cancel_note():
 
     assert motion.detail.startswith("No result from the controller within 1.0 s.")
     assert motion.detail.endswith("may still be moving.")
+
+
+def test_a_missing_joint_state_names_the_joint_and_the_wait():
+    message = no_state_message(None, "knuckle", "/left", 5.0, 2.0)
+
+    assert "No joint_states naming 'knuckle' under '/left' within 5 s" in message
+
+
+def test_a_stale_joint_state_names_its_age():
+    message = no_state_message(25.4, "knuckle", "/left", 5.0, 2.0)
+
+    assert "25.4 s old (limit 2 s)" in message
+    assert "has the controller stopped?" in message
