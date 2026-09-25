@@ -47,6 +47,18 @@ target_link_libraries(${PROJECT_NAME}
 
 pluginlib_export_plugin_description_file(controller_interface controller_plugins.xml)
 
+# The gripper action controller derives from parallel_gripper_controller, which
+# arrived in Jazzy. Humble EOL: simplify — build and register it unconditionally.
+find_package(parallel_gripper_controller QUIET)
+if(parallel_gripper_controller_FOUND)
+  target_sources(${PROJECT_NAME} PRIVATE src/gripper_action_controller.cpp)
+  target_link_libraries(${PROJECT_NAME}
+    parallel_gripper_controller::parallel_gripper_action_controller
+  )
+  list(APPEND THIS_PACKAGE_INCLUDE_DEPENDS parallel_gripper_controller)
+  pluginlib_export_plugin_description_file(controller_interface gripper_action_controller_plugins.xml)
+endif()
+
 # # INSTALL
 install(
   TARGETS ${PROJECT_NAME}

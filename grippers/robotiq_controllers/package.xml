@@ -13,12 +13,16 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>controller_interface</depend>
+  <!-- The gripper action controller derives from it; Humble has no such package.
+       Humble EOL: simplify — drop the condition. -->
+  <depend condition="$ROS_DISTRO != humble">parallel_gripper_controller</depend>
   <depend>realtime_tools</depend>
   <depend>robotiq_msgs</depend>
   <depend>std_srvs</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>hardware_interface</test_depend>
+  <test_depend>rclcpp_action</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 

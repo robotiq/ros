@@ -1,0 +1,8 @@
+<!-- Humble EOL: simplify - merge this class into controller_plugins.xml. -->
+<library path="robotiq_controllers">
+    <class name="robotiq_controllers/GripperActionController" type="robotiq_controllers::GripperActionController" base_class_type="controller_interface::ControllerInterface">
+        <description>
+            The ParallelGripperCommand action controller, deciding stalled and reached from the Robotiq gripper's object detection.
+        </description>
+    </class>
+</library>

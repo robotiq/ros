@@ -35,9 +35,11 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include <controller_interface/controller_interface.hpp>
 #include <hardware_interface/handle.hpp>
+#include <hardware_interface/loaned_command_interface.hpp>
 #include <hardware_interface/loaned_state_interface.hpp>
 
 #if __has_include(<controller_interface/controller_interface_params.hpp>)
@@ -63,26 +65,40 @@ struct HasUrdfInit<
 } // namespace detail
 
 // Humble takes the controller name alone; Jazzy adds the description and the
-// update rates, and its 4.4x line moves them into a struct.
+// update rates, and its 4.4x line moves them into a struct. Parameter overrides
+// stand in for the controller_manager's yaml.
 // Humble EOL: delete the HasUrdfInit trait and the name-only branch.
 template <typename ControllerT>
-controller_interface::return_type init(ControllerT& controller, const std::string& name, unsigned int update_rate)
+controller_interface::return_type init(ControllerT& controller,
+                                       const std::string& name,
+                                       unsigned int update_rate,
+                                       const std::vector<rclcpp::Parameter>& parameter_overrides = {})
 {
 #ifdef ROBOTIQ_HAS_CONTROLLER_INTERFACE_PARAMS
    controller_interface::ControllerInterfaceParams params;
    params.controller_name = name;
    params.update_rate = update_rate;
    params.controller_manager_update_rate = update_rate;
-   params.node_options = controller.define_custom_node_options();
+   params.node_options = controller.define_custom_node_options().parameter_overrides(parameter_overrides);
    return controller.init(params);
 #else
    if constexpr(detail::HasUrdfInit<ControllerT>::value)
    {
-      return controller.init(name, "", update_rate, "", controller.define_custom_node_options());
+      return controller.init(name,
+                             "",
+                             update_rate,
+                             "",
+                             controller.define_custom_node_options().parameter_overrides(parameter_overrides));
    }
    else
    {
-      return controller.init(name);
+      // Humble's own default options, plus the overrides.
+      return controller.init(name,
+                             "",
+                             rclcpp::NodeOptions()
+                                .allow_undeclared_parameters(true)
+                                .automatically_declare_parameters_from_overrides(true)
+                                .parameter_overrides(parameter_overrides));
    }
 #endif
 }
@@ -123,5 +139,40 @@ inline std::shared_ptr<hardware_interface::StateInterface> makeStateInterface(co
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
    return std::make_shared<hardware_interface::StateInterface>(joint, interface, value);
 #pragma GCC diagnostic pop
+}
+
+inline std::shared_ptr<hardware_interface::CommandInterface> makeCommandInterface(const std::string& joint,
+                                                                                  const std::string& interface,
+                                                                                  double* value)
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+   return std::make_shared<hardware_interface::CommandInterface>(joint, interface, value);
+#pragma GCC diagnostic pop
+}
+
+// Same two shapes as the state loan, with the shared_ptr one taking a deleter.
+// A template, so that the shape a distro lacks is never compiled.
+// Humble EOL: drop the reference branch.
+template <typename LoanedT, typename CommandInterfaceT>
+LoanedT loanCommandAs(const std::shared_ptr<CommandInterfaceT>& command_interface)
+{
+   if constexpr(std::is_constructible_v<LoanedT, std::shared_ptr<CommandInterfaceT>, typename LoanedT::Deleter>)
+   {
+      return LoanedT(command_interface, nullptr);
+   }
+   else
+   {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+      return LoanedT(*command_interface);
+#pragma GCC diagnostic pop
+   }
+}
+
+inline hardware_interface::LoanedCommandInterface loanCommand(
+   const std::shared_ptr<hardware_interface::CommandInterface>& command_interface)
+{
+   return loanCommandAs<hardware_interface::LoanedCommandInterface>(command_interface);
 }
 } // namespace robotiq_controllers::test_compat
