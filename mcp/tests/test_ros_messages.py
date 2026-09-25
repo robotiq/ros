@@ -142,13 +142,13 @@ def test_a_timeout_carries_the_cancel_note():
 
 
 def test_a_missing_joint_state_names_the_joint_and_the_wait():
-    message = no_state_message(None, "knuckle", "/left", 2.0)
+    message = no_state_message(None, "knuckle", "/left", 5.0, 2.0)
 
-    assert "No joint_states naming 'knuckle' under '/left' within 2 s" in message
+    assert "No joint_states naming 'knuckle' under '/left' within 5 s" in message
 
 
 def test_a_stale_joint_state_names_its_age():
-    message = no_state_message(25.4, "knuckle", "/left", 2.0)
+    message = no_state_message(25.4, "knuckle", "/left", 5.0, 2.0)
 
     assert "25.4 s old (limit 2 s)" in message
     assert "has the controller stopped?" in message

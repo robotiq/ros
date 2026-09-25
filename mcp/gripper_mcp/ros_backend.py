@@ -157,8 +157,8 @@ class JointStateFeed:
 
     def _on_joint_states(self, message: JointState) -> None:
         if self._joint_name is not None and self._joint_name in message.name:
-            self.latest = message
             self.latest_at = time.monotonic()
+            self.latest = message
 
 
 class RosGripperBackend:
@@ -194,14 +194,17 @@ class RosGripperBackend:
     def read_state(self) -> BackendState:
         joint = self.joint_geometry().name
         if not self._await_state():
-            raise RuntimeError(
-                no_state_message(
-                    self._states.age_s(),
-                    joint,
-                    self._node.get_namespace(),
-                    STALE_STATE_S,
+            age = self._states.age_s()
+            if age is None or age >= STALE_STATE_S:
+                raise RuntimeError(
+                    no_state_message(
+                        age,
+                        joint,
+                        self._node.get_namespace(),
+                        STATE_WAIT_S,
+                        STALE_STATE_S,
+                    )
                 )
-            )
         return BackendState(position_rad=position_of(self._states.latest, joint, 0.0))
 
     def move_to(
