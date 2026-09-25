@@ -28,8 +28,9 @@ contact_threshold: 0.02
 # hold reads about 0.8, so 2x the noise separates the two with room.
 noise_margin: 2.0
 
-# Distinct frames averaged by a tare. The SDK's findBaseline() takes 1000, but
-# measured in the #66 live run, about 110 frames a second reach Python whatever
-# the pads publish, so 1000 is a 9 s tool call; 100 is about 1 s and the rest
-# noise is +-2 counts.
-baseline_samples: 100
+# Seconds of frames a tare averages, however fast the pads publish. The pads
+# publish at about 1.7 kHz, so 1 s is about the 1000 samples the SDK's
+# findBaseline() takes. A shorter window misses the slow part of the rest
+# noise: on a free TSF-85, 0.06 s of frames gave 19 false contacts in 50
+# reads, 1 s gave none.
+baseline_s: 1.0

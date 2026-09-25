@@ -31,6 +31,7 @@ REST_COUNTS = 9
 TOUCH_COUNTS = 20
 TAXEL_MAX_COUNTS = 110
 STIFFNESS_COUNTS_PER_MM = 6.9
+FRAME_RATE_HZ = 100
 
 
 class MockTactileBackend:
@@ -60,8 +61,8 @@ class MockTactileBackend:
             layout=self._layout,
         )
 
-    def sample(self, count: int) -> list[TactileReading]:
-        return [self.read_tactile() for _ in range(count)]
+    def sample(self, duration_s: float) -> list[TactileReading]:
+        return [self.read_tactile() for _ in range(round(duration_s * FRAME_RATE_HZ))]
 
     def _taxel_counts(self) -> int:
         penetration_mm = self._penetration_mm()

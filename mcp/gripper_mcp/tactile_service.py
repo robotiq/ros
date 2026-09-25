@@ -63,6 +63,7 @@ class Tare:
     baseline: TactileBaseline
     noise_floor: float
     threshold: float
+    samples: int
 
 
 class TactileService:
@@ -82,7 +83,7 @@ class TactileService:
 
         return TactileTareResult(
             gripper_name=gripper_name,
-            samples=spec.baseline_samples,
+            samples=tare.samples,
             rest_counts_mean=round(mean_counts(tare.baseline), 2),
             noise_floor=round(tare.noise_floor, 5),
             threshold=round(tare.threshold, 5),
@@ -146,7 +147,7 @@ class TactileService:
         self, gripper_name: str, tactile: TactileBackend, spec: TactileSpec
     ) -> Tare:
         with self._tare_lock:
-            tare = measure_tare(tactile.sample(spec.baseline_samples), spec)
+            tare = measure_tare(tactile.sample(spec.baseline_s), spec)
             self._tares[gripper_name] = tare
         return tare
 
@@ -184,6 +185,7 @@ def measure_tare(readings: list[TactileReading], spec: TactileSpec) -> Tare:
         baseline=baseline,
         noise_floor=noise_floor,
         threshold=max(spec.contact_threshold, spec.noise_margin * noise_floor),
+        samples=len(readings),
     )
 
 
