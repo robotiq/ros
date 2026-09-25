@@ -5,6 +5,10 @@
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
+    # The gripper runs its own motion profile to each position goal. Lyrical
+    # defaults this to true, which ramps the position command at the URDF
+    # velocity limit and streams intermediate targets to the gripper.
+    enforce_command_limits: false
     # Jazzy defaults this to true and takes ros2_control_node down when the
     # gripper is not connected; Lyrical defaults to false. Set explicitly so every
     # distro keeps the node up and the connection can be retried from the CLI.
