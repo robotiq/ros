@@ -36,6 +36,8 @@
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
+    # See robotiq_controllers.yaml.
+    enforce_command_limits: false
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     robotiq_gripper_controller:

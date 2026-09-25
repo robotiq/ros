@@ -84,9 +84,13 @@ UPDATE_RATE_HZ = 500
 # config. A misspelled setting is silently ignored by the controller_manager, so
 # the blocks are compared exhaustively against these.
 CONTROLLER_MANAGER_SETTINGS = {
-    JAZZY_CONFIG: {"update_rate", "hardware_components_initial_state"},
+    JAZZY_CONFIG: {
+        "update_rate",
+        "enforce_command_limits",
+        "hardware_components_initial_state",
+    },
     HUMBLE_CONFIG: {"update_rate"},
-    JAZZY_TOPIC_BASED_CONFIG: {"update_rate"},
+    JAZZY_TOPIC_BASED_CONFIG: {"update_rate", "enforce_command_limits"},
     HUMBLE_TOPIC_BASED_CONFIG: {"update_rate"},
 }
 
@@ -487,6 +491,12 @@ def test_jazzy_config_keeps_the_node_alive_without_a_gripper():
     controllers = load(JAZZY_CONFIG)["controller_manager"]["ros__parameters"]
     initial_state = controllers["hardware_components_initial_state"]
     assert initial_state["shutdown_on_initial_state_failure"] is False
+
+
+@pytest.mark.parametrize("config", (JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG))
+def test_jazzy_configs_send_each_position_goal_unramped(config):
+    controllers = load(config)["controller_manager"]["ros__parameters"]
+    assert controllers["enforce_command_limits"] is False
 
 
 # Humble EOL: delete this test.
