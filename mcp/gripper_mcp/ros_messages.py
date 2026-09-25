@@ -53,12 +53,16 @@ def refused(position_rad: float, detail: str) -> BackendMotion:
 
 
 def no_state_message(
-    age_s: float | None, joint: str, namespace: str, limit_s: float
+    age_s: float | None,
+    joint: str,
+    namespace: str,
+    waited_s: float,
+    limit_s: float,
 ) -> str:
     if age_s is None:
         return (
             f"No {JOINT_STATES_TOPIC} naming '{joint}' under '{namespace}' "
-            f"within {limit_s:.0f} s; is the controller running?"
+            f"within {waited_s:.0f} s; is the controller running?"
         )
     return (
         f"The last {JOINT_STATES_TOPIC} naming '{joint}' under '{namespace}' is "
