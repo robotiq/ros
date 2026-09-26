@@ -19,8 +19,8 @@ one your robot already runs.
 | Distro | Ubuntu | Gripper action | `gripper_cmd` action type |
 |---|---|---|---|
 | Humble | 22.04 Jammy | `position_controllers/GripperActionController` | `control_msgs/action/GripperCommand` |
-| Jazzy | 24.04 Noble | `parallel_gripper_action_controller/GripperActionController` | `control_msgs/action/ParallelGripperCommand` |
-| Lyrical | 26.04 Resolute | `parallel_gripper_action_controller/GripperActionController` | `control_msgs/action/ParallelGripperCommand` |
+| Jazzy | 24.04 Noble | `robotiq_controllers/GripperActionController` | `control_msgs/action/ParallelGripperCommand` |
+| Lyrical | 26.04 Resolute | `robotiq_controllers/GripperActionController` | `control_msgs/action/ParallelGripperCommand` |
 
 Rolling builds and passes the full suite as well, and CI watches it, but it is not
 a supported target: it is a moving development branch, so a break there is a
@@ -263,7 +263,7 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 |---|---|
 | `robotiq_driver` | `ros2_control` hardware interface, over the `extern/grippers` SDK (Modbus RTU on serial) |
 | `robotiq_msgs` | Messages the driver and controllers publish |
-| `robotiq_controllers` | Gripper command / activation controllers, and the status broadcaster |
+| `robotiq_controllers` | Gripper action controller (Jazzy+), activation controller, and the status broadcaster |
 | `robotiq_description` | URDF/xacro, meshes, RViz + bringup launch |
 | `robotiq_hardware_tests` | Hardware integration tests |
 
@@ -329,7 +329,7 @@ it, since Gazebo hosts its own `controller_manager`.
 
 <!-- Humble EOL: simplify — one action type and one example goal remain. -->
 
-On **Jazzy and Lyrical**, `robotiq_gripper_controller` is a `parallel_gripper_action_controller/GripperActionController`, so its action `/robotiq_gripper_controller/gripper_cmd` takes a `control_msgs/action/ParallelGripperCommand` — a `sensor_msgs/JointState` goal (not the older `GripperCommand`). On **Humble** it is `position_controllers/GripperActionController` taking `control_msgs/action/GripperCommand`; see [Supported ROS 2 distros](#supported-ros-2-distros).
+On **Jazzy and Lyrical**, `robotiq_gripper_controller` is a `robotiq_controllers/GripperActionController`, the stock `parallel_gripper_action_controller/GripperActionController` with one parameter added (see below), so its action `/robotiq_gripper_controller/gripper_cmd` takes a `control_msgs/action/ParallelGripperCommand` — a `sensor_msgs/JointState` goal (not the older `GripperCommand`). On **Humble** it is `position_controllers/GripperActionController` taking `control_msgs/action/GripperCommand`; see [Supported ROS 2 distros](#supported-ros-2-distros).
 
 The bringup above holds its terminal, so open a **second terminal**, exec into the running container, then send a goal:
 
@@ -352,6 +352,14 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 
 `effort` sets the gripper's grip threshold, as a fraction of `gripper_max_force` written to rFR. It sets the maximum current at the motor, and does **not** directly control the maximum force the gripper applies: that is also largely influenced by the closing speed. Nothing reads a force out of the gripper, and `motor_current` is not convertible to one.
 
+The result's `stalled` and `reached_goal` come from the stock velocity check by default: a goal is reached when the position error is under `goal_tolerance`, stalled when the joint velocity stays under `stall_velocity_threshold` for `stall_timeout`. With `use_object_status: true` the controller takes them from the gripper's own object detection instead (the `object_status` state interface): stopped on an object while opening or closing means stalled, at the requested position means reached, and `goal_tolerance` still counts as reached. The stall timeout is then off, so only the gripper can call a stall; the velocity check runs only where the joint exports no `object_status`, which the controller says once at activation. Because the gripper keeps reporting the previous goal's outcome until it acts on the new target, a settled state counts only once it differs from the value read at goal acceptance or once motion was seen; a goal that never shows either is decided by `goal_tolerance` alone. On a 2F-85 closing on a 35 mm block, the stall verdict arrived 10 ms after the fingers stopped, against 1.8 s from the velocity check. The flag ships off; turn it on in `config/robotiq_controllers.yaml`:
+
+```yaml
+robotiq_gripper_controller:
+  ros__parameters:
+    use_object_status: true
+```
+
 ### Gripper status
 
 `robotiq_gripper_status_broadcaster` publishes the gripper's own status on `/robotiq_gripper_status_broadcaster/status`, as a `robotiq_msgs/GripperStatus`, at the controller rate:
@@ -360,7 +368,7 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
 ros2 topic echo /robotiq_gripper_status_broadcaster/status
 ```
 
-`object_detection` is the gripper's own answer to "am I holding something", and the only authoritative one. Prefer it to the `gripper_cmd` action's `stalled` flag, which is a stall heuristic, and to comparing the commanded opening against the achieved one. The message names all four of its states, and every fault code, as constants.
+`object_detection` is the gripper's own answer to "am I holding something", and the only authoritative one. Prefer it to the `gripper_cmd` action's `stalled` flag, which is a stall heuristic unless `use_object_status` is on, and to comparing the commanded opening against the achieved one. The message names all four of its states, and every fault code, as constants.
 
 Where the gripper reports no fault this cycle, `gripper_fault` and `gripper_fault_severity` read `GRIPPER_FAULT_UNKNOWN`, not `NONE`. That is what a client sees under `use_fake_hardware:=true` and `sim_topic_based:=true`, whose plugins export no fault interface. Treat it as "cannot say" rather than "healthy"; `motor_current` says the same thing with `NaN`.
 

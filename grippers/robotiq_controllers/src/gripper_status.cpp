@@ -34,8 +34,6 @@
 #include <utility>
 
 namespace robotiq_controllers::gripper_status {
-namespace {
-// State interfaces are doubles, so a code arrives as one.
 // Humble EOL: remove this cast. In jazzy+, a uint8 interface can be used.
 std::optional<uint8_t> asCode(double value)
 {
@@ -51,7 +49,6 @@ std::optional<uint8_t> asCode(const std::optional<double>& value)
 {
    return value ? asCode(value.value()) : std::nullopt;
 }
-} // namespace
 
 std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfaces)
 {

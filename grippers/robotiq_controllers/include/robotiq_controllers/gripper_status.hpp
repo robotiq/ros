@@ -32,6 +32,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -66,6 +67,10 @@ using Indices = std::array<std::optional<std::size_t>, FIELD_COUNT>;
 
 // Each field's value this cycle, std::nullopt where the joint exports none.
 using Readings = std::array<std::optional<double>, FIELD_COUNT>;
+
+// State interfaces are doubles, so a code arrives as one.
+std::optional<uint8_t> asCode(double value);
+std::optional<uint8_t> asCode(const std::optional<double>& value);
 
 std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfaces);
 

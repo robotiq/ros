@@ -39,7 +39,7 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     robotiq_gripper_controller:
-      type: parallel_gripper_action_controller/GripperActionController
+      type: robotiq_controllers/GripperActionController
     robotiq_gripper_status_broadcaster:
       type: robotiq_controllers/GripperStatusBroadcaster
 
@@ -52,3 +52,6 @@ robotiq_gripper_controller:
     stall_timeout: 0.5
     stall_velocity_threshold: 0.05
     goal_tolerance: 0.02
+    # Kept identical to robotiq_controllers.yaml; the plugin exports no
+    # object_status, so on or off the controller falls back to the velocity.
+    use_object_status: false
