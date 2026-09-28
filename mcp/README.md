@@ -179,12 +179,13 @@ Then ask in plain language, RViz following along:
 > Open the driver gripper to 30 mm, then grasp with it and tell me what
 > happened.
 
-The grasp closes on nothing (`closed_without_object`), because fake hardware
-moves instantly and never meets resistance. A stall on an object, and with it
-`gripper_verify_grasp`, needs a real gripper with TSF-85 pads; the driver on the SDK's simulated gripper will cover the
-stall once that gripper models travel and object detection. The server's own
-instructions tell the agent how to read those outcomes, so a stalled close is
-reported as a grasp, not a failure.
+The close comes back `reached` with `object_detected: false`: fake hardware
+moves instantly and never meets resistance, so the fingers always arrive. A
+stall on an object (`stopped_on_object`), and with it `gripper_verify_grasp`,
+needs a real gripper with TSF-85 pads; the driver on the SDK's simulated
+gripper will cover the stall once that gripper models travel and object
+detection. The server's own instructions tell the agent how to read those
+outcomes, so a stalled close is reported as a grasp, not a failure.
 
 ## Known limitations
 
