@@ -1,6 +1,6 @@
 import pytest
 from fakes.gripper import MockGripperBackend
-from fakes.tactile import REST_COUNTS, MockTactileBackend
+from fakes.tactile import FRAME_RATE_HZ, REST_COUNTS, MockTactileBackend
 
 from gripper_mcp.config import SPEC_DIR, GripperConfig, load_model_specs
 from gripper_mcp.service import GripperService, UnknownGripperError
@@ -32,7 +32,8 @@ class ScriptedPads:
     def read_tactile(self) -> TactileReading:
         return self.live
 
-    def sample(self, count: int) -> list[TactileReading]:
+    def sample(self, duration_s: float) -> list[TactileReading]:
+        count = round(duration_s * FRAME_RATE_HZ)
         return [self._rest_frames[i % len(self._rest_frames)] for i in range(count)]
 
 
@@ -104,12 +105,12 @@ def services_without_pads() -> tuple[GripperService, TactileService]:
     return grippers, TactileService(grippers, {})
 
 
-def test_taring_averages_the_datasheet_sample_count_at_rest():
+def test_taring_averages_every_frame_of_the_datasheet_window_at_rest():
     _, tactile = services_with(CUBE_WIDTH_MM, CUBE_WIDTH_MM)
 
     result = tactile.tare(ARM)
 
-    assert result.samples == SPEC.tactile.baseline_samples
+    assert result.samples == round(SPEC.tactile.baseline_s * FRAME_RATE_HZ)
     assert result.rest_counts_mean == pytest.approx(REST_COUNTS)
     assert result.tactile_backend == "mock"
 

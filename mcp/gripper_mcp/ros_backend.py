@@ -2,8 +2,13 @@
 
 One node per gripper, created inside the gripper's namespace so that
 `robotiq_gripper_controller/gripper_cmd`, `joint_states` and `robot_description`
-resolve to that gripper's controller. All nodes share one executor spinning in a
-background thread; the MCP tools run in their own threads and wait on futures.
+resolve to that gripper's controller. Each node spins on its own single-threaded
+executor in a background thread; the MCP tools run in their own threads and
+wait on futures. Single-threaded because rclpy's MultiThreadedExecutor takes a
+whole core to follow the driver's 500 Hz joint_states, still drops most of them,
+and starves the tool threads of the GIL. One per node because an executor serves
+its nodes in no fixed order, and the pads' 2 kHz frames sharing one would, on some
+starts, keep the gripper's own topics from ever being read.
 
 The command joint's name and range are read from `robot_description`, the URDF
 robot_state_publisher latches for the cell, so a prefixed cell resolves by itself
@@ -44,7 +49,7 @@ import rclpy
 from control_msgs.action import GripperCommand, ParallelGripperCommand
 from rclpy.action import ActionClient
 from rclpy.action.graph import get_action_names_and_types
-from rclpy.executors import MultiThreadedExecutor
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
@@ -81,27 +86,33 @@ POLL_S = 0.05
 
 class RosGraph:
     _lock = threading.Lock()
-    _executor: MultiThreadedExecutor | None = None
+    _executors: list[SingleThreadedExecutor] = []
 
     @classmethod
-    def executor(cls) -> MultiThreadedExecutor:
+    def node(cls, name: str, namespace: str) -> Node:
         with cls._lock:
-            if cls._executor is None:
-                if not rclpy.ok():
-                    rclpy.init()
-                cls._executor = MultiThreadedExecutor()
-                threading.Thread(
-                    target=cls._executor.spin, name="rclpy-spin", daemon=True
-                ).start()
-            return cls._executor
+            if not rclpy.ok():
+                rclpy.init()
+        return Node(name, namespace=namespace or "/")
+
+    @classmethod
+    def spin(cls, node: Node) -> None:
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+        with cls._lock:
+            cls._executors.append(executor)
+        threading.Thread(
+            target=executor.spin, name=f"rclpy-spin-{node.get_name()}", daemon=True
+        ).start()
 
     @classmethod
     def shutdown(cls) -> None:
         with cls._lock:
-            if cls._executor is not None:
-                cls._executor.shutdown()
+            for executor in cls._executors:
+                executor.shutdown()
+            if cls._executors:
                 rclpy.shutdown()
-                cls._executor = None
+            cls._executors = []
 
 
 def wait_for(future, timeout_s: float):
@@ -165,8 +176,7 @@ class RosGripperBackend:
     name = "ros"
 
     def __init__(self, gripper_name: str, namespace: str) -> None:
-        executor = RosGraph.executor()
-        self._node = Node(f"gripper_mcp_{gripper_name}", namespace=namespace or "/")
+        self._node = RosGraph.node(f"gripper_mcp_{gripper_name}", namespace)
         self._description: str | None = None
         self._node.create_subscription(
             String, DESCRIPTION_TOPIC, self._on_description, LATCHED
@@ -177,7 +187,7 @@ class RosGripperBackend:
         self._action_type = None
         self._client_lock = threading.Lock()
         self._motion_lock = threading.Lock()
-        executor.add_node(self._node)
+        RosGraph.spin(self._node)
 
     def joint_geometry(self) -> JointGeometry:
         if self._joint is None:

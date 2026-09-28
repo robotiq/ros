@@ -40,8 +40,8 @@ def test_a_stale_frame_message_names_the_age_and_the_driver():
     assert "stopped publishing" in message
 
 
-def test_a_stalled_sample_says_how_far_it_got():
-    message = stalled_sample_message(42, 1000, 2.0)
+def test_a_stalled_sample_names_the_window_it_waited():
+    message = stalled_sample_message(1.0)
 
-    assert "42 of 1000" in message
+    assert "1 s tare window" in message
     assert STATIC_TOPIC in message
