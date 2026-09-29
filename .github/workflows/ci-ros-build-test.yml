@@ -51,9 +51,11 @@ jobs:
       # ros-base is minimal: it lacks git (needed by actions/checkout) and the
       # colcon coverage plugins that action-ros-ci invokes by default
       # (colcon lcov-result / coveragepy-result). Install them up front.
+      # Upgrade so that the image's ROS packages sync with rosdep dependencies
       - name: Install tooling missing from ros-base
         run: |
           apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
           apt-get install -y git lcov \
             python3-colcon-lcov-result python3-colcon-coveragepy-result
       - uses: actions/checkout@v5

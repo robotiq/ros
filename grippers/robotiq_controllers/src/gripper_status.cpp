@@ -53,6 +53,24 @@ std::optional<uint8_t> asCode(const std::optional<double>& value)
 }
 } // namespace
 
+std::optional<Robotiq::ObjectDetection> toObjectDetection(const std::optional<double>& value)
+{
+   const std::optional<uint8_t> code = asCode(value);
+   if(!code)
+   {
+      return std::nullopt;
+   }
+   switch(const auto detection = static_cast<Robotiq::ObjectDetection>(code.value()))
+   {
+   case Robotiq::ObjectDetection::Moving:
+   case Robotiq::ObjectDetection::DetectedWhileOpening:
+   case Robotiq::ObjectDetection::DetectedWhileClosing:
+   case Robotiq::ObjectDetection::AtRequestedPosition:
+      return detection;
+   }
+   return std::nullopt;
+}
+
 std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfaces)
 {
    // OBJECT_STATUS anchors the binding because decode() cannot publish without
@@ -91,7 +109,9 @@ std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfac
 
 std::optional<robotiq_msgs::msg::GripperStatus> decode(const Readings& readings, const rclcpp::Time& time)
 {
-   const std::optional<uint8_t> object_detection = asCode(readings.at(OBJECT_STATUS));
+   // Only the four states the message names can be reported: any other value
+   // is not a reading, so the message waits for one that is.
+   const std::optional<Robotiq::ObjectDetection> object_detection = toObjectDetection(readings.at(OBJECT_STATUS));
    if(!object_detection)
    {
       return std::nullopt;
@@ -99,7 +119,7 @@ std::optional<robotiq_msgs::msg::GripperStatus> decode(const Readings& readings,
 
    robotiq_msgs::msg::GripperStatus status;
    status.header.stamp = time;
-   status.object_detection = object_detection.value();
+   status.object_detection = static_cast<uint8_t>(object_detection.value());
    status.motor_current = readings.at(MOTOR_CURRENT).value_or(std::numeric_limits<double>::quiet_NaN());
 
    // A fault field with no reading keeps the message default, UNKNOWN. Saying

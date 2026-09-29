@@ -9,7 +9,7 @@
 # This is NOT the config for `use_fake_hardware:=true`. The ros2_control mock
 # (GenericSystem) declares the driver's interfaces and teleports: the position
 # command is copied into the state each cycle, so a goal succeeds on the next
-# update and stall detection never runs. It keeps robotiq_controllers.yaml.
+# update and stall detection never runs. It has robotiq_controllers.mock.yaml.
 # Under sim_topic_based, position and velocity are published by the simulator, so
 # a realistic movement is possible, with finger moving over time and a real velocity,
 # provided the simulator populates JointState.velocity (see the stall bullet below).
@@ -36,10 +36,12 @@
 controller_manager:
   ros__parameters:
     update_rate: 500  # Hz
+    # See robotiq_controllers.yaml.
+    enforce_command_limits: false
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
     robotiq_gripper_controller:
-      type: parallel_gripper_action_controller/GripperActionController
+      type: robotiq_controllers/GripperActionController
     robotiq_gripper_status_broadcaster:
       type: robotiq_controllers/GripperStatusBroadcaster
 
@@ -52,3 +54,4 @@ robotiq_gripper_controller:
     stall_timeout: 0.5
     stall_velocity_threshold: 0.05
     goal_tolerance: 0.02
+    use_object_status: false  # no object_status to read, see above

@@ -243,6 +243,8 @@ TEST_F(GripperStatusBroadcasterTest, publishes_again_after_a_deactivation)
 } // namespace
 } // namespace robotiq_controllers::test
 
+// Not gtest_main: the tests create nodes, so rclcpp must be up before the first
+// and down after the last.
 int main(int argc, char** argv)
 {
    ::testing::InitGoogleTest(&argc, argv);

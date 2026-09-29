@@ -129,7 +129,7 @@ TEST(Decode, rounds_a_code_that_arrived_as_a_double)
 
 TEST(Decode, says_nothing_when_an_exported_field_is_not_a_code)
 {
-   for(const double bad : {-1.0, 256.0, std::numeric_limits<double>::infinity()})
+   for(const double bad : {-1.0, 4.0, 256.0, std::numeric_limits<double>::infinity()})
    {
       EXPECT_FALSE(decode(all(bad, 0.1, 0.0, 0.0), kTime).has_value()) << bad;
    }

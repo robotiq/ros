@@ -32,13 +32,12 @@
 # robotiq_driver). A mismatch is silent until runtime, where
 # robotiq_gripper_controller fails to activate.
 #
-# There are two configs — Humble has no parallel_gripper_controller package — and
-# robotiq_control.launch.py picks one per $ROS_DISTRO. Both are checked here
-# regardless of the distro the tests run on, so neither can rot unnoticed.
+# Every config robotiq_control.launch.py can pick is checked here regardless of
+# the distro the tests run on, so none can rot unnoticed.
 #
 # Humble EOL: simplify — one config per hardware kind remains, so every HUMBLE_*
 # constant, every "humble" parametrisation and every test named for Humble below
-# goes, and the surviving checks stop being parametrised over configs.
+# goes, and the surviving checks stop being parametrised over distros.
 
 import importlib.util
 import logging
@@ -73,6 +72,14 @@ TOPIC_BASED_OF = {
     HUMBLE_CONFIG: HUMBLE_TOPIC_BASED_CONFIG,
 }
 
+# Humble EOL: simplify — MOCK_OF collapses to the one Jazzy entry.
+JAZZY_MOCK_CONFIG = CONFIG_DIR / "robotiq_controllers.mock.yaml"
+MOCK_OF = {
+    JAZZY_CONFIG: JAZZY_MOCK_CONFIG,
+    HUMBLE_CONFIG: HUMBLE_CONFIG,
+}
+MOCK_CONFIGS = (JAZZY_MOCK_CONFIG,)
+
 # Names exported by robotiq_driver's hardware interface for the joint it is
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
 # which asserts the hardware exports exactly these.
@@ -84,9 +91,18 @@ UPDATE_RATE_HZ = 500
 # config. A misspelled setting is silently ignored by the controller_manager, so
 # the blocks are compared exhaustively against these.
 CONTROLLER_MANAGER_SETTINGS = {
-    JAZZY_CONFIG: {"update_rate", "hardware_components_initial_state"},
+    JAZZY_CONFIG: {
+        "update_rate",
+        "enforce_command_limits",
+        "hardware_components_initial_state",
+    },
     HUMBLE_CONFIG: {"update_rate"},
-    JAZZY_TOPIC_BASED_CONFIG: {"update_rate"},
+    JAZZY_MOCK_CONFIG: {
+        "update_rate",
+        "enforce_command_limits",
+        "hardware_components_initial_state",
+    },
+    JAZZY_TOPIC_BASED_CONFIG: {"update_rate", "enforce_command_limits"},
     HUMBLE_TOPIC_BASED_CONFIG: {"update_rate"},
 }
 
@@ -104,13 +120,14 @@ def exported_command_interfaces(joint):
 # newer take ParallelGripperCommand.
 # Humble EOL: simplify — one plugin remains, so this mapping collapses.
 EXPECTED_CONTROLLER_TYPES = {
-    JAZZY_CONFIG: "parallel_gripper_action_controller/GripperActionController",
+    JAZZY_CONFIG: "robotiq_controllers/GripperActionController",
     HUMBLE_CONFIG: "position_controllers/GripperActionController",
 }
 EXPECTED_CONTROLLER_TYPES.update(
     {
-        TOPIC_BASED_OF[config]: plugin
-        for config, plugin in EXPECTED_CONTROLLER_TYPES.items()
+        sim_of[config]: plugin
+        for sim_of in (MOCK_OF, TOPIC_BASED_OF)
+        for config, plugin in list(EXPECTED_CONTROLLER_TYPES.items())
     }
 )
 
@@ -150,6 +167,34 @@ def test_claimed_interfaces_follow_the_joint(joint):
     params = gripper_controller_params(JAZZY_CONFIG, joint)
     claimed = {params["max_effort_interface"], params["max_velocity_interface"]}
     assert claimed <= exported_command_interfaces(joint)
+
+
+def test_jazzy_driver_config_uses_the_object_status():
+    params = gripper_controller_params(JAZZY_CONFIG)
+    assert params["use_object_status"] is True
+
+
+@pytest.mark.parametrize("config", (JAZZY_MOCK_CONFIG, JAZZY_TOPIC_BASED_CONFIG))
+def test_jazzy_sim_configs_spell_out_use_object_status_off(config):
+    # Spelled out, so that a reader of the config need not know the
+    # controller's default.
+    params = gripper_controller_params(config)
+    assert params["use_object_status"] is False
+
+
+def test_mock_config_is_the_driver_config_without_the_object_status():
+    # object_status_timeout only means something with the flag on.
+    driver = load(JAZZY_CONFIG)
+    mock = load(JAZZY_MOCK_CONFIG)
+    assert mock["controller_manager"] == driver["controller_manager"]
+    assert (
+        mock["robotiq_activation_controller"] == driver["robotiq_activation_controller"]
+    )
+    driver_params = driver["robotiq_gripper_controller"]["ros__parameters"]
+    mock_params = mock["robotiq_gripper_controller"]["ros__parameters"]
+    del driver_params["use_object_status"], driver_params["object_status_timeout"]
+    del mock_params["use_object_status"]
+    assert mock_params == driver_params
 
 
 # Humble EOL: delete this test.
@@ -290,7 +335,7 @@ def test_launch_forwards_the_gripper_model_to_xacro():
     assert "gripper_model:=2f_140" in rendered
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS + TOPIC_BASED_CONFIGS)
+@pytest.mark.parametrize("config", ALL_CONFIGS + MOCK_CONFIGS + TOPIC_BASED_CONFIGS)
 def test_controller_type_matches_distro(config):
     controllers = load(config)["controller_manager"]["ros__parameters"]
     assert (
@@ -314,7 +359,11 @@ def test_launch_selects_the_config_for_the_distro(distro, expected):
     assert selected == expected.name
     assert (CONFIG_DIR / selected).is_file()
 
-    topic_based = launch_module.controllers_file_for_distro(distro, topic_based=True)
+    mock = launch_module.controllers_file_for_distro(distro, "mock")
+    assert mock == MOCK_OF[expected].name
+    assert (CONFIG_DIR / mock).is_file()
+
+    topic_based = launch_module.controllers_file_for_distro(distro, "topic_based")
     assert topic_based == TOPIC_BASED_OF[expected].name
     assert (CONFIG_DIR / topic_based).is_file()
 
@@ -384,14 +433,14 @@ def resolved(config, joint=JOINT):
 
 @requires_launch
 @pytest.mark.parametrize(
-    "distro,hardware_config,sim_config",
+    "distro,hardware_config",
     [
-        ("humble", HUMBLE_CONFIG, HUMBLE_TOPIC_BASED_CONFIG),  # Humble EOL: delete.
-        ("jazzy", JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
-        (None, JAZZY_CONFIG, JAZZY_TOPIC_BASED_CONFIG),
+        ("humble", HUMBLE_CONFIG),  # Humble EOL: delete.
+        ("jazzy", JAZZY_CONFIG),
+        (None, JAZZY_CONFIG),
     ],
 )
-def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypatch):
+def test_launch_spawns_per_plugin(distro, hardware_config, monkeypatch):
     # Every spawner must be handed the same config the controller_manager loaded,
     # and the activation controller only exists where its GPIO does. The status
     # broadcaster is spawned everywhere: it takes whichever interfaces it finds.
@@ -403,6 +452,16 @@ def test_launch_spawns_per_plugin(distro, hardware_config, sim_config, monkeypat
         "robotiq_gripper_status_broadcaster": resolved(hardware_config),
     }
 
+    mock_config = MOCK_OF[hardware_config]
+    mock = spawned_controllers(distro, monkeypatch, use_fake_hardware="true")
+    assert mock == {
+        "joint_state_broadcaster": resolved(mock_config),
+        "robotiq_gripper_controller": resolved(mock_config),
+        "robotiq_activation_controller": resolved(mock_config),
+        "robotiq_gripper_status_broadcaster": resolved(mock_config),
+    }
+
+    sim_config = TOPIC_BASED_OF[hardware_config]
     topic_based = spawned_controllers(distro, monkeypatch, sim_topic_based="true")
     assert topic_based == {
         "joint_state_broadcaster": resolved(sim_config),
@@ -487,6 +546,14 @@ def test_jazzy_config_keeps_the_node_alive_without_a_gripper():
     controllers = load(JAZZY_CONFIG)["controller_manager"]["ros__parameters"]
     initial_state = controllers["hardware_components_initial_state"]
     assert initial_state["shutdown_on_initial_state_failure"] is False
+
+
+@pytest.mark.parametrize(
+    "config", (JAZZY_CONFIG, JAZZY_MOCK_CONFIG, JAZZY_TOPIC_BASED_CONFIG)
+)
+def test_jazzy_configs_send_each_position_goal_unramped(config):
+    controllers = load(config)["controller_manager"]["ros__parameters"]
+    assert controllers["enforce_command_limits"] is False
 
 
 # Humble EOL: delete this test.

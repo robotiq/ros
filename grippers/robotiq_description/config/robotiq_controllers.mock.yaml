@@ -1,0 +1,48 @@
+# Jazzy / Lyrical controller configuration for `use_fake_hardware:=true`, the
+# ros2_control mock (mock_components/GenericSystem). Selected by
+# launch/robotiq_control.launch.py whenever that argument is set. It is
+# config/robotiq_controllers.yaml with use_object_status off, since the mock
+# declares only the joint interfaces the URDF lists, never the driver's
+# object_status.
+#
+# The SDK's simulated gripper (robotiq/grippers#37) will report object
+# detection like the device. It runs behind the driver, so use_dummy keeps
+# robotiq_controllers.yaml.
+#
+# Humble EOL: simplify — drop the distro from the first line; the Humble
+# variant, robotiq_controllers.mock.humble.yaml, goes.
+controller_manager:
+  ros__parameters:
+    update_rate: 500  # Hz
+    # See robotiq_controllers.yaml.
+    enforce_command_limits: false
+    hardware_components_initial_state:
+      shutdown_on_initial_state_failure: false
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    robotiq_gripper_controller:
+      type: robotiq_controllers/GripperActionController
+    robotiq_activation_controller:
+      type: robotiq_controllers/RobotiqActivationController
+    robotiq_gripper_status_broadcaster:
+      type: robotiq_controllers/GripperStatusBroadcaster
+
+robotiq_gripper_controller:
+  ros__parameters:
+    joint: $(var gripper_joint)
+
+    max_effort_interface: "$(var gripper_joint)/set_gripper_max_effort"
+    max_effort: 50.0
+
+    max_velocity_interface: "$(var gripper_joint)/set_gripper_max_velocity"
+    max_velocity: 0.5
+
+    state_interfaces: ["position", "velocity"]
+    allow_stalling: true
+    stall_timeout: 0.05
+    goal_tolerance: 0.02
+    use_object_status: false
+
+robotiq_activation_controller:
+  ros__parameters:
+    default: true

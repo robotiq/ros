@@ -26,54 +26,43 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-//! Maps a gripper's state interfaces onto a GripperStatus message.
+//! A customized Robotiq ParallelGripperCommand controller, deciding stall and goal states
+//! from the gripper's own object detection instead of the velocity stall timeout.
 
 #pragma once
 
-#include <array>
-#include <cstddef>
+#include <functional>
 #include <optional>
-#include <string>
-#include <vector>
 
 #include <Robotiq/gripper/status.hpp>
 
-#include "rclcpp/time.hpp"
-#include "robotiq_msgs/msg/gripper_status.hpp"
+#include "hardware_interface/loaned_state_interface.hpp"
+#include "parallel_gripper_controller/parallel_gripper_action_controller.hpp"
 
-namespace robotiq_controllers::gripper_status {
+namespace robotiq_controllers {
 
-enum Field
+class GripperActionController : public parallel_gripper_action_controller::GripperActionController
 {
-   OBJECT_STATUS,
-   MOTOR_CURRENT,
-   GRIPPER_FAULT,
-   GRIPPER_FAULT_SEVERITY,
-   FIELD_COUNT
+public:
+   controller_interface::InterfaceConfiguration state_interface_configuration() const override;
+   controller_interface::return_type update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
+
+   CallbackReturn on_init() override;
+   CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+   CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+   CallbackReturn on_deactivate(const rclcpp_lifecycle::State& previous_state) override;
+
+private:
+   using Base = parallel_gripper_action_controller::GripperActionController;
+
+   void decideFromObjectStatus(const rclcpp::Time& time);
+   void finish(const RealtimeGoalHandlePtr& goal, bool reached_goal, bool stalled);
+
+   bool use_object_status_ = false;
+   double object_status_timeout_ = 0.0;
+   std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> object_status_;
+   RealtimeGoalHandlePtr tracked_goal_;
+   rclcpp::Time timed_from_;
+   std::optional<Robotiq::ObjectDetection> baseline_;
 };
-
-inline constexpr std::array<const char*, FIELD_COUNT> kInterfaceNames{"object_status",
-                                                                      "motor_current",
-                                                                      "gripper_fault",
-                                                                      "gripper_fault_severity"};
-
-struct InterfaceName
-{
-   std::string prefix;
-   std::string name;
-};
-
-// Index of each field's interface, std::nullopt where the joint exports none.
-using Indices = std::array<std::optional<std::size_t>, FIELD_COUNT>;
-
-// Each field's value this cycle, std::nullopt where the joint exports none.
-using Readings = std::array<std::optional<double>, FIELD_COUNT>;
-
-// The reading as the SDK's enum; std::nullopt where it is not one of its values.
-std::optional<Robotiq::ObjectDetection> toObjectDetection(const std::optional<double>& value);
-
-std::optional<Indices> bindInterfaces(const std::vector<InterfaceName>& interfaces);
-
-std::optional<robotiq_msgs::msg::GripperStatus> decode(const Readings& readings, const rclcpp::Time& time);
-
-} // namespace robotiq_controllers::gripper_status
+} // namespace robotiq_controllers

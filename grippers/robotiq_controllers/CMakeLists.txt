@@ -9,6 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(controller_interface REQUIRED)
 find_package(realtime_tools REQUIRED)
+find_package(robotiq_driver REQUIRED)
 find_package(std_srvs REQUIRED)
 
 # dev/CMakeLists.txt builds robotiq_msgs in-tree, where there is no config file
@@ -22,6 +23,7 @@ endif()
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_interface
   realtime_tools
+  robotiq_driver
   robotiq_msgs
   std_srvs
 )
@@ -34,8 +36,16 @@ add_library(${PROJECT_NAME} SHARED
   src/robotiq_activation_controller.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(${PROJECT_NAME}
+  PRIVATE
   include
+  # The gripper's status enums come from the SDK, whose headers robotiq_driver
+  # ships. Only the headers: linking the driver would load a second SDK into a
+  # process that has one already, so the target is read for its include
+  # directories alone. Resolves for the installed package and for dev/'s
+  # in-tree alias alike.
+  PUBLIC
+  $<TARGET_PROPERTY:robotiq_driver::robotiq_driver,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -46,6 +56,18 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 pluginlib_export_plugin_description_file(controller_interface controller_plugins.xml)
+
+# The gripper action controller derives from parallel_gripper_controller, which
+# arrived in Jazzy. Humble EOL: simplify — build and register it unconditionally.
+if(NOT "$ENV{ROS_DISTRO}" STREQUAL "humble")
+  find_package(parallel_gripper_controller REQUIRED)
+  target_sources(${PROJECT_NAME} PRIVATE src/gripper_action_controller.cpp)
+  target_link_libraries(${PROJECT_NAME}
+    parallel_gripper_controller::parallel_gripper_action_controller
+  )
+  list(APPEND THIS_PACKAGE_INCLUDE_DEPENDS parallel_gripper_controller)
+  pluginlib_export_plugin_description_file(controller_interface gripper_action_controller_plugins.xml)
+endif()
 
 # # INSTALL
 install(

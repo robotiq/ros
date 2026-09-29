@@ -34,3 +34,22 @@ target_link_libraries(test_gripper_status_broadcaster
   rclcpp::rclcpp
   ${robotiq_msgs_TARGETS}
 )
+
+# Humble EOL: simplify — drop the condition.
+if(parallel_gripper_controller_FOUND)
+  find_package(rclcpp_action REQUIRED)
+
+  ament_add_gtest(test_gripper_action_controller test_gripper_action_controller.cpp)
+  target_include_directories(test_gripper_action_controller
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../include
+  )
+  target_link_libraries(test_gripper_action_controller
+    ${PROJECT_NAME}
+    controller_interface::controller_interface
+    hardware_interface::hardware_interface
+    parallel_gripper_controller::parallel_gripper_action_controller
+    rclcpp::rclcpp
+    rclcpp_action::rclcpp_action
+    ${robotiq_msgs_TARGETS}
+  )
+endif()

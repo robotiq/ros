@@ -47,45 +47,57 @@ from launch_ros.parameter_descriptions import ParameterFile
 import os
 import re
 
-# Humble has no parallel_gripper_controller package, so it needs its own
-# controller config, and the topic_based plugin exports a different
-# interface set from the driver and the mock, so it needs its own too.
-# See config/robotiq_controllers*.yaml.
+# One controller config per hardware plugin: the driver, the ros2_control mock
+# (use_fake_hardware) and the topic_based plugin (sim_topic_based) export
+# different interface sets, and the mock and the plugin report no object
+# status. Humble has no parallel_gripper_controller package, so it needs its
+# own set. See config/robotiq_controllers*.yaml.
 #
-# Humble EOL: delete the two HUMBLE_* names and the first clause above. One
-# config per hardware kind then remains, so controllers_file_for_distro,
-# ControllersFile and the `distro` local in generate_launch_description all lose
-# their reason to exist.
-JAZZY_CONTROLLERS_FILE = "robotiq_controllers.yaml"
-HUMBLE_CONTROLLERS_FILE = "robotiq_controllers.humble.yaml"
-JAZZY_TOPIC_BASED_CONTROLLERS_FILE = "robotiq_controllers.topic_based.yaml"
-HUMBLE_TOPIC_BASED_CONTROLLERS_FILE = "robotiq_controllers.topic_based.humble.yaml"
+# Humble EOL: delete HUMBLE_CONTROLLERS_FILES and the branch in
+# controllers_file_for_distro, whose `distro` argument, ControllersFile's and
+# the `distro` local in generate_launch_description then lose their reason to
+# exist.
+CONTROLLERS_FILES = {
+    "driver": "robotiq_controllers.yaml",
+    "mock": "robotiq_controllers.mock.yaml",
+    "topic_based": "robotiq_controllers.topic_based.yaml",
+}
+# Humble's stock gripper controller has no object status parameter to turn off,
+# so the mock shares the driver's config there.
+HUMBLE_CONTROLLERS_FILES = {
+    "driver": "robotiq_controllers.humble.yaml",
+    "mock": "robotiq_controllers.humble.yaml",
+    "topic_based": "robotiq_controllers.topic_based.humble.yaml",
+}
 
 
-def controllers_file_for_distro(distro, topic_based=False):
+def controllers_file_for_distro(distro, hardware="driver"):
     """Return the controller config file name for ROS distro `distro`.
 
-    `topic_based` selects the config for the sim_topic_based hardware plugin.
+    `hardware` is the plugin the description loads: "driver", "mock" or
+    "topic_based".
     """
     # Humble EOL: delete this branch.
     if distro == "humble":
-        return (
-            HUMBLE_TOPIC_BASED_CONTROLLERS_FILE
-            if topic_based
-            else HUMBLE_CONTROLLERS_FILE
-        )
-    return JAZZY_TOPIC_BASED_CONTROLLERS_FILE if topic_based else JAZZY_CONTROLLERS_FILE
+        return HUMBLE_CONTROLLERS_FILES[hardware]
+    return CONTROLLERS_FILES[hardware]
 
 
 class ControllersFile(Substitution):
-    def __init__(self, distro, topic_based):
+    def __init__(self, distro, mock, topic_based):
         super().__init__()
         self.distro = distro
+        self.mock = mock
         self.topic_based = topic_based
 
     def perform(self, context):
-        topic_based = evaluate_condition_expression(context, [self.topic_based])
-        return controllers_file_for_distro(self.distro, topic_based)
+        if evaluate_condition_expression(context, [self.topic_based]):
+            hardware = "topic_based"
+        elif evaluate_condition_expression(context, [self.mock]):
+            hardware = "mock"
+        else:
+            hardware = "driver"
+        return controllers_file_for_distro(self.distro, hardware)
 
 
 # The xacro emits one <plugin> per flag that is set, and ros2_control_node
@@ -312,6 +324,7 @@ def generate_launch_description():
         )
     )
 
+    mock = LaunchConfiguration("use_fake_hardware")
     topic_based = LaunchConfiguration("sim_topic_based")
 
     robot_description_param = {
@@ -321,7 +334,7 @@ def generate_launch_description():
     }
 
     distro = os.environ.get("ROS_DISTRO")
-    controllers_file = ControllersFile(distro, topic_based)
+    controllers_file = ControllersFile(distro, mock, topic_based)
     initial_joint_controllers = ParameterFile(
         PathJoinSubstitution([description_pkg_share, "config", controllers_file]),
         allow_substs=True,
