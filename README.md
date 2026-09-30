@@ -7,7 +7,7 @@ ROS packages for Robotiq grippers and sensors.
 | Package | Description | ROS Version |
 |---|---|---|
 | [robotiq_tsf](robotiq_tsf/) | TSF-85 tactile sensor driver | ROS 2 Humble / Jazzy / Lyrical ([main](https://github.com/robotiq/ros/tree/main)) / ROS 1 Noetic ([noetic](https://github.com/robotiq/ros/tree/noetic)) |
-| [grippers](grippers/) | ROS 2 `ros2_control` driver for Robotiq 2F adaptive grippers (2F-85, 2F-140), on the [Robotiq C++ SDK](https://github.com/Robotiq/grippers) | ROS 2 Humble / Jazzy / Lyrical |
+| [grippers](grippers/) | ROS 2 `ros2_control` driver for Robotiq adaptive grippers (2F-85, 2F-140, Hand-E), on the [Robotiq C++ SDK](https://github.com/Robotiq/grippers) | ROS 2 Humble / Jazzy / Lyrical |
 
 ## Supported ROS 2 distros
 
@@ -146,17 +146,11 @@ In the combined launch the pad frames are TF-mounted on the gripper fingertip li
 
 ROS 2 `ros2_control` driver for Robotiq 2F adaptive grippers, under [`grippers/`](grippers/).
 
-Descriptions ship for the **2F-85** and the **2F-140**; `robotiq_control.launch.py` defaults to the
-2F-85, so pass `gripper_model:=2f_140` for a 2F-140. That argument selects the gripper macro in the
-xacro and the joint the controller drives (`robotiq_85_left_knuckle_joint` or `finger_joint`); a
-custom description keeps `model:=<path>` and sets `gripper_joint` explicitly. The controller configs
-in `config/` write that joint as `$(var gripper_joint)`, which only the launch resolves — loaded
-directly into your own `ros2_control_node` they are not valid as they stand. Hardware validation to
-date is on a 2F-85 — the 2F-140 description ships untested against hardware.
+Descriptions ship for the **2F-85**, the **2F-140** and the **Hand-E**; `robotiq_control.launch.py` defaults to the 2F-85, so pass `gripper_model:=2f_140` or `gripper_model:=hand_e` for the others. That argument selects the gripper macro in the xacro and the joint the controller drives (`robotiq_85_left_knuckle_joint`, `finger_joint` or `hande_finger_distance`); a custom description keeps `model:=<path>` and sets `gripper_joint` explicitly. The controller configs in `config/` write that joint as `$(var gripper_joint)`, which only the launch resolves — loaded directly into your own `ros2_control_node` they are not valid as they stand. Hardware validation to date is on a 2F-85 and a Hand-E — the 2F-140 description ships untested against hardware.
 
-The driver itself is model-agnostic: it needs a serial link and the `gripper_closed_position` of
-whatever is attached. A **Hand-E** therefore works once you supply a URDF for it, but no Hand-E
-description ships here yet.
+The Hand-E's `hande_finger_distance` is prismatic, in metres: `0.0` open → `0.050` closed. Despite its name it is the closing travel, not the gap between the fingers; each finger moves half of it.
+
+The driver itself is model-agnostic: it needs a serial link and the `gripper_closed_position` of whatever is attached.
 
 The driver runs on the [Robotiq C++ grippers SDK](https://github.com/Robotiq/grippers), which arrives as
 the `extern/grippers` submodule — so clone with `--recurse-submodules`. The SDK owns the serial link
@@ -305,12 +299,13 @@ ros2 launch robotiq_description robotiq_control.launch.py sim_topic_based:=true 
 
 `TopicBasedSystem` matches
 joints to the simulator's `JointState` **by name**, so the simulator must publish this description's
-six joint names for the model you launch, each with your `prefix`, or nothing moves:
+joint names for the model you launch, each with your `prefix`, or nothing moves:
 
 | `gripper_model` | driven joint | mimic joints |
 |---|---|---|
 | `2f_85` | `robotiq_85_left_knuckle_joint` | `robotiq_85_right_knuckle_joint`, `robotiq_85_left_inner_knuckle_joint`, `robotiq_85_right_inner_knuckle_joint`, `robotiq_85_left_finger_tip_joint`, `robotiq_85_right_finger_tip_joint` |
 | `2f_140` | `finger_joint` | `right_outer_knuckle_joint`, `left_inner_knuckle_joint`, `right_inner_knuckle_joint`, `left_inner_finger_joint`, `right_inner_finger_joint` |
+| `hand_e` | `hande_finger_distance` | `hande_left_finger_joint`, `hande_right_finger_joint` |
 
 <!-- Humble EOL: simplify — the binary-release exception goes with it. -->
 The plugin is not a dependency of this package. On Humble install
@@ -353,11 +348,11 @@ ros2 action send_goal /robotiq_gripper_controller/gripper_cmd \
   "{command: {position: 0.4, max_effort: 50.0}}"
 ```
 
-`position` is the joint angle in radians (≈ `0.0` open → ~`0.8` closed on a 2F-85); on Jazzy/Lyrical `effort` and `velocity` are optional max limits, mapped to the controller's `set_gripper_max_effort` / `set_gripper_max_velocity` interfaces.
+`position` is the joint angle in radians (≈ `0.0` open → ~`0.8` closed on a 2F-85), metres on a Hand-E; on Jazzy/Lyrical `effort` and `velocity` are optional max limits, mapped to the controller's `set_gripper_max_effort` / `set_gripper_max_velocity` interfaces.
 
 `effort` sets the gripper's grip threshold, as a fraction of `gripper_max_force` written to rFR. It sets the maximum current at the motor, and does **not** directly control the maximum force the gripper applies: that is also largely influenced by the closing speed. Nothing reads a force out of the gripper, and `motor_current` is not convertible to one.
 
-The result's `stalled` and `reached_goal` come from the gripper's own object detection (the `object_status` state interface), which `use_object_status` turns on in `config/robotiq_controllers.yaml` (`robotiq_controllers.humble.yaml` on Humble): stopped on an object while opening or closing means stalled, at the requested position means reached. A goal the gripper has not decided within `object_status_timeout` seconds of its acceptance, or of the last motion it reported, is aborted with both flags false; a faulted link looks like this.
+The result's `stalled` and `reached_goal` come from the gripper's own object detection (the `object_status` state interface), which `use_object_status` turns on in `config/robotiq_controllers.yaml` (`robotiq_controllers.humble.yaml` on Humble): stopped on an object while opening or closing means stalled, at the requested position means reached. A goal the gripper has not decided within `object_status_timeout` seconds of its acceptance, or of the last motion it reported, is aborted with both flags false; a faulted link looks like this. Either way a goal also ends as reached once its position error is under `goal_tolerance`, which the launch sets per model through `gripper_goal_tolerance` (`0.02` rad on the 2F models, `0.001` m on the Hand-E).
 
 With the flag off, the stock velocity check decides: a goal is reached when the position error is under `goal_tolerance`, stalled when the joint velocity stays under `stall_velocity_threshold` for `stall_timeout`. That is what the `use_fake_hardware:=true` and `sim_topic_based:=true` configs do, because neither plugin exports `object_status` and the controller refuses to activate without it. Keep it off for any hardware plugin of your own that does not report it.
 
@@ -381,7 +376,7 @@ The same values reach a controller as state interfaces. `robotiq_driver` exports
 
 | Interface | Unit | Description |
 |---|---|---|
-| `position` | rad | Angle of the driven knuckle joint, from gPO — not the opening in millimetres. `0.0` open → ~`0.8` closed on a 2F-85, over a linear approximation of a travel the gripper reports in 227 counts |
+| `position` | rad (m on a Hand-E) | Angle of the driven knuckle joint, from gPO — not the opening in millimetres. `0.0` open → ~`0.8` closed on a 2F-85, over a linear approximation of a travel the gripper reports in 227 counts |
 | `velocity` | rad/s | Always `0.0`. The status block carries no velocity, and the driver does not differentiate the position |
 | `motor_current` | A | gCU, the motor current the manual gives as 10 mA per count, so `0.0` to `2.55` |
 | `object_status` | — | gOBJ verbatim: `0` moving, `1` object held while opening, `2` object held while closing, `3` at the requested position |
@@ -402,11 +397,12 @@ None of the four beyond `position` and `velocity` are `ros2_control` standard in
 
 ### Hardware parameters
 
-`robotiq_driver` reads these from the `<hardware>` block of the `ros2_control` description (`robotiq_description/urdf/2f_*.ros2_control.xacro`):
+`robotiq_driver` reads these from the `<hardware>` block of the `ros2_control` description (`robotiq_description/urdf/<model>.ros2_control.xacro`):
 
 | Parameter | Default | Description |
 |---|---|---|
-| `gripper_closed_position` | *required* | Joint angle in radians at a fully closed gripper — the scale of the whole position mapping |
+| `gripper_closed_position` | *required* | Joint position at a fully closed gripper, in radians (metres on a Hand-E) — the scale of the whole position mapping |
+| `gripper_profile` | `2f_85` | The SDK device profile whose register counts span the position mapping: `2f_85` or `hand_e`. The 2F-85 and Hand-E descriptions set it; an unknown name fails the component |
 | `COM_port` | `/dev/ttyUSB0` | Serial port |
 | `baudrate` | `115200` | Must match the gripper's persisted setting, which is why it is also a launch argument, `baudrate:=<rate>`. Rejected outside 1..1000000. Most units stay at 115200; the gripper's own rate is changed in the Robotiq User Interface (*Modbus RTU Parameters*), not from here, and the gripper must be rebooted afterwards |
 | `timeout` | `0.5` | Per-transaction serial timeout, in seconds |
