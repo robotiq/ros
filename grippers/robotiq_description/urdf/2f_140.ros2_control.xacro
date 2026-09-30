@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <xacro:include filename="$(find robotiq_description)/urdf/2f_common.ros2_control.xacro" />
+    <xacro:include filename="$(find robotiq_description)/urdf/common.ros2_control.xacro" />
 
     <xacro:macro name="robotiq_gripper_ros2_control" params="
         name
@@ -22,7 +22,7 @@
 
         <ros2_control name="${name}" type="system">
             <!-- Plugins -->
-            <xacro:robotiq_2f_hardware
+            <xacro:robotiq_hardware
                 sim_gazebo="${sim_gazebo}"
                 sim_topic_based="${sim_topic_based}"
                 sim_joint_commands_topic="${sim_joint_commands_topic}"
@@ -59,11 +59,11 @@
             </joint>
             <!-- When simulating we need to include the rest of the gripper joints -->
             <xacro:if value="${sim_topic_based or sim_gazebo}">
-                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}left_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
-                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}left_inner_finger_joint" sim_gazebo="${sim_gazebo}"/>
-                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}right_outer_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
-                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}right_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
-                <xacro:robotiq_2f_sim_mimic_joint name="${prefix}right_inner_finger_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_sim_mimic_joint name="${prefix}left_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_sim_mimic_joint name="${prefix}left_inner_finger_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_sim_mimic_joint name="${prefix}right_outer_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_sim_mimic_joint name="${prefix}right_inner_knuckle_joint" sim_gazebo="${sim_gazebo}"/>
+                <xacro:robotiq_sim_mimic_joint name="${prefix}right_inner_finger_joint" sim_gazebo="${sim_gazebo}"/>
             </xacro:if>
 
             <!-- Only add this with fake hardware mode -->
