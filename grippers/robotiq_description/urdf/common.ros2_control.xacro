@@ -1,10 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <!-- One <hardware> block shared by every 2F model. The joint names and
-         the per-model defaults stay in 2f_85.ros2_control.xacro /
-         2f_140.ros2_control.xacro. -->
-    <xacro:macro name="robotiq_2f_hardware" params="
+    <!-- One <hardware> block shared by every model. The joint names and the
+         per-model defaults stay in each <model>.ros2_control.xacro. -->
+    <xacro:macro name="robotiq_hardware" params="
         sim_gazebo
         sim_topic_based
         sim_joint_commands_topic
@@ -54,7 +53,7 @@
     <!-- A mimic joint the simulator owns: declared so /joint_states carries it,
          but never commanded. Gazebo derives mimic joints itself, so it gets no
          state interfaces either. -->
-    <xacro:macro name="robotiq_2f_sim_mimic_joint" params="name sim_gazebo">
+    <xacro:macro name="robotiq_sim_mimic_joint" params="name sim_gazebo">
         <joint name="${name}">
             <xacro:unless value="${sim_gazebo}">
                 <state_interface name="position"/>
