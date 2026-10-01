@@ -38,6 +38,7 @@
 #include <string>
 #include <vector>
 
+#include <Robotiq/gripper/device_profile.hpp>
 #include <Robotiq/gripper/status.hpp>
 
 #include "hardware_interface/loaned_state_interface.hpp"
@@ -55,6 +56,10 @@ std::string interfaceName(const std::string& joint);
 // The driver's closed position for \p joint, from the hardware block in \p urdf
 // that drives it; nothing when no such block carries one the driver would take.
 std::optional<double> closedPositionFromUrdf(const std::string& urdf, const std::string& joint);
+
+// The SDK profile the driver of \p joint takes, as closedPositionFromUrdf finds
+// its parameter; nothing for a name the driver would reject.
+std::optional<Robotiq::DeviceProfile> profileFromUrdf(const std::string& urdf, const std::string& joint);
 
 // The joint's object_status among a controller's loaned state interfaces; logs
 // what to do when there is none.

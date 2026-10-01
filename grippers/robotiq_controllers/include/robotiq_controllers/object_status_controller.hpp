@@ -37,6 +37,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <string>
 
 #include "controller_interface/controller_interface.hpp"
 #include "hardware_interface/loaned_state_interface.hpp"
@@ -91,6 +92,7 @@ public:
             // Humble EOL: delete; the URDF supplies it from Jazzy on.
             this->template auto_declare<double>(robotiq_driver::kClosedPositionParam,
                                                 std::numeric_limits<double>::quiet_NaN());
+            this->template auto_declare<std::string>(robotiq_driver::kProfileParam, "2f_85");
          }
       }
       catch(const std::exception& e)
@@ -119,6 +121,15 @@ public:
          return controller_interface::CallbackReturn::ERROR;
       }
       closed_position_ = closedPosition();
+      profile_ = profile();
+      if(use_object_status_ && closed_position_ && !profile_)
+      {
+         RCLCPP_WARN(this->get_node()->get_logger(),
+                     "Unknown %s for joint '%s': a goal repeating the last one waits for %s to change.",
+                     robotiq_driver::kProfileParam,
+                     this->params_.joint.c_str(),
+                     object_status_goal::kTimeoutParameter);
+      }
       if(use_object_status_ && !closed_position_)
       {
          RCLCPP_WARN(this->get_node()->get_logger(),
@@ -187,11 +198,11 @@ private:
    std::optional<uint8_t> positionRequest(const RealtimeGoalHandle& goal) const
    {
       const std::optional<double> position = compat::goalPosition(*goal.gh_->get_goal());
-      if(!position || !closed_position_)
+      if(!position || !closed_position_ || !profile_)
       {
          return std::nullopt;
       }
-      return robotiq_driver::registerFromJointPosition(*position, *closed_position_);
+      return robotiq_driver::registerFromJointPosition(*position, *closed_position_, *profile_);
    }
 
    std::optional<double> closedPosition()
@@ -206,6 +217,20 @@ private:
          const double closed_position =
             this->get_node()->get_parameter(robotiq_driver::kClosedPositionParam).as_double();
          return robotiq_driver::isValidClosedPosition(closed_position) ? std::optional(closed_position) : std::nullopt;
+      }
+   }
+
+   std::optional<Robotiq::DeviceProfile> profile()
+   {
+      if constexpr(compat::detail::HasRobotDescription<Base>::value)
+      {
+         return object_status_goal::profileFromUrdf(this->get_robot_description(), this->params_.joint);
+      }
+      else
+      {
+         // Humble EOL: delete this branch.
+         return robotiq_driver::profileNamed(
+            this->get_node()->get_parameter(robotiq_driver::kProfileParam).as_string());
       }
    }
 
@@ -233,6 +258,7 @@ private:
    bool use_object_status_ = false;
    double object_status_timeout_ = 0.0;
    std::optional<double> closed_position_;
+   std::optional<Robotiq::DeviceProfile> profile_;
    std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> object_status_;
    RealtimeGoalHandlePtr tracked_goal_;
    object_status_goal::Verdict verdict_;

@@ -283,6 +283,30 @@ TEST(ClosedPositionFromUrdf, finds_nothing_in_a_malformed_description)
    EXPECT_FALSE(closedPositionFromUrdf("", "finger_joint"));
 }
 
+TEST(ProfileFromUrdf, ReadsTheDriverParameterOfTheJointsHardware)
+{
+   const std::optional<Robotiq::DeviceProfile> profile = profileFromUrdf(
+      robotiq_controllers::test::gripperUrdf("finger_joint", R"(<param name="gripper_profile">hand_e</param>)"),
+      "finger_joint");
+   ASSERT_TRUE(profile.has_value());
+   EXPECT_EQ(Robotiq::profiles::kHandE.closedPosition, profile->closedPosition);
+}
+
+TEST(ProfileFromUrdf, DefaultsToThe2F85LikeTheDriver)
+{
+   const std::optional<Robotiq::DeviceProfile> profile =
+      profileFromUrdf(robotiq_controllers::test::gripperUrdf("finger_joint", 0.695), "finger_joint");
+   ASSERT_TRUE(profile.has_value());
+   EXPECT_EQ(Robotiq::profiles::k2F85.closedPosition, profile->closedPosition);
+}
+
+TEST(ProfileFromUrdf, FindsNothingInANameTheDriverRejects)
+{
+   EXPECT_FALSE(profileFromUrdf(
+      robotiq_controllers::test::gripperUrdf("finger_joint", R"(<param name="gripper_profile">hand-e</param>)"),
+      "finger_joint"));
+}
+
 TEST(InterfaceName, joins_the_joint_and_the_field)
 {
    EXPECT_EQ("finger_joint/object_status", interfaceName("finger_joint"));

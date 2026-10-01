@@ -16,7 +16,8 @@
         gripper_force_multiplier
         gripper_max_speed
         gripper_max_force
-        gripper_closed_position">
+        gripper_closed_position
+        gripper_profile:=''">
 
         <hardware>
 
@@ -46,6 +47,9 @@
                 <param name="gripper_force_multiplier">${gripper_force_multiplier}</param>
                 <param name="gripper_max_speed">${gripper_max_speed}</param>
                 <param name="gripper_max_force">${gripper_max_force}</param>
+                <xacro:if value="${gripper_profile != ''}">
+                    <param name="gripper_profile">${gripper_profile}</param>
+                </xacro:if>
             </xacro:unless>
         </hardware>
     </xacro:macro>

@@ -42,18 +42,31 @@ namespace robotiq_driver::test {
 namespace {
 // The 2F-85's fully-closed joint angle, as the shipped description sets it.
 constexpr double kClosedPosition = 0.7929;
+constexpr const Robotiq::DeviceProfile& k2F85 = Robotiq::profiles::k2F85;
+constexpr const Robotiq::DeviceProfile& kHandE = Robotiq::profiles::kHandE;
+constexpr uint8_t kGripperMinPos = k2F85.openPosition;
+constexpr uint8_t kGripperMaxPos = k2F85.closedPosition;
 } // namespace
 
 TEST(GripperScaling, TravelEndpointsMapToTheJointLimits)
 {
-   EXPECT_DOUBLE_EQ(0.0, jointPositionFromRegister(kGripperMinPos, kClosedPosition));
-   EXPECT_DOUBLE_EQ(kClosedPosition, jointPositionFromRegister(kGripperMaxPos, kClosedPosition));
+   EXPECT_DOUBLE_EQ(0.0, jointPositionFromRegister(kGripperMinPos, kClosedPosition, k2F85));
+   EXPECT_DOUBLE_EQ(kClosedPosition, jointPositionFromRegister(kGripperMaxPos, kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, JointLimitsMapBackToTheTravelEndpoints)
 {
-   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, kClosedPosition));
-   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(kClosedPosition, kClosedPosition));
+   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, kClosedPosition, k2F85));
+   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(kClosedPosition, kClosedPosition, k2F85));
+}
+
+TEST(GripperScaling, TheProfileSetsTheTravelBand)
+{
+   constexpr double kHandEClosedPosition = 0.050;
+   EXPECT_DOUBLE_EQ(kHandEClosedPosition,
+                    jointPositionFromRegister(kHandE.closedPosition, kHandEClosedPosition, kHandE));
+   EXPECT_EQ(kHandE.closedPosition, registerFromJointPosition(kHandEClosedPosition, kHandEClosedPosition, kHandE));
+   EXPECT_EQ(kHandE.openPosition, registerFromJointPosition(0.0, kHandEClosedPosition, kHandE));
 }
 
 TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
@@ -66,7 +79,7 @@ TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
    for(uint8_t counts = kGripperMinPos; counts <= kGripperMaxPos; ++counts)
    {
       const std::optional<uint8_t> round_tripped =
-         registerFromJointPosition(jointPositionFromRegister(counts, kClosedPosition), kClosedPosition);
+         registerFromJointPosition(jointPositionFromRegister(counts, kClosedPosition, k2F85), kClosedPosition, k2F85);
       ASSERT_TRUE(round_tripped.has_value());
       EXPECT_THAT(*round_tripped, testing::AnyOf(counts, counts - 1))
          << "round trip drifted more than a count at " << static_cast<int>(counts) << " counts";
@@ -75,33 +88,34 @@ TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
 
 TEST(GripperScaling, PositionsOutsideTheJointRangeClampIntoTheByte)
 {
-   EXPECT_EQ(0, registerFromJointPosition(-1.0, kClosedPosition));
-   EXPECT_EQ(255, registerFromJointPosition(10.0 * kClosedPosition, kClosedPosition));
+   EXPECT_EQ(0, registerFromJointPosition(-1.0, kClosedPosition, k2F85));
+   EXPECT_EQ(255, registerFromJointPosition(10.0 * kClosedPosition, kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, PositionsBelowTheTravelBandStayReachable)
 {
    // The band starts at 3 counts, but 0..2 are still commandable: clamping is
    // to the byte, not to the band.
-   EXPECT_LT(registerFromJointPosition(-0.005, kClosedPosition), kGripperMinPos);
+   EXPECT_LT(registerFromJointPosition(-0.005, kClosedPosition, k2F85), kGripperMinPos);
 }
 
 TEST(GripperScaling, AnUnusableClosedPositionCommandsNothing)
 {
    // 0/0 and x/0 have no register to land on. Answering "nothing" keeps the
    // caller from moving the fingers on a made-up count.
-   EXPECT_FALSE(registerFromJointPosition(0.0, 0.0).has_value());
-   EXPECT_FALSE(registerFromJointPosition(0.5, 0.0).has_value());
-   EXPECT_FALSE(registerFromJointPosition(std::numeric_limits<double>::quiet_NaN(), kClosedPosition).has_value());
-   EXPECT_FALSE(registerFromJointPosition(0.5, std::numeric_limits<double>::quiet_NaN()).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.0, 0.0, k2F85).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.5, 0.0, k2F85).has_value());
+   EXPECT_FALSE(
+      registerFromJointPosition(std::numeric_limits<double>::quiet_NaN(), kClosedPosition, k2F85).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.5, std::numeric_limits<double>::quiet_NaN(), k2F85).has_value());
 }
 
 TEST(GripperScaling, AClosedPositionThatClosesNegativeStillMaps)
 {
    // A joint whose closed direction is negative is a supported description:
    // the ratio inverts and the mapping still lands in the travel band.
-   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, -kClosedPosition));
-   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(-kClosedPosition, -kClosedPosition));
+   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, -kClosedPosition, k2F85));
+   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(-kClosedPosition, -kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, AFractionOutsideTheRangeCommandsNothing)

@@ -40,19 +40,14 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string_view>
 
 #include <Robotiq/gripper/connection_state.hpp>
+#include <Robotiq/gripper/device_profile.hpp>
 #include <Robotiq/gripper/fault_status.hpp>
 #include <Robotiq/gripper/status.hpp>
 
 namespace robotiq_driver {
-
-// The usable travel band of the 2F fingers in register counts. The gripper
-// reports and accepts 0..255, but the extremes are outside the mechanical
-// range, so the joint mapping is anchored on these two.
-inline constexpr uint8_t kGripperMinPos = 3;
-inline constexpr uint8_t kGripperMaxPos = 230;
-inline constexpr uint8_t kGripperRange = kGripperMaxPos - kGripperMinPos;
 
 // The URDF hardware parameter carrying the closed_position the conversions below take.
 inline constexpr const char* kClosedPositionParam = "gripper_closed_position";
@@ -65,14 +60,34 @@ inline constexpr const char* kClosedPositionParam = "gripper_closed_position";
    return std::isfinite(closed_position) && closed_position != 0.0;
 }
 
+// The URDF hardware parameter naming the SDK profile the conversions below take;
+// a description without it gets the 2F-85's.
+inline constexpr const char* kProfileParam = "gripper_profile";
+
+// The SDK profile \p name selects, or nothing for a name it does not know.
+[[nodiscard]] inline std::optional<Robotiq::DeviceProfile> profileNamed(std::string_view name)
+{
+   if(name == "2f_85")
+   {
+      return Robotiq::profiles::k2F85;
+   }
+   if(name == "hand_e")
+   {
+      return Robotiq::profiles::kHandE;
+   }
+   return std::nullopt;
+}
+
 //! Register count (gPO: 0 open .. 255 closed) -> joint position, linear over
-//! the usable travel band. \p closed_position is the joint value at a fully
+//! \p profile's travel band. \p closed_position is the joint value at a fully
 //! closed gripper and sets the unit: the mapping carries whatever the URDF
 //! uses. The shipped 2F descriptions model the knuckle as a revolute joint,
 //! so there it is radians.
-[[nodiscard]] inline double jointPositionFromRegister(uint8_t position, double closed_position)
+[[nodiscard]] inline double jointPositionFromRegister(uint8_t position,
+                                                      double closed_position,
+                                                      const Robotiq::DeviceProfile& profile)
 {
-   return closed_position * (position - kGripperMinPos) / kGripperRange;
+   return closed_position * (position - profile.openPosition) / profile.registerPositionRange();
 }
 
 //! Joint position -> register count (rPR), in the same unit as
@@ -83,9 +98,11 @@ inline constexpr const char* kClosedPositionParam = "gripper_closed_position";
 //!
 //! Truncates rather than rounds, so a position read off the gripper and
 //! commanded straight back can land one count below where it came from.
-[[nodiscard]] inline std::optional<uint8_t> registerFromJointPosition(double joint_position, double closed_position)
+[[nodiscard]] inline std::optional<uint8_t> registerFromJointPosition(double joint_position,
+                                                                      double closed_position,
+                                                                      const Robotiq::DeviceProfile& profile)
 {
-   const double counts = (joint_position / closed_position) * kGripperRange + kGripperMinPos;
+   const double counts = (joint_position / closed_position) * profile.registerPositionRange() + profile.openPosition;
    if(!std::isfinite(counts))
    {
       return std::nullopt;

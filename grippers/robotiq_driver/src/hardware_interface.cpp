@@ -63,11 +63,6 @@ constexpr auto kDiagnosticThrottleMs = 5000;
 // retry or a lost frame.
 constexpr auto kDeactivationTimeout = std::chrono::seconds{2};
 
-// Where on_activate leaves the fingers. Fully open matches what the gripper does
-// on its own and what the driver did before the SDK; a parameter could choose it
-// instead, which would save the travel when the caller wants them elsewhere.
-constexpr uint8_t kPostActivationPosition = robotiq_driver::kGripperMinPos;
-
 // Waiting out that move, following the SDK's move_gripper example: how long the
 // gripper has to echo the request, how long to watch for the motion to start
 // (advisory — a short move can finish first), and the cap on the move itself.
@@ -362,14 +357,19 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
    // hands a controller that seeds its hold target from the position state —
    // both gripper_controllers and parallel_gripper_controller do — a half-closed
    // pose to latch, which stops the fingers there.
-   command_.positionRequest = kPostActivationPosition;
+   //
+   // Fully open matches what the gripper does on its own and what the driver did
+   // before the SDK; a parameter could choose it instead, which would save the
+   // travel when the caller wants them elsewhere.
+   const uint8_t post_activation_position = parameters_.profile.openPosition;
+   command_.positionRequest = post_activation_position;
    command_.action.set(Robotiq::ActionRequestBit::GoTo);
    gripper_->setCommand(command_);
 
    if(!Robotiq::waitFor(
          *gripper_,
-         [](const Robotiq::StampedExchange& exchange) {
-            return exchange.status.positionRequestEcho == kPostActivationPosition;
+         [post_activation_position](const Robotiq::StampedExchange& exchange) {
+            return exchange.status.positionRequestEcho == post_activation_position;
          },
          kCommandEchoTimeout))
    {
@@ -392,7 +392,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
 
    // Seed both sides from that settled reading so the first exported state, and
    // any hold target derived from it, describe where the fingers actually are.
-   gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position);
+   gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position, parameters_.profile);
    gripper_velocity_ = 0.0;
    gripper_motor_current_ = motorCurrentFromRegister(status.current);
    gripper_object_status_ = static_cast<double>(status.gripperStatus.objectDetection());
@@ -451,7 +451,7 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::read(const rclc
 
    const Robotiq::GripperStatus status = gripper_->getStatus();
    const Robotiq::ConnectionState connection = gripper_->connectionState();
-   gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position);
+   gripper_position_ = jointPositionFromRegister(status.position, parameters_.closed_position, parameters_.profile);
    // The status block carries no velocity — the gripper reports position and
    // motor current only.
    gripper_velocity_ = 0.0;
@@ -548,7 +548,7 @@ hardware_interface::return_type RobotiqGripperHardwareInterface::write(const rcl
    }
 
    const std::optional<uint8_t> position =
-      registerFromJointPosition(gripper_position_command_, parameters_.closed_position);
+      registerFromJointPosition(gripper_position_command_, parameters_.closed_position, parameters_.profile);
    const std::optional<uint8_t> speed = registerFromFractionOf(gripper_speed_, parameters_.max_speed);
    const std::optional<uint8_t> force = registerFromFractionOf(gripper_force_, parameters_.max_force);
    if(!position || !speed || !force)

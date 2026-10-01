@@ -172,6 +172,19 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
       throw std::invalid_argument("gripper_closed_position must be a non-zero, finite joint value");
    }
 
+   // Unlike the scales below, a mistyped profile is fatal: falling back to the
+   // 2F-85's band would stop another model short of its closed end.
+   const auto profile = info.hardware_parameters.find(kProfileParam);
+   if(profile != info.hardware_parameters.end())
+   {
+      const std::optional<Robotiq::DeviceProfile> named = profileNamed(profile->second);
+      if(!named)
+      {
+         throw std::invalid_argument("gripper_profile must be 2f_85 or hand_e, got '" + profile->second + "'");
+      }
+      parameters.profile = *named;
+   }
+
    parameters.max_speed = parameterOr<double>(info, logger, kMaxSpeedParam, parameters.max_speed, asPositiveDouble);
    parameters.max_force = parameterOr<double>(info, logger, kMaxForceParam, parameters.max_force, asPositiveDouble);
    parameters.speed_multiplier =

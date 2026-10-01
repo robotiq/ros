@@ -62,6 +62,7 @@ ALL_CONFIGS = (JAZZY_CONFIG, HUMBLE_CONFIG)
 JOINT_PLACEHOLDER = "$(var gripper_joint)"
 # Humble EOL: delete.
 CLOSED_POSITION_PLACEHOLDER = "$(var gripper_closed_position)"
+PROFILE_PLACEHOLDER = "$(var gripper_profile)"  # Humble EOL: delete.
 
 # The topic_based plugin exports neither the set_gripper_max_* command
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
@@ -203,6 +204,7 @@ def test_mock_config_is_the_driver_config_without_the_object_status(config):
     mock_params = mock["robotiq_gripper_controller"]["ros__parameters"]
     del driver_params["use_object_status"], driver_params["object_status_timeout"]
     driver_params.pop("gripper_closed_position", None)  # Humble EOL: delete.
+    driver_params.pop("gripper_profile", None)  # Humble EOL: delete.
     del mock_params["use_object_status"]
     assert mock_params == driver_params
 
@@ -443,6 +445,11 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
     }
 
 
+# The gripper_profile each model's description hands the driver, the 2F-85's
+# when it sets none. Humble EOL: delete.
+MODEL_PROFILES = {"2f_85": "2f_85", "2f_140": "2f_85", "hand_e": "hand_e"}
+
+
 # Humble EOL: delete.
 def macro_closed_position(gripper_model):
     """The model's gripper_closed_position as its macro declares it."""
@@ -457,6 +464,8 @@ def resolved(config, joint=JOINT, gripper_model="2f_85"):
         config.read_text().replace(JOINT_PLACEHOLDER, joint)
         # Humble EOL: delete.
         .replace(CLOSED_POSITION_PLACEHOLDER, macro_closed_position(gripper_model))
+        # Humble EOL: delete.
+        .replace(PROFILE_PLACEHOLDER, MODEL_PROFILES[gripper_model])
     )
 
 
@@ -514,6 +523,21 @@ def test_launch_hands_the_humble_controller_the_description_s_closed_position(
 
 # Humble EOL: delete this test.
 @requires_launch
+def test_launch_hands_the_humble_controller_the_description_s_profile(monkeypatch):
+    spawned = spawned_controllers(
+        "humble",
+        monkeypatch,
+        gripper_model="hand_e",
+        gripper_joint="hande_finger_distance",
+    )
+    params = yaml.safe_load(spawned["robotiq_gripper_controller"])[
+        "robotiq_gripper_controller"
+    ]["ros__parameters"]
+    assert params["gripper_profile"] == "hand_e"
+
+
+# Humble EOL: delete this test.
+@requires_launch
 def test_launch_starts_a_humble_joint_the_description_does_not_drive(monkeypatch):
     spawned = spawned_controllers("humble", monkeypatch, gripper_joint="no_such_joint")
     params = yaml.safe_load(spawned["robotiq_gripper_controller"])[
@@ -556,6 +580,7 @@ def test_launch_reads_no_closed_position_unless_the_driver_needs_it(
 ):
     _, context = launch_entities(distro, monkeypatch, **launch_arguments)
     assert "gripper_closed_position" not in context.launch_configurations
+    assert "gripper_profile" not in context.launch_configurations
 
 
 @pytest.mark.parametrize("config", TOPIC_BASED_CONFIGS)
