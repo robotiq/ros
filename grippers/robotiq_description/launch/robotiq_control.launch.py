@@ -176,6 +176,15 @@ GRIPPER_JOINTS = {
     "hand_e": "hande_finger_distance",
 }
 
+# goal_tolerance, in the driven joint's unit: radians on the 2F models, metres
+# on the Hand-E. The stock check ends a goal once inside it even when the
+# object status decides, so it has to be small against the stroke.
+GRIPPER_GOAL_TOLERANCES = {
+    "2f_85": "0.02",
+    "2f_140": "0.02",
+    "hand_e": "0.001",
+}
+
 
 class UsesRealGripper(Substitution):
     def perform(self, context):
@@ -235,13 +244,14 @@ class GripperProfile(Substitution):
         return profile or "2f_85"
 
 
-class DefaultGripperJoint(Substitution):
-    def __init__(self, gripper_model):
+class PerGripperModel(Substitution):
+    def __init__(self, table, gripper_model):
         super().__init__()
+        self.table = table
         self.gripper_model = gripper_model
 
     def perform(self, context):
-        return GRIPPER_JOINTS[self.gripper_model.perform(context)]
+        return self.table[self.gripper_model.perform(context)]
 
 
 def xacro_command():
@@ -317,8 +327,20 @@ def generate_launch_description():
     args.append(
         launch.actions.DeclareLaunchArgument(
             name="gripper_joint",
-            default_value=DefaultGripperJoint(LaunchConfiguration("gripper_model")),
+            default_value=PerGripperModel(
+                GRIPPER_JOINTS, LaunchConfiguration("gripper_model")
+            ),
             description="Joint the gripper controller drives; defaults from gripper_model",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="gripper_goal_tolerance",
+            default_value=PerGripperModel(
+                GRIPPER_GOAL_TOLERANCES, LaunchConfiguration("gripper_model")
+            ),
+            description="goal_tolerance of the gripper controller, in the joint's unit; "
+            "defaults from gripper_model",
         )
     )
     args.append(
