@@ -24,7 +24,7 @@ robotiq_gripper_controller:
 
     allow_stalling: true
     stall_timeout: 0.05
-    goal_tolerance: 0.02
+    goal_tolerance: $(var gripper_goal_tolerance)
     use_object_status: false
 
 robotiq_activation_controller:

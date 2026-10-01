@@ -39,7 +39,7 @@ robotiq_gripper_controller:
 
     allow_stalling: true
     stall_timeout: 0.05
-    goal_tolerance: 0.02
+    goal_tolerance: $(var gripper_goal_tolerance)
     use_object_status: true
     # Aborts a goal the gripper has not decided within this many seconds of
     # its acceptance or of the last motion seen.
