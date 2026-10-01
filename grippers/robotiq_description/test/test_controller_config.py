@@ -86,7 +86,7 @@ MOCK_OF = {
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
 # which asserts the hardware exports exactly these.
 JOINT = "robotiq_85_left_knuckle_joint"
-GRIPPER_JOINTS = (JOINT, "finger_joint")
+GRIPPER_JOINTS = (JOINT, "finger_joint", "hande_finger_distance")
 UPDATE_RATE_HZ = 500
 
 # Every key a controller_manager block may carry besides the controllers, per
@@ -228,7 +228,7 @@ def test_launch_description_builds():
 
 @pytest.mark.parametrize(
     "gripper_model,expected",
-    [("2f_85", JOINT), ("2f_140", "finger_joint")],
+    [("2f_85", JOINT), ("2f_140", "finger_joint"), ("hand_e", "hande_finger_distance")],
 )
 def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model, expected):
     launch_module = load_launch_module()

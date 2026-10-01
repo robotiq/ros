@@ -58,6 +58,7 @@ TOPIC_BASED_CONFIG = PKG_DIR / "config" / "robotiq_controllers.topic_based.yaml"
 MODELS = {
     "robotiq_2f_85_gripper.urdf.xacro": "robotiq_85_left_knuckle_joint",
     "robotiq_2f_140_gripper.urdf.xacro": "finger_joint",
+    "robotiq_hand_e_gripper.urdf.xacro": "hande_finger_distance",
 }
 
 MOCK_PLUGIN = "mock_components/GenericSystem"
@@ -65,8 +66,13 @@ REAL_PLUGIN = "robotiq_driver/RobotiqGripperHardwareInterface"
 TOPIC_BASED_PLUGIN = "topic_based_ros2_control/TopicBasedSystem"
 TOPIC_BASED_ARG = "sim_topic_based:=true"
 
-# Every 2F finger joint except the driven knuckle follows it through <mimic>.
-MIMIC_JOINT_COUNT = 5
+# Joints that follow the driven one through <mimic>: every other 2F finger
+# joint, and each Hand-E finger.
+MIMIC_JOINT_COUNTS = {
+    "robotiq_2f_85_gripper.urdf.xacro": 5,
+    "robotiq_2f_140_gripper.urdf.xacro": 5,
+    "robotiq_hand_e_gripper.urdf.xacro": 2,
+}
 
 # Exported by the driver at runtime; needed from the URDF under mock hardware.
 EXTRA_MOCK_COMMAND_INTERFACES = {"set_gripper_max_velocity", "set_gripper_max_effort"}
@@ -124,6 +130,21 @@ def state_interfaces_of(ros2_control, joint_name):
 
 def joints_of(ros2_control):
     return {j.get("name") for j in ros2_control.findall("joint")}
+
+
+@requires_xacro
+@pytest.mark.parametrize(
+    "gripper_model,joint",
+    [("2f_140", "finger_joint"), ("hand_e", "hande_finger_distance")],
+)
+def test_gripper_model_selects_the_description_from_the_launch_default(
+    gripper_model, joint
+):
+    # The launch loads robotiq_gripper.urdf.xacro and passes only gripper_model.
+    ros2_control = expand(
+        "robotiq_gripper.urdf.xacro", True, f"gripper_model:={gripper_model}"
+    )
+    assert joints_of(ros2_control) == {joint}
 
 
 @requires_xacro
@@ -237,7 +258,7 @@ def test_sim_topic_based_declares_the_mimic_joints_as_state_only(model, joint):
     # them, but with no command interface: only the knuckle is driven.
     ros2_control = expand(model, False, "sim_topic_based:=true")
     mimic = joints_of(ros2_control) - {joint}
-    assert len(mimic) == MIMIC_JOINT_COUNT
+    assert len(mimic) == MIMIC_JOINT_COUNTS[model]
     for name in mimic:
         assert command_interfaces_of(ros2_control, name) == set()
         assert state_interfaces_of(ros2_control, name) == {"position", "velocity"}
