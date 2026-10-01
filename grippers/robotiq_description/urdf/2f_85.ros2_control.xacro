@@ -35,7 +35,8 @@
                 gripper_force_multiplier="${gripper_force_multiplier}"
                 gripper_max_speed="${gripper_max_speed}"
                 gripper_max_force="${gripper_max_force}"
-                gripper_closed_position="${gripper_closed_position}"/>
+                gripper_closed_position="${gripper_closed_position}"
+                gripper_profile="2f_85"/>
 
             <!-- Joint interfaces -->
             <!-- With Gazebo or Hardware, they handle mimic joints, so we only need this command interface activated -->
