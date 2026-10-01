@@ -53,6 +53,20 @@ constexpr const char* kSpeedMultiplierParam = "gripper_speed_multiplier";
 constexpr const char* kForceMultiplierParam = "gripper_force_multiplier";
 constexpr const char* kActivationTimeoutParam = "activation_timeout";
 constexpr const char* kUseDummyParam = "use_dummy";
+constexpr const char* kProfileParam = "gripper_profile";
+
+Robotiq::DeviceProfile asProfile(const std::string& name)
+{
+   if(name == "2f_85")
+   {
+      return Robotiq::profiles::k2F85;
+   }
+   if(name == "hand_e")
+   {
+      return Robotiq::profiles::kHandE;
+   }
+   throw std::invalid_argument("gripper_profile must be 2f_85 or hand_e, got '" + name + "'");
+}
 
 //! Whether \p text reads as "no". Anything else — including a bare "true" or
 //! any typo — selects the fake gripper, so the spellings people actually write
@@ -171,6 +185,14 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
    if(!std::isfinite(parameters.closed_position) || parameters.closed_position == 0.0)
    {
       throw std::invalid_argument("gripper_closed_position must be a non-zero, finite joint value");
+   }
+
+   // Unlike the scales below, a mistyped profile is fatal: falling back to the
+   // 2F-85's band would stop another model short of its closed end.
+   const auto profile = info.hardware_parameters.find(kProfileParam);
+   if(profile != info.hardware_parameters.end())
+   {
+      parameters.profile = asProfile(profile->second);
    }
 
    parameters.max_speed = parameterOr<double>(info, logger, kMaxSpeedParam, parameters.max_speed, asPositiveDouble);

@@ -230,6 +230,21 @@ def test_baudrate_reaches_the_driver(model):
 
 
 @requires_xacro
+@pytest.mark.parametrize(
+    "model,profile",
+    [
+        ("robotiq_2f_85_gripper.urdf.xacro", "2f_85"),
+        # No SDK profile yet; the driver falls back to the 2F-85's band.
+        ("robotiq_2f_140_gripper.urdf.xacro", None),
+        ("robotiq_hand_e_gripper.urdf.xacro", "hand_e"),
+    ],
+)
+def test_the_driver_gets_the_models_sdk_profile(model, profile):
+    assert hardware_param(expand(model, False), "gripper_profile") == profile
+    assert hardware_param(expand(model, True), "gripper_profile") is None
+
+
+@requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
 def test_sim_plugin_declares_only_the_position_command(model, joint):
     # The topic_based plugin does not know the driver's set_gripper_max_* interfaces;
