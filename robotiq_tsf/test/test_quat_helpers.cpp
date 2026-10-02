@@ -40,6 +40,7 @@
 using Eigen::AngleAxisf;
 using Eigen::Quaternionf;
 using Eigen::Vector3f;
+using robotiq_tsf::quatToEulerDeg;
 using robotiq_tsf::test::eulerDegOf;
 using robotiq_tsf::test::eulerNear;
 using robotiq_tsf::test::kDegToRad;

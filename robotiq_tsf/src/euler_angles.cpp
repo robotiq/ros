@@ -26,51 +26,31 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// MadgwickAHRS.h
-//
-// Class wrapper around Madgwick's IMU AHRS algorithm, built on Eigen
-// quaternion types.
-//
-// Original algorithm: Sebastian O.H. Madgwick, 2011.
-// Refactored 2026 to: instance state (no globals), measured dt, accelerometer
-// magnitude gating, accel-seeded initialization, and Eigen for the generic
-// quaternion algebra (the gradient-descent step stays as the reference
-// scalar expansion).
-
-#pragma once
-
-#include <Eigen/Geometry>
-
 #include "robotiq_tsf/euler_angles.hpp"
 
-class MadgwickFilter
+#include <cmath>
+
+namespace robotiq_tsf {
+
+void quatToEulerRad(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw)
 {
-public:
-   explicit MadgwickFilter(float beta = 0.041f);
+   const float q0 = q.w();
+   const float q1 = q.x();
+   const float q2 = q.y();
+   const float q3 = q.z();
+   roll = std::atan2(2.0f * (q0 * q1 + q2 * q3), q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3);
+   const float sinp = 2.0f * (q1 * q3 - q0 * q2);
+   pitch = -std::asin(sinp < -1.0f ? -1.0f : (sinp > 1.0f ? 1.0f : sinp));
+   yaw = std::atan2(2.0f * (q1 * q2 + q0 * q3), q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3);
+}
 
-   void reset();
-   void setBeta(float beta);
-   void setAccelGate(float lo, float hi);
+void quatToEulerDeg(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw)
+{
+   quatToEulerRad(q, roll, pitch, yaw);
+   constexpr float k = 57.2957795130823f; // 180/pi
+   roll *= k;
+   pitch *= k;
+   yaw *= k;
+}
 
-   // Seed the quaternion so the gravity vector in the body frame matches the
-   // supplied accelerometer reading (any units; only the direction is used).
-   // Yaw is set to zero. Use the calibration-time accel mean.
-   void initFromAccel(float ax, float ay, float az);
-
-   // gyro in rad/s, accel in any consistent unit (normalised internally),
-   // dt in seconds (use the measured interval between samples).
-   void updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt);
-
-   Eigen::Quaternionf quaternion() const { return q_; }
-   void getQuaternion(float& q0, float& q1, float& q2, float& q3) const;
-   void getEulerDeg(float& roll, float& pitch, float& yaw) const;
-
-private:
-   Eigen::Quaternionf q_;
-   float beta_;
-   float accel_gate_lo_; // expected |a| ≈ 1.0 g when stationary
-   float accel_gate_hi_;
-};
-
-using robotiq_tsf::quatToEulerDeg;
-using robotiq_tsf::quatToEulerRad;
+} // namespace robotiq_tsf

@@ -183,27 +183,3 @@ void MadgwickFilter::getEulerDeg(float& roll, float& pitch, float& yaw) const
 {
    quatToEulerDeg(q_, roll, pitch, yaw);
 }
-
-// --- free helpers --------------------------------------------------------------
-
-void quatToEulerRad(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw)
-{
-   // Matches the legacy ZYX extraction used by PollData.cpp.
-   const float q0 = q.w();
-   const float q1 = q.x();
-   const float q2 = q.y();
-   const float q3 = q.z();
-   roll = std::atan2(2.0f * (q0 * q1 + q2 * q3), q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3);
-   const float sinp = 2.0f * (q1 * q3 - q0 * q2);
-   pitch = -std::asin(sinp < -1.0f ? -1.0f : (sinp > 1.0f ? 1.0f : sinp));
-   yaw = std::atan2(2.0f * (q1 * q2 + q0 * q3), q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3);
-}
-
-void quatToEulerDeg(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw)
-{
-   quatToEulerRad(q, roll, pitch, yaw);
-   constexpr float k = 57.2957795130823f; // 180/pi
-   roll *= k;
-   pitch *= k;
-   yaw *= k;
-}
