@@ -10,6 +10,7 @@ ament_add_gtest(${PROJECT_NAME}_tests
   test_quat_helpers.cpp         # ZYX Euler extraction, quaternion conventions
   test_orientation_filter.cpp   # conventions + correction envelope, every filter
   test_madgwick_ahrs.cpp        # MadgwickFilter numeric regression
+  test_filter_parity.cpp        # OrientationFilter vs MadgwickFilter, same input
   test_device_autodetect.cpp    # udev symlink / sysfs-tty descriptor scanning
   test_sdk_bridge.cpp           # SDK Fingers -> ROS message mapping
   test_fusion.cpp               # dt derivation + clamp, still-detection, bias trim

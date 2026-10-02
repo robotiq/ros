@@ -47,13 +47,13 @@
 
 #include "orientation_test_utils.hpp"
 #include "robotiq_tsf/MadgwickAHRS.h"
+#include "robotiq_tsf/orientation_filter.hpp"
 
 using Eigen::AngleAxisf;
 using Eigen::Quaternionf;
 using Eigen::Vector3f;
 using robotiq_tsf::test::eulerNear;
 using robotiq_tsf::test::kDegToRad;
-using robotiq_tsf::test::kPi;
 using robotiq_tsf::test::kRadToDeg;
 using robotiq_tsf::test::maxAbsDeg;
 using robotiq_tsf::test::tiltErrorDeg;
@@ -106,7 +106,7 @@ class OrientationFilterTest : public ::testing::Test
 {
 };
 
-using FilterTypes = ::testing::Types<MadgwickFilter>;
+using FilterTypes = ::testing::Types<MadgwickFilter, robotiq_tsf::OrientationFilter>;
 TYPED_TEST_SUITE(OrientationFilterTest, FilterTypes);
 
 TYPED_TEST(OrientationFilterTest, InitFromAccelMatchesTilt)
@@ -366,53 +366,43 @@ TYPED_TEST(OrientationFilterTest, StationaryNoiseStaysBelowJitterBound)
 
 TYPED_TEST(OrientationFilterTest, TracksHandheldMotionWithinTolerance)
 {
-   // A minute of hand-held-like motion: roll and pitch sweeping ±40 deg,
-   // steady yaw, a 0.4 s linear-acceleration burst every 7 s, sensor noise and
-   // a small residual gyro bias. Tilt error against ground truth stays below
-   // what a user would notice.
+   // A minute of hand-held-like motion with bursts, noise and bias: tilt
+   // error against ground truth stays below what a user would notice.
    constexpr int kSteps = 60 * kStepsPerSecond;
    constexpr int kWarmupSteps = 5 * kStepsPerSecond;
    constexpr float kMaxTiltErrorDeg = 1.5f;
    constexpr float kUnitNormTol = 1e-5f;
 
-   std::mt19937 rng(2);
-   std::normal_distribution<float> accelNoise(0.0f, 0.004f);
-   std::normal_distribution<float> gyroNoise(0.0f, 0.1f * kDegToRad);
-   const float gyroBias = 0.05f * kDegToRad;
-
    TypeParam f;
    f.initFromAccel(0.0f, 0.0f, 1.0f);
-   Quaternionf truth = Quaternionf::Identity();
    float peakError = 0.0f;
+   const auto samples = robotiq_tsf::test::handheldMotion(kSteps, kDt);
    for(int i = 0; i < kSteps; ++i)
    {
-      const float t = static_cast<float>(i) * kDt;
-      const float roll = 40.0f * kDegToRad * std::sin(2.0f * kPi * 0.3f * t);
-      const float pitch = 40.0f * kDegToRad * std::sin(2.0f * kPi * 0.5f * t);
-      const float yaw = 20.0f * kDegToRad * t;
-      const Quaternionf next = AngleAxisf(yaw, Vector3f::UnitZ()) * AngleAxisf(pitch, Vector3f::UnitY())
-                             * AngleAxisf(roll, Vector3f::UnitX());
-      const AngleAxisf step(truth.conjugate() * next);
-      const Vector3f bodyRate = step.axis() * (step.angle() / kDt);
-      truth = next;
-
-      Vector3f linear = Vector3f::Zero();
-      if(std::fmod(t, 7.0f) < 0.4f)
-      {
-         linear = Vector3f(0.6f * std::sin(40.0f * t), 0.3f, 0.0f);
-      }
-      const Vector3f accel =
-         truth.conjugate() * (Vector3f::UnitZ() + linear) + Vector3f(accelNoise(rng), accelNoise(rng), accelNoise(rng));
-      const Vector3f gyro = bodyRate + Vector3f(gyroNoise(rng) + gyroBias, gyroNoise(rng), gyroNoise(rng));
-
-      f.updateIMU(gyro.x(), gyro.y(), gyro.z(), accel.x(), accel.y(), accel.z(), kDt);
+      const auto& s = samples[i];
+      f.updateIMU(s.gyro.x(), s.gyro.y(), s.gyro.z(), s.accel.x(), s.accel.y(), s.accel.z(), kDt);
       if(i >= kWarmupSteps)
       {
-         peakError = std::max(peakError, tiltErrorDeg(f.quaternion(), truth));
+         peakError = std::max(peakError, tiltErrorDeg(f.quaternion(), s.truth));
       }
    }
    EXPECT_LT(peakError, kMaxTiltErrorDeg);
    EXPECT_NEAR(f.quaternion().norm(), 1.0f, kUnitNormTol);
+}
+
+TEST(OrientationFilter, RecoversFromUpsideDownSeed)
+{
+   // Seeded nearly upside down, e.g. calibrated while held inverted and then
+   // set down. MadgwickFilter's gradient vanishes near 180 deg and never
+   // recovers; this filter must, within the 30 s allowed a quarter turn.
+   constexpr float kInitialErrorDeg = 170.0f;
+   constexpr float kSettledDeg = 1.0f;
+   constexpr int kRecoveryDeadlineSteps = 30 * kStepsPerSecond;
+
+   robotiq_tsf::OrientationFilter f;
+   seedRollError(f, kInitialErrorDeg);
+   updateStillFlat(f, kRecoveryDeadlineSteps);
+   EXPECT_LT(tiltErrorDeg(f.quaternion(), Quaternionf::Identity()), kSettledDeg);
 }
 
 } // namespace

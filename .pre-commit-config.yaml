@@ -20,8 +20,10 @@
 # clang-format is pinned to v19.1.1 to match the clang-format-19 mandated by the
 # Robotiq C++ conventions.
 
-# Only lint the trees we own; keep the extern/ submodule out.
+# Only lint the trees we own; keep the extern/ submodule and vendored
+# third-party sources out.
 files: '^(grippers/|robotiq_tsf/|docker/|\.github/|[^/]+$)'
+exclude: '^robotiq_tsf/third_party/'
 
 repos:
   # Standard hooks
