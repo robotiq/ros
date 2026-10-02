@@ -34,12 +34,17 @@ controller_manager:
 robotiq_gripper_controller:
   ros__parameters:
     joint: $(var gripper_joint)
+    # Turns a goal into the register count the driver sends; the Jazzy
+    # controller reads it from the robot description instead.
+    gripper_closed_position: $(var gripper_closed_position)
 
     max_effort: 50.0   # TODO tune
 
     allow_stalling: true
     stall_timeout: 0.05
     goal_tolerance: 0.02
+    # Hz; how often a decided goal is relayed to the client (stock: 20).
+    action_monitor_rate: 100.0
     use_object_status: true
     # Aborts a goal the gripper has not decided within this many seconds of
     # its acceptance or of the last motion seen.

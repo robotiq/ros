@@ -72,11 +72,13 @@ template <typename ControllerT>
 controller_interface::return_type init(ControllerT& controller,
                                        const std::string& name,
                                        unsigned int update_rate,
-                                       const std::vector<rclcpp::Parameter>& parameter_overrides = {})
+                                       const std::vector<rclcpp::Parameter>& parameter_overrides = {},
+                                       const std::string& robot_description = "")
 {
 #ifdef ROBOTIQ_HAS_CONTROLLER_INTERFACE_PARAMS
    controller_interface::ControllerInterfaceParams params;
    params.controller_name = name;
+   params.robot_description = robot_description;
    params.update_rate = update_rate;
    params.controller_manager_update_rate = update_rate;
    params.node_options = controller.define_custom_node_options().parameter_overrides(parameter_overrides);
@@ -85,7 +87,7 @@ controller_interface::return_type init(ControllerT& controller,
    if constexpr(detail::HasUrdfInit<ControllerT>::value)
    {
       return controller.init(name,
-                             "",
+                             robot_description,
                              update_rate,
                              "",
                              controller.define_custom_node_options().parameter_overrides(parameter_overrides));

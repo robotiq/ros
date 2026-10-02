@@ -46,6 +46,7 @@ import launch_ros
 from launch_ros.parameter_descriptions import ParameterFile
 import os
 import re
+from xml.etree import ElementTree
 
 # One controller config per hardware plugin: the driver, the ros2_control mock
 # (use_fake_hardware) and the topic_based plugin (sim_topic_based) export
@@ -173,6 +174,34 @@ GRIPPER_JOINTS = {
     "2f_85": "robotiq_85_left_knuckle_joint",
     "2f_140": "finger_joint",
 }
+
+
+class UsesRealGripper(Substitution):
+    def perform(self, context):
+        flags = (LaunchConfiguration(flag) for flag in HARDWARE_FLAGS)
+        return str(not any(evaluate_condition_expression(context, [f]) for f in flags))
+
+
+# The driver's gripper_closed_position for the joint, read from the description
+# the launch loads, for the Humble gripper controller, which cannot read it
+# itself. Humble EOL: delete, with the gripper_closed_position launch
+# configuration below.
+class ClosedPosition(Substitution):
+    def __init__(self, joint):
+        super().__init__()
+        self.joint = joint
+
+    def perform(self, context):
+        joint = self.joint.perform(context)
+        urdf = ElementTree.fromstring(perform_substitutions(context, [xacro_command()]))
+        for control in urdf.iterfind("ros2_control"):
+            if control.find(f"joint[@name='{joint}']") is not None:
+                param = control.find("hardware/param[@name='gripper_closed_position']")
+                if param is not None:
+                    return param.text.strip()
+        raise RuntimeError(
+            f"no ros2_control block with a gripper_closed_position drives '{joint}'"
+        )
 
 
 class DefaultGripperJoint(Substitution):
@@ -492,6 +521,17 @@ def generate_launch_description():
         shutdown_on_control_node_exit,
         spawner_hint,
     ]
+
+    # Humble EOL: delete. Only the driver's description carries the value, and
+    # only the driver's config reads it.
+    if distro == "humble":
+        args.append(
+            launch.actions.SetLaunchConfiguration(
+                "gripper_closed_position",
+                ClosedPosition(LaunchConfiguration("gripper_joint")),
+                condition=IfCondition(UsesRealGripper()),
+            )
+        )
 
     return launch.LaunchDescription(
         [OpaqueFunction(function=alias_deprecated_isaac_arguments)] + args + nodes

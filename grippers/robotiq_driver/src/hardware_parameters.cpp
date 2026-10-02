@@ -39,6 +39,8 @@
 
 #include <rclcpp/logging.hpp>
 
+#include <robotiq_driver/gripper_scaling.hpp>
+
 namespace robotiq_driver {
 namespace {
 constexpr const char* kComPortParam = "COM_port";
@@ -46,7 +48,6 @@ constexpr const char* kBaudrateParam = "baudrate";
 constexpr const char* kTimeoutParam = "timeout";
 constexpr const char* kSlaveAddressParam = "slave_address";
 constexpr const char* kConnectionFrequencyParam = "connection_frequency";
-constexpr const char* kClosedPositionParam = "gripper_closed_position";
 constexpr const char* kMaxSpeedParam = "gripper_max_speed";
 constexpr const char* kMaxForceParam = "gripper_max_force";
 constexpr const char* kSpeedMultiplierParam = "gripper_speed_multiplier";
@@ -165,10 +166,8 @@ GripperParameters parseParameters(const hardware_interface::HardwareInfo& info, 
 
    // No default: the joint mapping is meaningless without the gripper's
    // closed angle, and guessing one would silently mis-scale every command.
-   // Zero and non-finite are the two it cannot divide by; negative is fine, and
-   // is how a joint that closes in the negative direction is described.
    parameters.closed_position = std::stod(info.hardware_parameters.at(kClosedPositionParam));
-   if(!std::isfinite(parameters.closed_position) || parameters.closed_position == 0.0)
+   if(!isValidClosedPosition(parameters.closed_position))
    {
       throw std::invalid_argument("gripper_closed_position must be a non-zero, finite joint value");
    }

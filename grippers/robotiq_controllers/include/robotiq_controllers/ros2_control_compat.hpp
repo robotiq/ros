@@ -107,6 +107,19 @@ template <typename ResultT>
 struct HasJointState<ResultT, std::void_t<decltype(std::declval<ResultT&>().state.position)>> : std::true_type
 {
 };
+// Humble's controllers have no access to the URDF.
+// Humble EOL: delete, and take the URDF branch unconditionally.
+template <typename ControllerT, typename = void>
+struct HasRobotDescription : std::false_type
+{
+};
+
+template <typename ControllerT>
+struct HasRobotDescription<ControllerT,
+                           std::void_t<decltype(std::declval<const ControllerT&>().get_robot_description())>>
+   : std::true_type
+{
+};
 } // namespace detail
 
 /// @returns whether the write succeeded; always true where the API cannot report failure.
@@ -181,6 +194,25 @@ void set(BoxT& box, T value)
    else
    {
       box.set([&](T& held) { held = std::move(value); });
+   }
+}
+
+// The goal's commanded position: a JointState's single position from Jazzy on,
+// a plain double on Humble. std::nullopt for a JointState naming no position.
+template <typename GoalT>
+std::optional<double> goalPosition(const GoalT& goal)
+{
+   if constexpr(std::is_floating_point_v<std::decay_t<decltype(goal.command.position)>>)
+   {
+      return goal.command.position;
+   }
+   else
+   {
+      if(goal.command.position.empty())
+      {
+         return std::nullopt;
+      }
+      return goal.command.position.front();
    }
 }
 

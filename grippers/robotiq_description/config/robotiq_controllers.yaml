@@ -43,6 +43,8 @@ robotiq_gripper_controller:
     allow_stalling: true
     stall_timeout: 0.05
     goal_tolerance: 0.02
+    # Hz; how often a decided goal is relayed to the client (stock: 20).
+    action_monitor_rate: 100.0
     use_object_status: true
     # Aborts a goal the gripper has not decided within this many seconds of
     # its acceptance or of the last motion seen.

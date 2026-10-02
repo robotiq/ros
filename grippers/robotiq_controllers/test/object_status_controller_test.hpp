@@ -50,8 +50,10 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include <robotiq_controllers/ros2_control_compat.hpp>
+#include <robotiq_driver/gripper_scaling.hpp>
 
 #include "controller_test_compat.hpp"
+#include "gripper_urdf.hpp"
 
 namespace robotiq_controllers::test {
 
@@ -64,6 +66,9 @@ constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 constexpr double kObjectStatusTimeout = 10.0;
 constexpr double kWithinTimeout = kObjectStatusTimeout / 2;
 constexpr double kPastTimeout = kObjectStatusTimeout + 1.0;
+constexpr double kClosedPosition = 0.8;
+// One register count of the driver's conversion, in joint units.
+constexpr double kOneCount = kClosedPosition / robotiq_driver::kGripperRange;
 // A stock stall timeout no test outlasts.
 constexpr double kStockStallNever = 3600.0;
 
@@ -146,7 +151,10 @@ protected:
                                    rclcpp::Parameter("goal_tolerance", kGoalTolerance),
                                    rclcpp::Parameter("stall_timeout", config.stall_timeout),
                                    // Relays a verdict to the client without delaying awaitResult.
-                                   rclcpp::Parameter("action_monitor_rate", 1000.0)}));
+                                   rclcpp::Parameter("action_monitor_rate", 1000.0),
+                                   // Humble EOL: delete; the robot description below supplies it.
+                                   rclcpp::Parameter("gripper_closed_position", kClosedPosition)},
+                                  gripperUrdf(kJoint, kClosedPosition)));
       executor_.add_node(controller_->get_node()->get_node_base_interface());
    }
 
@@ -413,6 +421,48 @@ TYPED_TEST_P(ObjectStatusControllerTest, takes_a_new_baseline_for_the_next_goal)
    EXPECT_FALSE(result->result->stalled);
 }
 
+TYPED_TEST_P(ObjectStatusControllerTest, repeats_the_outcome_for_a_goal_on_the_same_count)
+{
+   this->bringUp();
+   this->object_status_ = kMoving;
+   this->sendGoal(0.5);
+   this->object_status_ = kDetectedWhileClosing;
+   ASSERT_TRUE(this->awaitResult().has_value());
+
+   this->sendGoal(0.5 + kOneCount / 100);
+   const auto result = this->awaitResult();
+   ASSERT_TRUE(result.has_value());
+   EXPECT_EQ(rclcpp_action::ResultCode::SUCCEEDED, result->code);
+   EXPECT_TRUE(result->result->stalled);
+}
+
+TYPED_TEST_P(ObjectStatusControllerTest, waits_for_a_change_for_a_goal_on_another_count)
+{
+   this->bringUp();
+   this->object_status_ = kMoving;
+   this->sendGoal(0.5);
+   this->object_status_ = kDetectedWhileClosing;
+   ASSERT_TRUE(this->awaitResult().has_value());
+
+   this->sendGoal(0.5 + kOneCount);
+   this->expectStillActive();
+}
+
+TYPED_TEST_P(ObjectStatusControllerTest, repeats_no_outcome_across_a_deactivation)
+{
+   this->bringUp();
+   this->object_status_ = kMoving;
+   this->sendGoal(0.5);
+   this->object_status_ = kDetectedWhileClosing;
+   ASSERT_TRUE(this->awaitResult().has_value());
+
+   this->deactivate();
+   this->assign(Config::driver());
+   this->activate();
+   this->sendGoal(0.5);
+   this->expectStillActive();
+}
+
 TYPED_TEST_P(ObjectStatusControllerTest, refuses_a_non_positive_object_status_timeout)
 {
    for(const double timeout : {0.0, -1.0})
@@ -460,6 +510,9 @@ REGISTER_TYPED_TEST_SUITE_P(ObjectStatusControllerTest,
                             reports_the_gripper_verdict_over_the_goal_tolerance,
                             aborts_a_goal_the_gripper_never_decides,
                             takes_a_new_baseline_for_the_next_goal,
+                            repeats_the_outcome_for_a_goal_on_the_same_count,
+                            waits_for_a_change_for_a_goal_on_another_count,
+                            repeats_no_outcome_across_a_deactivation,
                             refuses_a_non_positive_object_status_timeout,
                             refuses_to_activate_without_the_object_status,
                             decides_again_after_a_deactivation);

@@ -54,4 +54,6 @@ robotiq_gripper_controller:
     stall_timeout: 0.5
     stall_velocity_threshold: 0.05
     goal_tolerance: 0.02
+    # Hz; how often a decided goal is relayed to the client (stock: 20).
+    action_monitor_rate: 100.0
     use_object_status: false  # no object_status to read, see above

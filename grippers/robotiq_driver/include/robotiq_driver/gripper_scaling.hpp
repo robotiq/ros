@@ -52,6 +52,17 @@ inline constexpr uint8_t kGripperMinPos = 3;
 inline constexpr uint8_t kGripperMaxPos = 230;
 inline constexpr uint8_t kGripperRange = kGripperMaxPos - kGripperMinPos;
 
+// The URDF hardware parameter carrying the closed_position the conversions below take.
+inline constexpr const char* kClosedPositionParam = "gripper_closed_position";
+
+// Whether the conversions below can take \p closed_position: zero and
+// non-finite are the two they cannot divide by. Negative is fine, and is how a
+// joint that closes in the negative direction is described.
+[[nodiscard]] inline bool isValidClosedPosition(double closed_position)
+{
+   return std::isfinite(closed_position) && closed_position != 0.0;
+}
+
 //! Register count (gPO: 0 open .. 255 closed) -> joint position, linear over
 //! the usable travel band. \p closed_position is the joint value at a fully
 //! closed gripper and sets the unit: the mapping carries whatever the URDF

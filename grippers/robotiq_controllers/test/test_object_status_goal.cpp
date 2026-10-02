@@ -28,6 +28,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -39,12 +40,14 @@
 #include <robotiq_controllers/object_status_goal.hpp>
 
 #include "controller_test_compat.hpp"
+#include "gripper_urdf.hpp"
 
 namespace robotiq_controllers::object_status_goal::test {
 namespace {
 using Robotiq::ObjectDetection;
 
 constexpr double kTimeout = 10.0;
+constexpr uint8_t kPositionRequest = 128;
 const rclcpp::Time kAccepted{100, 0, RCL_ROS_TIME};
 
 rclcpp::Time later(double seconds)
@@ -55,7 +58,15 @@ rclcpp::Time later(double seconds)
 Verdict accepted(const std::optional<ObjectDetection>& detection)
 {
    Verdict verdict;
-   verdict.reset(kAccepted, detection, kTimeout);
+   verdict.reset(kAccepted, detection, kTimeout, kPositionRequest);
+   return verdict;
+}
+
+// A verdict whose last goal, requesting kPositionRequest, stalled on an object while closing.
+Verdict afterAStall()
+{
+   Verdict verdict = accepted(ObjectDetection::Moving);
+   EXPECT_TRUE(verdict.decide(later(1), ObjectDetection::DetectedWhileClosing).has_value());
    return verdict;
 }
 
@@ -168,9 +179,96 @@ TEST(Verdict, times_the_next_goal_from_its_own_acceptance)
    Verdict verdict = accepted(ObjectDetection::AtRequestedPosition);
    ASSERT_TRUE(verdict.decide(later(kTimeout), ObjectDetection::AtRequestedPosition).has_value());
 
-   verdict.reset(later(kTimeout), ObjectDetection::AtRequestedPosition, kTimeout);
+   verdict.reset(later(kTimeout), ObjectDetection::AtRequestedPosition, kTimeout, kPositionRequest);
    EXPECT_FALSE(verdict.decide(later(kTimeout * 1.5), ObjectDetection::AtRequestedPosition).has_value());
    EXPECT_TRUE(verdict.decide(later(kTimeout * 2), ObjectDetection::AtRequestedPosition).has_value());
+}
+
+TEST(Verdict, repeats_the_outcome_for_the_same_position_request_at_the_same_reading)
+{
+   Verdict verdict = afterAStall();
+   verdict.reset(later(2), ObjectDetection::DetectedWhileClosing, kTimeout, kPositionRequest);
+   const std::optional<Outcome> outcome = verdict.decide(later(2), ObjectDetection::DetectedWhileClosing);
+   ASSERT_TRUE(outcome.has_value());
+   EXPECT_TRUE(outcome->stalled);
+   EXPECT_FALSE(outcome->reached_goal);
+
+   verdict.reset(later(3), ObjectDetection::DetectedWhileClosing, kTimeout, kPositionRequest);
+   EXPECT_TRUE(verdict.decide(later(3), ObjectDetection::DetectedWhileClosing).has_value());
+}
+
+TEST(Verdict, waits_for_a_change_for_another_position_request)
+{
+   Verdict verdict = afterAStall();
+   verdict.reset(later(2), ObjectDetection::DetectedWhileClosing, kTimeout, uint8_t{kPositionRequest + 1});
+   EXPECT_FALSE(verdict.decide(later(2), ObjectDetection::DetectedWhileClosing).has_value());
+}
+
+TEST(Verdict, waits_for_a_change_when_object_detection_changes)
+{
+   Verdict verdict = afterAStall();
+   verdict.reset(later(2), ObjectDetection::Moving, kTimeout, kPositionRequest);
+   EXPECT_FALSE(verdict.decide(later(2), ObjectDetection::Moving).has_value());
+}
+
+TEST(Verdict, waits_for_a_change_after_an_undecided_goal)
+{
+   Verdict verdict = afterAStall();
+   verdict.reset(later(2), ObjectDetection::DetectedWhileClosing, kTimeout, uint8_t{0});
+   verdict.reset(later(3), ObjectDetection::DetectedWhileClosing, kTimeout, kPositionRequest);
+   EXPECT_FALSE(verdict.decide(later(3), ObjectDetection::DetectedWhileClosing).has_value());
+}
+
+TEST(Verdict, repeats_no_timeout)
+{
+   Verdict verdict = accepted(ObjectDetection::DetectedWhileClosing);
+   ASSERT_TRUE(verdict.decide(later(kTimeout), ObjectDetection::DetectedWhileClosing).has_value());
+   verdict.reset(later(kTimeout), ObjectDetection::DetectedWhileClosing, kTimeout, kPositionRequest);
+   EXPECT_FALSE(verdict.decide(later(kTimeout), ObjectDetection::DetectedWhileClosing).has_value());
+}
+
+TEST(Verdict, repeats_nothing_for_a_goal_without_a_position_request)
+{
+   Verdict verdict = afterAStall();
+   verdict.reset(later(2), ObjectDetection::DetectedWhileClosing, kTimeout, std::nullopt);
+   EXPECT_FALSE(verdict.decide(later(2), ObjectDetection::DetectedWhileClosing).has_value());
+}
+
+TEST(ClosedPositionFromUrdf, reads_the_driver_parameter_of_the_joint_s_hardware)
+{
+   const std::optional<double> closed_position =
+      closedPositionFromUrdf(robotiq_controllers::test::gripperUrdf("finger_joint", 0.695), "finger_joint");
+   ASSERT_TRUE(closed_position.has_value());
+   EXPECT_DOUBLE_EQ(0.695, *closed_position);
+}
+
+TEST(ClosedPositionFromUrdf, finds_nothing_for_another_joint)
+{
+   EXPECT_FALSE(closedPositionFromUrdf(robotiq_controllers::test::gripperUrdf("finger_joint", 0.695), "other_joint"));
+}
+
+TEST(ClosedPositionFromUrdf, finds_nothing_without_the_parameter)
+{
+   EXPECT_FALSE(closedPositionFromUrdf(robotiq_controllers::test::gripperUrdf("finger_joint", ""), "finger_joint"));
+}
+
+TEST(ClosedPositionFromUrdf, finds_nothing_in_a_value_the_driver_rejects)
+{
+   for(const char* value : {"0", "nan", "inf", "wide open"})
+   {
+      EXPECT_FALSE(
+         closedPositionFromUrdf(robotiq_controllers::test::gripperUrdf(
+                                   "finger_joint",
+                                   std::string(R"(<param name="gripper_closed_position">)") + value + "</param>"),
+                                "finger_joint"))
+         << value;
+   }
+}
+
+TEST(ClosedPositionFromUrdf, finds_nothing_in_a_malformed_description)
+{
+   EXPECT_FALSE(closedPositionFromUrdf("not a urdf", "finger_joint"));
+   EXPECT_FALSE(closedPositionFromUrdf("", "finger_joint"));
 }
 
 TEST(InterfaceName, joins_the_joint_and_the_field)

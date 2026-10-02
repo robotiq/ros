@@ -8,9 +8,12 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(controller_interface REQUIRED)
+find_package(hardware_interface REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(robotiq_driver REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(tinyxml2_vendor REQUIRED)
+find_package(TinyXML2 REQUIRED)
 
 # dev/CMakeLists.txt builds robotiq_msgs in-tree, where there is no config file
 # to find and the typesupport target already exists.
@@ -22,6 +25,7 @@ endif()
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   controller_interface
+  hardware_interface
   realtime_tools
   robotiq_driver
   robotiq_msgs
@@ -51,9 +55,11 @@ target_include_directories(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   controller_interface::controller_interface
+  hardware_interface::hardware_interface
   realtime_tools::realtime_tools
   ${robotiq_msgs_TARGETS}
   ${std_srvs_TARGETS}
+  tinyxml2::tinyxml2
 )
 
 pluginlib_export_plugin_description_file(controller_interface controller_plugins.xml)

@@ -28,19 +28,88 @@
 
 #include "robotiq_controllers/object_status_goal.hpp"
 
+#include <tinyxml2.h>
+
 #include <algorithm>
+#include <exception>
+#include <string>
+#include <string_view>
 
 #include "rclcpp/logging.hpp"
 #include "robotiq_controllers/gripper_status.hpp"
+#include "robotiq_driver/gripper_scaling.hpp"
 
 namespace robotiq_controllers::object_status_goal {
 namespace {
 constexpr const char* kInterface = gripper_status::kInterfaceNames.at(gripper_status::OBJECT_STATUS);
+
+bool drivesJoint(const tinyxml2::XMLElement& control, const std::string& joint)
+{
+   for(const tinyxml2::XMLElement* j = control.FirstChildElement("joint"); j; j = j->NextSiblingElement("joint"))
+   {
+      if(const char* name = j->Attribute("name"); name && joint == name)
+      {
+         return true;
+      }
+   }
+   return false;
+}
+
+const tinyxml2::XMLElement* hardwareParameter(const tinyxml2::XMLElement& control, std::string_view name)
+{
+   const tinyxml2::XMLElement* hardware = control.FirstChildElement("hardware");
+   for(const tinyxml2::XMLElement* param = hardware ? hardware->FirstChildElement("param") : nullptr; param;
+       param = param->NextSiblingElement("param"))
+   {
+      if(const char* n = param->Attribute("name"); n && name == n)
+      {
+         return param;
+      }
+   }
+   return nullptr;
+}
+
+std::optional<double> closedPosition(const char* text)
+{
+   try
+   {
+      const double closed_position = std::stod(text ? text : "");
+      return robotiq_driver::isValidClosedPosition(closed_position) ? std::optional(closed_position) : std::nullopt;
+   }
+   catch(const std::exception&)
+   {
+      return std::nullopt;
+   }
+}
 } // namespace
 
 std::string interfaceName(const std::string& joint)
 {
    return joint + "/" + kInterface;
+}
+
+std::optional<double> closedPositionFromUrdf(const std::string& urdf, const std::string& joint)
+{
+   // A walk of the two tags needed rather than hardware_interface's parser,
+   // which validates the whole description again, with rules that differ per
+   // distro, to answer the same question.
+   tinyxml2::XMLDocument document;
+   if(document.Parse(urdf.c_str()) != tinyxml2::XML_SUCCESS || !document.RootElement())
+   {
+      return std::nullopt;
+   }
+   for(const tinyxml2::XMLElement* control = document.RootElement()->FirstChildElement("ros2_control"); control;
+       control = control->NextSiblingElement("ros2_control"))
+   {
+      if(drivesJoint(*control, joint))
+      {
+         if(const tinyxml2::XMLElement* param = hardwareParameter(*control, robotiq_driver::kClosedPositionParam))
+         {
+            return closedPosition(param->GetText());
+         }
+      }
+   }
+   return std::nullopt;
 }
 
 std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> findInterface(
@@ -67,35 +136,49 @@ std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> 
 
 void Verdict::reset(const rclcpp::Time& time,
                     const std::optional<Robotiq::ObjectDetection>& objectDetection,
-                    double timeout)
+                    double timeout,
+                    const std::optional<uint8_t>& positionRequest)
 {
+   const Goal previous = goal_;
    timed_from_ = time;
    timeout_ = timeout;
-   baseline_ = objectDetection;
+   goal_ = Goal{positionRequest, objectDetection, std::nullopt};
+   // Only the goal just decided can repeat: one accepted in between may have
+   // moved the fingers already.
+   if(previous.outcome && positionRequest && positionRequest == previous.positionRequest
+      && objectDetection == previous.objectDetection)
+   {
+      goal_.outcome = previous.outcome;
+   }
 }
 
 std::optional<Outcome> Verdict::decide(const rclcpp::Time& time,
                                        const std::optional<Robotiq::ObjectDetection>& objectDetection)
 {
-   if(!baseline_)
+   if(goal_.outcome)
+   {
+      return goal_.outcome;
+   }
+   if(!goal_.objectDetection)
    {
       // No reading at acceptance: the first one stands in for it.
-      baseline_ = objectDetection;
+      goal_.objectDetection = objectDetection;
    }
-   else if(objectDetection && objectDetection != baseline_)
+   else if(objectDetection && objectDetection != goal_.objectDetection)
    {
+      goal_.objectDetection = objectDetection;
       if(objectDetection == Robotiq::ObjectDetection::Moving)
       {
          // Motion seen: whatever the gripper settles on next is this goal's
          // verdict, even the value it started from, as when it tightens on the
          // object it already held.
-         baseline_ = objectDetection;
          timed_from_ = time;
       }
       else
       {
          const bool reached = objectDetection == Robotiq::ObjectDetection::AtRequestedPosition;
-         return Outcome{reached, !reached};
+         goal_.outcome = Outcome{reached, !reached};
+         return goal_.outcome;
       }
    }
    if((time - timed_from_).seconds() >= timeout_)

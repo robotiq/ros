@@ -13,6 +13,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>controller_interface</depend>
+  <depend>hardware_interface</depend>
   <!-- The gripper action controller derives from parallel_gripper_controller;
        Humble has only its predecessor, from which GripperCommandController derives.
        Humble EOL: simplify — delete the gripper_controllers line and the
@@ -24,9 +25,9 @@
   <depend>robotiq_driver</depend>
   <depend>robotiq_msgs</depend>
   <depend>std_srvs</depend>
+  <depend>tinyxml2_vendor</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
-  <test_depend>hardware_interface</test_depend>
   <test_depend>rclcpp_action</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

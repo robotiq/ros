@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -51,6 +52,10 @@ constexpr double kDefaultTimeout = 10.0;
 
 std::string interfaceName(const std::string& joint);
 
+// The driver's closed position for \p joint, from the hardware block in \p urdf
+// that drives it; nothing when no such block carries one the driver would take.
+std::optional<double> closedPositionFromUrdf(const std::string& urdf, const std::string& joint);
+
 // The joint's object_status among a controller's loaned state interfaces; logs
 // what to do when there is none.
 std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> findInterface(
@@ -69,16 +74,32 @@ struct Outcome
 // so a settled reading counts only once it differs from the one at acceptance,
 // or once motion was seen. A goal still undecided at timeout after its
 // acceptance, or after the last motion seen, gets an outcome with neither flag.
+//
+// The gripper does not act on a position request it already settled on, so a
+// goal whose request, in register counts, repeats the one just decided, with
+// the reading still the one that decided it, gets that outcome at once.
 class Verdict
 {
 public:
-   void reset(const rclcpp::Time& time, const std::optional<Robotiq::ObjectDetection>& objectDetection, double timeout);
+   void reset(const rclcpp::Time& time,
+              const std::optional<Robotiq::ObjectDetection>& objectDetection,
+              double timeout,
+              const std::optional<uint8_t>& positionRequest);
    std::optional<Outcome> decide(const rclcpp::Time& time,
                                  const std::optional<Robotiq::ObjectDetection>& objectDetection);
 
 private:
+   struct Goal
+   {
+      std::optional<uint8_t> positionRequest;
+      // The reading a settled one must differ from; once decided, the one that decided it.
+      std::optional<Robotiq::ObjectDetection> objectDetection;
+      // Set only by the gripper's verdict, never by the timeout.
+      std::optional<Outcome> outcome;
+   };
+
    rclcpp::Time timed_from_;
    double timeout_ = 0.0;
-   std::optional<Robotiq::ObjectDetection> baseline_;
+   Goal goal_;
 };
 } // namespace robotiq_controllers::object_status_goal
