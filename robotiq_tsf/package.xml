@@ -12,6 +12,8 @@
   <author email="jenkwia@example.com">Jen Kwia</author>
 
   <license>BSD-3-Clause</license>
+  <!-- Vendored x-io Fusion AHRS sources. -->
+  <license file="third_party/fusion/LICENSE.md">MIT</license>
 
   <url type="website">https://github.com/ets-laboratory/tactilesensors4</url>
 

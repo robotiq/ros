@@ -34,6 +34,8 @@
 #include <cmath>
 #include <cstdint>
 
+#include "robotiq_tsf/orientation_filter.hpp"
+
 // Small, hardware-independent helpers for the AHRS (Attitude and Heading
 // Reference System) fusion path, factored out of the node so they can be
 // unit-tested directly (like sdk_bridge/device_autodetect).
@@ -44,9 +46,9 @@ namespace robotiq_tsf {
 // match the legacy poll_data_node.
 struct AhrsConfig
 {
-   float beta = 0.041f;
-   float accel_gate_lo = 0.85f;
-   float accel_gate_hi = 1.15f;
+   float beta = OrientationFilter::kDefaultBeta;
+   float accel_gate_lo = OrientationFilter::kDefaultAccelGateLo;
+   float accel_gate_hi = OrientationFilter::kDefaultAccelGateHi;
    float bias_learn_rate = 0.0005f; // EMA step toward residual gyro when still
    float still_gyro_eps_deg_s = 0.8f; // |omega| below this counts as still
    float still_accel_eps_g = 0.05f; // ||a| - 1g| below this counts as still

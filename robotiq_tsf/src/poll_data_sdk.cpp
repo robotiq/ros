@@ -303,8 +303,7 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
 
          if(dt > 0.0f)
          {
-            const Eigen::Vector3f gyro_rad = gyro * deg_to_rad;
-            filter_[f].updateIMU(gyro_rad.x(), gyro_rad.y(), gyro_rad.z(), accel.x(), accel.y(), accel.z(), dt);
+            filter_[f].updateIMU(gyro * deg_to_rad, accel, dt);
 
             // Online gyro-bias trim while stationary: drift the stored bias
             // slowly toward the residual, so a frozen bias can't leak
@@ -324,9 +323,10 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
          sensors_data_.quaternion.data[f].values[2] = q.y();
          sensors_data_.quaternion.data[f].values[3] = q.z();
 
-         filter_[f].getEulerDeg(sensors_data_.eulerangle.data[f].values[0],
-                                sensors_data_.eulerangle.data[f].values[1],
-                                sensors_data_.eulerangle.data[f].values[2]);
+         const Eigen::Vector3f rpy = filter_[f].eulerDeg();
+         sensors_data_.eulerangle.data[f].values[0] = rpy.x();
+         sensors_data_.eulerangle.data[f].values[1] = rpy.y();
+         sensors_data_.eulerangle.data[f].values[2] = rpy.z();
       }
    }
    else if(bias_iter_ == kBiasCalculationIterations)
@@ -338,8 +338,8 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
 
          // Gravity in the body frame at rest is the signal, not a bias: seed
          // each filter's quaternion from the accel mean, then stop subtracting
-         // the accel offset. Mirrors PollData.cpp's new MadgwickFilter path.
-         filter_[f].initFromAccel(accel_bias_[f].x(), accel_bias_[f].y(), accel_bias_[f].z());
+         // the accel offset.
+         filter_[f].initFromAccel(accel_bias_[f]);
          accel_bias_[f].setZero();
 
          // Reseed the per-finger dt so the first post-calibration sample skips
