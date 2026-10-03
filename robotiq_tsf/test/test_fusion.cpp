@@ -35,46 +35,60 @@
 
 #include <Eigen/Core>
 
+#include <chrono>
+
 #include "eigen_test_utils.hpp"
 #include "robotiq_tsf/fusion.hpp"
 
 using Eigen::Vector3f;
 using robotiq_tsf::deriveDt;
+using robotiq_tsf::FloatSeconds;
 using robotiq_tsf::sampleIsStill;
 using robotiq_tsf::trimBias;
+using namespace std::chrono_literals; // NOLINT(build/namespaces)
 
 namespace {
-constexpr float kLo = 1e-4f; // 0.1 ms
-constexpr float kHi = 0.1f; // 100 ms
+// The node's default clamp bounds.
+constexpr robotiq_tsf::AhrsConfig kConfig{};
+constexpr FloatSeconds kLo = kConfig.dt_clamp_lo;
+constexpr FloatSeconds kHi = kConfig.dt_clamp_hi;
 } // namespace
 
-TEST(DeriveDt, NormalDeltaIsMsToSeconds)
+TEST(DeriveDt, NormalDeltaIsTheIntervalInSeconds)
 {
    // 10 ms apart -> 0.01 s, within [lo, hi].
-   EXPECT_FLOAT_EQ(deriveDt(1000, 1010, kLo, kHi), 0.010f);
+   EXPECT_FLOAT_EQ(deriveDt(1s, 1010ms, kLo, kHi).count(), 0.010f);
+}
+
+TEST(DeriveDt, FirmwareCadenceGivesAboutOneMillisecond)
+{
+   // Consecutive timestamps of one finger, recorded from a TSF-85: the
+   // firmware samples each finger at ~1 kHz.
+   EXPECT_NEAR(deriveDt(89899862349us, 89899863315us, kLo, kHi).count(), 0.000966f, 1e-7f);
 }
 
 TEST(DeriveDt, FirstSampleAfterSeedReturnsZero)
 {
    // prev == 0 means "not yet seeded" -> skip integration.
-   EXPECT_FLOAT_EQ(deriveDt(0, 1234, kLo, kHi), 0.0f);
+   EXPECT_EQ(deriveDt(0us, 1234us, kLo, kHi).count(), 0.0f);
 }
 
 TEST(DeriveDt, DuplicateTimestampReturnsZero)
 {
-   EXPECT_FLOAT_EQ(deriveDt(1000, 1000, kLo, kHi), 0.0f);
+   EXPECT_EQ(deriveDt(1s, 1s, kLo, kHi).count(), 0.0f);
 }
 
 TEST(DeriveDt, BackwardsTimestampReturnsZero)
 {
-   EXPECT_FLOAT_EQ(deriveDt(2000, 1000, kLo, kHi), 0.0f);
+   EXPECT_EQ(deriveDt(2s, 1s, kLo, kHi).count(), 0.0f);
 }
 
 TEST(DeriveDt, StalledDeltaIsClampedToHi)
 {
-   // 500 ms stall -> capped at 100 ms so a delayed sample can't inject an
-   // outsized integration step.
-   EXPECT_FLOAT_EQ(deriveDt(1000, 1500, kLo, kHi), kHi);
+   // A stall well past the upper bound is capped at it, so a delayed sample
+   // can't inject an outsized integration step.
+   const auto stall = 5 * std::chrono::duration_cast<std::chrono::microseconds>(kHi);
+   EXPECT_FLOAT_EQ(deriveDt(1s, 1s + stall, kLo, kHi).count(), kHi.count());
 }
 
 TEST(SampleIsStill, TrueWhenGyroSmallAndAccelNearOneG)

@@ -92,7 +92,7 @@ private:
    // don't need the full rate; the IMU fusion + bias calc still run on every
    // packet regardless (fusion accuracy needs the full rate).
    // Read/written only from the single SDK callback thread.
-   double publish_period_s_ = 0.0;
+   std::chrono::duration<double> publish_period_{0.0};
    std::chrono::steady_clock::time_point last_pub_{};
 
    // Per-finger IMU bias estimates: accumulated as sums during the startup
@@ -106,9 +106,9 @@ private:
    // AHRS filter — one instance per finger; integrated on every SDK packet.
    robotiq_tsf::AhrsConfig ahrs_cfg_;
    std::array<MadgwickFilter, FINGER_COUNT> filter_;
-   // Per-finger MCU timestamp (ms) of the last integrated sample; 0 = not yet
+   // Per-finger MCU timestamp of the last integrated sample; zero = not yet
    // seeded (start of stream, or just after the bias calibration).
-   std::array<uint64_t, FINGER_COUNT> last_ts_ms_{};
+   std::array<std::chrono::microseconds, FINGER_COUNT> last_ts_{};
 
    std::atomic<bool> stopped_{false};
    std::atomic<uint64_t> frames_received_{0};
