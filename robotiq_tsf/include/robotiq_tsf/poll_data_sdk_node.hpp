@@ -45,13 +45,13 @@
 
 #include "finger_data.h" // NOLINT(build/include_subdir) - external SDK header (Fingers, FINGER_COUNT)
 #include "rclcpp/node.hpp" // brings rclcpp::{Node, Publisher, Service}
-#include "robotiq_tsf/MadgwickAHRS.h" // MadgwickFilter (by-value array member)
 #include "robotiq_tsf/fusion.hpp" // AhrsConfig (by-value member)
 // Sensor is the aggregate message and transitively defines every per-field
 // message type the publisher members are typed on (StaticData, Dynamic, …), so
 // the individual msg headers are pulled in by the .cpp (where create_publisher
 // needs their typesupport), not here.
 #include "robotiq_tsf/msg/sensor.hpp"
+#include "robotiq_tsf/orientation_filter.hpp" // OrientationFilter (by-value array member)
 #include "robotiq_tsf/srv/tactile_sensors.hpp"
 
 // Defined by the SDK (extern/tactile_sensors/sdk_cpp); forward-declared here so
@@ -105,7 +105,7 @@ private:
 
    // AHRS filter — one instance per finger; integrated on every SDK packet.
    robotiq_tsf::AhrsConfig ahrs_cfg_;
-   std::array<MadgwickFilter, FINGER_COUNT> filter_;
+   std::array<robotiq_tsf::OrientationFilter, FINGER_COUNT> filter_;
    // Per-finger MCU timestamp (ms) of the last integrated sample; 0 = not yet
    // seeded (start of stream, or just after the bias calibration).
    std::array<uint64_t, FINGER_COUNT> last_ts_ms_{};

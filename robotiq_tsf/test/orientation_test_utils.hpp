@@ -57,9 +57,8 @@ struct EulerAngles
 
 inline EulerAngles eulerDegOf(const Eigen::Quaternionf& q)
 {
-   EulerAngles e;
-   robotiq_tsf::quatToEulerDeg(q, e.roll, e.pitch, e.yaw);
-   return e;
+   const Eigen::Vector3f rpy = robotiq_tsf::quatToEulerDeg(q);
+   return {rpy.x(), rpy.y(), rpy.z()};
 }
 
 inline float maxAbsDeg(const EulerAngles& e)
