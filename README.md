@@ -115,7 +115,7 @@ The node publishes on the following topics:
 | `TactileSensor/Gyroscope` | `robotiq_tsf/Gyroscope` | Raw gyroscope — two readings of `[x, y, z]` `int16` |
 | `TactileSensor/EulerAngle` | `robotiq_tsf/EulerAngle` | Fused orientation — two readings of `[roll, pitch, yaw]` `float32` |
 | `TactileSensor/Quaternion` | `robotiq_tsf/Quaternion` | Fused orientation — two readings of `[w, x, y, z]` `float64` |
-| `TactileSensor/Timestamp` | `robotiq_tsf/Timestamp` | Per-finger firmware timestamp — two `uint16` values |
+| `TactileSensor/Timestamp` | `robotiq_tsf/Timestamp` | Per-finger firmware timestamp in microseconds — two `uint64` values |
 
 > Note: `EulerAngle` and `Quaternion` are only published after the IMU bias calibration period completes at startup.
 
