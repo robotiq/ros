@@ -36,7 +36,8 @@ namespace robotiq_tsf {
 // each angle in ±180°/±90° aerospace ranges. Kept hand-written on purpose:
 // Eigen's eulerAngles(2, 1, 0) constrains its first angle to [0, π], which
 // does not match the convention the driver publishes on TactileSensor/EulerAngle.
-void quatToEulerRad(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw);
-void quatToEulerDeg(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw);
+// Returns (roll, pitch, yaw).
+Eigen::Vector3f quatToEulerRad(const Eigen::Quaternionf& q);
+Eigen::Vector3f quatToEulerDeg(const Eigen::Quaternionf& q);
 
 } // namespace robotiq_tsf

@@ -69,18 +69,14 @@ constexpr float kQuatTol = 1e-6f;
 constexpr float kDt = 0.001f;
 constexpr int kStepsPerSecond = 1000;
 
-// The driver's default madgwick.beta.
-constexpr float kDefaultBeta = 0.041f;
-
 // |a| = 1.4 g: outside the default [0.85, 1.15] g gate, so accel is ignored.
 constexpr float kGatedLateralG = 0.98f;
 
 template <typename Filter>
 EulerAngles eulerDegOf(const Filter& f)
 {
-   EulerAngles e;
-   f.getEulerDeg(e.roll, e.pitch, e.yaw);
-   return e;
+   const Eigen::Vector3f rpy = f.eulerDeg();
+   return {rpy.x(), rpy.y(), rpy.z()};
 }
 
 // Seed `f` believing it is rolled by `roll_deg` while the sensor actually lies
@@ -89,7 +85,7 @@ EulerAngles eulerDegOf(const Filter& f)
 template <typename Filter>
 void seedRollError(Filter& f, float roll_deg)
 {
-   f.initFromAccel(0.0f, std::sin(roll_deg * kDegToRad), std::cos(roll_deg * kDegToRad));
+   f.initFromAccel({0.0f, std::sin(roll_deg * kDegToRad), std::cos(roll_deg * kDegToRad)});
 }
 
 template <typename Filter>
@@ -97,7 +93,7 @@ void updateStillFlat(Filter& f, int steps)
 {
    for(int i = 0; i < steps; ++i)
    {
-      f.updateIMU(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, kDt);
+      f.updateIMU({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, kDt);
    }
 }
 
@@ -106,7 +102,7 @@ class OrientationFilterTest : public ::testing::Test
 {
 };
 
-using FilterTypes = ::testing::Types<MadgwickFilter, robotiq_tsf::OrientationFilter>;
+using FilterTypes = ::testing::Types<robotiq_tsf::OrientationFilter>;
 TYPED_TEST_SUITE(OrientationFilterTest, FilterTypes);
 
 TYPED_TEST(OrientationFilterTest, InitFromAccelMatchesTilt)
@@ -118,16 +114,16 @@ TYPED_TEST(OrientationFilterTest, InitFromAccelMatchesTilt)
    TypeParam f;
 
    // Flat: gravity along body +Z.
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {0.0f, 0.0f, 0.0f}, kExactTolDeg));
 
    // Pure roll: gravity_body = (0, sin r, cos r). Units must not matter,
    // so feed m/s^2 rather than g.
-   f.initFromAccel(0.0f, g * std::sin(kRollDeg * kDegToRad), g * std::cos(kRollDeg * kDegToRad));
+   f.initFromAccel({0.0f, g * std::sin(kRollDeg * kDegToRad), g * std::cos(kRollDeg * kDegToRad)});
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {kRollDeg, 0.0f, 0.0f}, kExactTolDeg));
 
    // Pure pitch: gravity_body = (-sin p, 0, cos p).
-   f.initFromAccel(-std::sin(kPitchDeg * kDegToRad), 0.0f, std::cos(kPitchDeg * kDegToRad));
+   f.initFromAccel({-std::sin(kPitchDeg * kDegToRad), 0.0f, std::cos(kPitchDeg * kDegToRad)});
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {0.0f, kPitchDeg, 0.0f}, kExactTolDeg));
 }
 
@@ -143,36 +139,30 @@ TYPED_TEST(OrientationFilterTest, InitFromAccelCombinedRollPitch)
    const float cp = std::cos(kPitchDeg * kDegToRad);
 
    TypeParam f;
-   f.initFromAccel(-sp, sr * cp, cr * cp);
+   f.initFromAccel({-sp, sr * cp, cr * cp});
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {kRollDeg, kPitchDeg, 0.0f}, kExactTolDeg));
 }
 
 TYPED_TEST(OrientationFilterTest, InitFromZeroAccelResetsToIdentity)
 {
    TypeParam f;
-   f.initFromAccel(0.0f, 1.0f, 0.0f); // some non-identity state first
-   f.initFromAccel(0.0f, 0.0f, 0.0f);
-   float q0, q1, q2, q3;
-   f.getQuaternion(q0, q1, q2, q3);
-   EXPECT_NEAR(q0, 1.0f, kQuatTol);
-   EXPECT_NEAR(q1, 0.0f, kQuatTol);
-   EXPECT_NEAR(q2, 0.0f, kQuatTol);
-   EXPECT_NEAR(q3, 0.0f, kQuatTol);
+   f.initFromAccel({0.0f, 1.0f, 0.0f}); // some non-identity state first
+   f.initFromAccel({0.0f, 0.0f, 0.0f});
+   const Quaternionf q = f.quaternion();
+   EXPECT_NEAR(q.w(), 1.0f, kQuatTol);
+   EXPECT_NEAR(q.x(), 0.0f, kQuatTol);
+   EXPECT_NEAR(q.y(), 0.0f, kQuatTol);
+   EXPECT_NEAR(q.z(), 0.0f, kQuatTol);
 }
 
 TYPED_TEST(OrientationFilterTest, NonPositiveDtIsIgnored)
 {
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
-   float before[4], after[4];
-   f.getQuaternion(before[0], before[1], before[2], before[3]);
-   f.updateIMU(1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 1.0f, 0.0f);
-   f.updateIMU(1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 1.0f, -0.01f);
-   f.getQuaternion(after[0], after[1], after[2], after[3]);
-   for(int i = 0; i < 4; ++i)
-   {
-      EXPECT_EQ(before[i], after[i]);
-   }
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
+   const Quaternionf before = f.quaternion();
+   f.updateIMU({1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}, 0.0f);
+   f.updateIMU({1.0f, 2.0f, 3.0f}, {0.0f, 0.0f, 1.0f}, -0.01f);
+   EXPECT_EQ(f.quaternion().coeffs(), before.coeffs());
 }
 
 TYPED_TEST(OrientationFilterTest, GyroOnlyIntegrationMatchesAnalyticRotation)
@@ -186,10 +176,10 @@ TYPED_TEST(OrientationFilterTest, GyroOnlyIntegrationMatchesAnalyticRotation)
    constexpr float kIntegrationTolDeg = 0.05f;
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    for(int i = 0; i < kSteps; ++i)
    {
-      f.updateIMU(0.0f, 0.0f, kYawRateDegS * kDegToRad, kGatedLateralG, 0.0f, 1.0f, kDt);
+      f.updateIMU({0.0f, 0.0f, kYawRateDegS * kDegToRad}, {kGatedLateralG, 0.0f, 1.0f}, kDt);
    }
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {0.0f, 0.0f, kExpectedYawDeg}, kIntegrationTolDeg));
 }
@@ -207,11 +197,11 @@ TYPED_TEST(OrientationFilterTest, TracksRotationWithMeasuredDt)
    constexpr float kTrackingTolDeg = 3.0f;
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    for(int i = 0; i < kSteps; ++i)
    {
       const float rollTrue = kRateDegS * kStep * static_cast<float>(i) * kDegToRad;
-      f.updateIMU(kRateDegS * kDegToRad, 0.0f, 0.0f, 0.0f, std::sin(rollTrue), std::cos(rollTrue), kStep);
+      f.updateIMU({kRateDegS * kDegToRad, 0.0f, 0.0f}, {0.0f, std::sin(rollTrue), std::cos(rollTrue)}, kStep);
    }
    EXPECT_TRUE(eulerNear(eulerDegOf(f), {kExpectedRollDeg, 0.0f, 0.0f}, kTrackingTolDeg));
 }
@@ -228,12 +218,12 @@ TYPED_TEST(OrientationFilterTest, AccelGateRejectsMotionBursts)
    constexpr float kGateLeakTolDeg = 0.1f;
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
 
    float peakDeg = 0.0f;
    for(int i = 0; i < kBurstSteps; ++i)
    {
-      f.updateIMU(0.0f, 0.0f, 0.0f, kBurstLateralG, 0.0f, 1.0f, kDt);
+      f.updateIMU({0.0f, 0.0f, 0.0f}, {kBurstLateralG, 0.0f, 1.0f}, kDt);
       peakDeg = std::max(peakDeg, maxAbsDeg(eulerDegOf(f)));
    }
 
@@ -244,14 +234,14 @@ TYPED_TEST(OrientationFilterTest, BetaIsTheTiltCorrectionRate)
 {
    // madgwick.beta is user-facing: a tilt error of a few degrees closes at
    // 2 * beta rad/s, independently of its size. Users tuned it on that
-   // meaning, so it must keep it. (Madgwick's gradient step falls below that
-   // rate as the error grows — 94% at 20 deg, 45% at 90 deg — so the check
-   // stays at the errors seen in service.)
+   // meaning, so it must keep it. (The Madgwick filter this replaced fell
+   // below that rate as the error grew — 94% at 20 deg, 45% at 90 deg — so
+   // the check stays at the errors seen in service.)
    constexpr float kInitialErrorDeg = 10.0f;
    constexpr int kSteps = kStepsPerSecond / 2;
    constexpr float kRateTolDeg = 0.1f;
 
-   for(const float beta : {kDefaultBeta, 2.0f * kDefaultBeta})
+   for(const float beta : {TypeParam::kDefaultBeta, 2.0f * TypeParam::kDefaultBeta})
    {
       TypeParam f;
       f.setBeta(beta);
@@ -317,10 +307,10 @@ TYPED_TEST(OrientationFilterTest, ConstantGyroBiasLeavesSmallTiltError)
    constexpr float kMaxBiasTiltDeg = 0.5f;
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    for(int i = 0; i < kSteps; ++i)
    {
-      f.updateIMU(kBiasDegS * kDegToRad, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, kDt);
+      f.updateIMU({kBiasDegS * kDegToRad, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, kDt);
    }
    EXPECT_LT(tiltErrorDeg(f.quaternion(), Quaternionf::Identity()), kMaxBiasTiltDeg);
 }
@@ -341,17 +331,13 @@ TYPED_TEST(OrientationFilterTest, StationaryNoiseStaysBelowJitterBound)
    std::normal_distribution<float> gyroNoise(0.0f, kGyroNoiseDegS * kDegToRad);
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    double sumSq = 0.0;
    float peak = 0.0f;
    for(int i = 0; i < kSettleSteps + kMeasuredSteps; ++i)
    {
-      f.updateIMU(gyroNoise(rng),
-                  gyroNoise(rng),
-                  gyroNoise(rng),
-                  accelNoise(rng),
-                  accelNoise(rng),
-                  1.0f + accelNoise(rng),
+      f.updateIMU({gyroNoise(rng), gyroNoise(rng), gyroNoise(rng)},
+                  {accelNoise(rng), accelNoise(rng), 1.0f + accelNoise(rng)},
                   kDt);
       if(i >= kSettleSteps)
       {
@@ -374,13 +360,13 @@ TYPED_TEST(OrientationFilterTest, TracksHandheldMotionWithinTolerance)
    constexpr float kUnitNormTol = 1e-5f;
 
    TypeParam f;
-   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   f.initFromAccel({0.0f, 0.0f, 1.0f});
    float peakError = 0.0f;
    const auto samples = robotiq_tsf::test::handheldMotion(kSteps, kDt);
    for(int i = 0; i < kSteps; ++i)
    {
       const auto& s = samples[i];
-      f.updateIMU(s.gyro.x(), s.gyro.y(), s.gyro.z(), s.accel.x(), s.accel.y(), s.accel.z(), kDt);
+      f.updateIMU(s.gyro, s.accel, kDt);
       if(i >= kWarmupSteps)
       {
          peakError = std::max(peakError, tiltErrorDeg(f.quaternion(), s.truth));
@@ -393,8 +379,9 @@ TYPED_TEST(OrientationFilterTest, TracksHandheldMotionWithinTolerance)
 TEST(OrientationFilter, RecoversFromUpsideDownSeed)
 {
    // Seeded nearly upside down, e.g. calibrated while held inverted and then
-   // set down. MadgwickFilter's gradient vanishes near 180 deg and never
-   // recovers; this filter must, within the 30 s allowed a quarter turn.
+   // set down. The Madgwick filter this replaced never recovered from that
+   // (its gradient vanishes near 180 deg); recovery must take no longer than
+   // the 30 s allowed a quarter turn.
    constexpr float kInitialErrorDeg = 170.0f;
    constexpr float kSettledDeg = 1.0f;
    constexpr int kRecoveryDeadlineSteps = 30 * kStepsPerSecond;
@@ -404,5 +391,18 @@ TEST(OrientationFilter, RecoversFromUpsideDownSeed)
    updateStillFlat(f, kRecoveryDeadlineSteps);
    EXPECT_LT(tiltErrorDeg(f.quaternion(), Quaternionf::Identity()), kSettledDeg);
 }
+
+// The pre-Fusion header stays one release for downstream code that included it.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+TEST(OrientationFilter, DeprecatedMadgwickHeaderStillBuilds)
+{
+   MadgwickFilter f;
+   f.initFromAccel(0.0f, 0.0f, 1.0f);
+   float roll, pitch, yaw;
+   quatToEulerDeg(f.quaternion(), roll, pitch, yaw);
+   EXPECT_TRUE(eulerNear({roll, pitch, yaw}, {0.0f, 0.0f, 0.0f}, kExactTolDeg));
+}
+#pragma GCC diagnostic pop
 
 } // namespace

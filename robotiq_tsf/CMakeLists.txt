@@ -73,7 +73,6 @@ include_directories(
 # Fusion (third_party/fusion, MIT) is compiled in rather than built as its own
 # library, so the exported robotiq_tsf_algorithms stays self-contained.
 add_library(${PROJECT_NAME}_algorithms
-  src/MadgwickAHRS.cpp
   src/euler_angles.cpp
   src/orientation_filter.cpp
   third_party/fusion/FusionAhrs.c

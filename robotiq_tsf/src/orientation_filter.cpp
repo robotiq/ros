@@ -66,8 +66,8 @@ struct OrientationFilter::Ahrs
 OrientationFilter::OrientationFilter(float beta)
    : ahrs_(std::make_unique<Ahrs>())
    , beta_(beta)
-   , accel_gate_lo_(0.85f)
-   , accel_gate_hi_(1.15f)
+   , accel_gate_lo_(kDefaultAccelGateLo)
+   , accel_gate_hi_(kDefaultAccelGateHi)
 {
    // Fusion's own acceleration rejection, gyro-overrange recovery and
    // magnetometer stay off (all 0 in the defaults): the gate above does the
@@ -103,16 +103,15 @@ void OrientationFilter::setAccelGate(float lo, float hi)
    accel_gate_hi_ = hi;
 }
 
-void OrientationFilter::initFromAccel(float ax, float ay, float az)
+void OrientationFilter::initFromAccel(const Eigen::Vector3f& accel)
 {
-   const Eigen::Vector3f a(ax, ay, az);
-   const float norm = a.norm();
+   const float norm = accel.norm();
    if(norm <= kEpsNorm)
    {
       reset();
       return;
    }
-   const Eigen::Vector3f g = a / norm;
+   const Eigen::Vector3f g = accel / norm;
 
    // Gravity in the body frame for ZYX roll r, pitch p is
    // (-sin p, sin r cos p, cos r cos p); yaw is unobservable, so zero.
@@ -125,18 +124,16 @@ void OrientationFilter::initFromAccel(float ax, float ay, float az)
    FusionAhrsSetQuaternion(&ahrs_->state, FusionQuaternion{{q.w(), q.x(), q.y(), q.z()}});
 }
 
-void OrientationFilter::updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt)
+void OrientationFilter::updateIMU(const Eigen::Vector3f& gyro, const Eigen::Vector3f& accel, float dt)
 {
    if(dt <= 0.0f)
    {
       return;
    }
 
-   // Fusion skips the accelerometer correction for a zero vector, which is
-   // how a reading outside the gate (non-gravity motion) is withheld.
-   Eigen::Vector3f accel(ax, ay, az);
    const float accelNorm = accel.norm();
-   if(accelNorm > accel_gate_lo_ && accelNorm < accel_gate_hi_)
+   const bool accelTrusted = accelNorm > accel_gate_lo_ && accelNorm < accel_gate_hi_;
+   if(accelTrusted)
    {
       const Eigen::Vector3f measuredGravity = accel / accelNorm;
       const FusionVector fg = FusionAhrsGetGravity(&ahrs_->state);
@@ -147,14 +144,12 @@ void OrientationFilter::updateIMU(float gx, float gy, float gz, float ax, float 
       ahrs_->settings.gain = 2.0f * beta_ / std::max(sinError, kSinProportionalBelow);
       FusionAhrsSetSettings(&ahrs_->state, &ahrs_->settings);
    }
-   else
-   {
-      accel.setZero();
-   }
 
+   // Fusion skips the accelerometer correction for a zero vector, which is
+   // how a reading outside the gate (non-gravity motion) is withheld.
+   const Eigen::Vector3f fusionAccel = accelTrusted ? accel : Eigen::Vector3f(Eigen::Vector3f::Zero());
    FusionAhrsSetSamplePeriod(&ahrs_->state, dt);
-   const Eigen::Vector3f gyroDegS = Eigen::Vector3f(gx, gy, gz) * kRadToDeg;
-   FusionAhrsUpdateNoMagnetometer(&ahrs_->state, toFusion(gyroDegS), toFusion(accel));
+   FusionAhrsUpdateNoMagnetometer(&ahrs_->state, toFusion(gyro * kRadToDeg), toFusion(fusionAccel));
 }
 
 Eigen::Quaternionf OrientationFilter::quaternion() const
@@ -163,18 +158,9 @@ Eigen::Quaternionf OrientationFilter::quaternion() const
    return {q.element.w, q.element.x, q.element.y, q.element.z};
 }
 
-void OrientationFilter::getQuaternion(float& q0, float& q1, float& q2, float& q3) const
+Eigen::Vector3f OrientationFilter::eulerDeg() const
 {
-   const Eigen::Quaternionf q = quaternion();
-   q0 = q.w();
-   q1 = q.x();
-   q2 = q.y();
-   q3 = q.z();
-}
-
-void OrientationFilter::getEulerDeg(float& roll, float& pitch, float& yaw) const
-{
-   quatToEulerDeg(quaternion(), roll, pitch, yaw);
+   return quatToEulerDeg(quaternion());
 }
 
 } // namespace robotiq_tsf

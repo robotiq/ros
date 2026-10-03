@@ -33,7 +33,6 @@
 #include <gtest/gtest.h>
 
 #include <Eigen/Geometry>
-#include <cmath>
 
 #include "orientation_test_utils.hpp"
 
@@ -143,17 +142,15 @@ TEST(QuatHelpers, EulerExtractionClampsAtGimbalLock)
    // A slightly super-unit quaternion pushes |sin(pitch)| past 1; the
    // extraction must clamp to exactly +/-90 deg and stay finite (no NaN from
    // asin out of domain).
-   float roll, pitch, yaw;
-
    const Quaternionf q_up(0.7071f, 0.0f, 0.7080f, 0.0f); // sinp < -1 -> +90
-   quatToEulerDeg(q_up, roll, pitch, yaw);
-   EXPECT_NEAR(pitch, 90.0f, kExactTolDeg);
-   EXPECT_TRUE(std::isfinite(roll) && std::isfinite(yaw));
+   const Vector3f up = quatToEulerDeg(q_up);
+   EXPECT_NEAR(up.y(), 90.0f, kExactTolDeg);
+   EXPECT_TRUE(up.allFinite());
 
    const Quaternionf q_down(0.7071f, 0.0f, -0.7080f, 0.0f); // sinp > 1 -> -90
-   quatToEulerDeg(q_down, roll, pitch, yaw);
-   EXPECT_NEAR(pitch, -90.0f, kExactTolDeg);
-   EXPECT_TRUE(std::isfinite(roll) && std::isfinite(yaw));
+   const Vector3f down = quatToEulerDeg(q_down);
+   EXPECT_NEAR(down.y(), -90.0f, kExactTolDeg);
+   EXPECT_TRUE(down.allFinite());
 }
 
 } // namespace

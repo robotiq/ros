@@ -43,6 +43,8 @@ class OrientationFilter
 {
 public:
    static constexpr float kDefaultBeta = 0.041f;
+   static constexpr float kDefaultAccelGateLo = 0.85f;
+   static constexpr float kDefaultAccelGateHi = 1.15f;
 
    explicit OrientationFilter(float beta = kDefaultBeta);
    ~OrientationFilter();
@@ -56,15 +58,16 @@ public:
    // Seed the attitude so the gravity vector in the body frame matches the
    // supplied accelerometer reading (any units; only the direction is used).
    // Yaw is set to zero. Use the calibration-time accel mean.
-   void initFromAccel(float ax, float ay, float az);
+   void initFromAccel(const Eigen::Vector3f& accel);
 
-   // gyro in rad/s, accel in any consistent unit (normalised internally),
-   // dt in seconds (the measured interval between samples).
-   void updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt);
+   // gyro in rad/s, accel in g (the unit of the gate bounds; only the
+   // direction feeds the correction), dt in seconds (the measured interval
+   // between samples).
+   void updateIMU(const Eigen::Vector3f& gyro, const Eigen::Vector3f& accel, float dt);
 
    Eigen::Quaternionf quaternion() const;
-   void getQuaternion(float& q0, float& q1, float& q2, float& q3) const;
-   void getEulerDeg(float& roll, float& pitch, float& yaw) const;
+   // ZYX (roll, pitch, yaw), the convention TactileSensor/EulerAngle publishes.
+   Eigen::Vector3f eulerDeg() const;
 
 private:
    // Fusion's C types stay out of this installed header.
