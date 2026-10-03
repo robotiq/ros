@@ -36,7 +36,9 @@
 
 #include <gtest/gtest.h>
 
+#include <Eigen/Geometry>
 #include <chrono>
+#include <cmath>
 #include <map>
 #include <memory>
 #include <string>
@@ -44,6 +46,8 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
+#include "robotiq_tsf/msg/euler_angle.hpp"
+#include "robotiq_tsf/msg/quaternion.hpp"
 #include "robotiq_tsf/poll_data_sdk_node.hpp"
 
 namespace {
@@ -111,6 +115,93 @@ TEST(PollDataSdkNodeSurface, AdvertisesExpectedTopicsAndService)
       };
       const auto services = waitForNames(node, expected_services, [&] { return node->get_service_names_and_types(); });
       EXPECT_TRUE(services.find("/tactile_sensors_service") != services.end()) << "missing tactile_sensors_service";
+   }
+   rclcpp::shutdown();
+}
+
+TEST(PollDataSdkNodeOrientation, FirstOrientationAfterCalibrationIsTheSeededAttitude)
+{
+   // The node calibrates on its first 5000 frames and seeds the filters on the
+   // next one, which is also the first frame it publishes orientation on.
+   // That message must carry the seeded attitude, not unfilled zeros.
+   constexpr int kFramesUntilFirstOrientation = 5001;
+   constexpr float kRollDeg = 30.0f;
+   constexpr float kCountsPerG = 32768.0f / 2.0f;
+   constexpr uint64_t kSamplePeriodUs = 1000;
+   constexpr double kTolDeg = 0.1;
+   constexpr double kUnitNormTol = 1e-5;
+
+   const float rollRad = kRollDeg * static_cast<float>(M_PI) / 180.0f;
+   Fingers fingers{};
+   for(auto& finger : fingers.finger)
+   {
+      finger.accelerometer[1] = static_cast<int16_t>(std::lround(std::sin(rollRad) * kCountsPerG));
+      finger.accelerometer[2] = static_cast<int16_t>(std::lround(std::cos(rollRad) * kCountsPerG));
+   }
+
+   rclcpp::init(0, nullptr);
+   {
+      auto node = std::make_shared<PollDataSdkNode>();
+      auto probe = std::make_shared<rclcpp::Node>("orientation_probe");
+      robotiq_tsf::msg::Quaternion::SharedPtr quaternion;
+      robotiq_tsf::msg::EulerAngle::SharedPtr euler;
+      auto qSub =
+         probe->create_subscription<robotiq_tsf::msg::Quaternion>("TactileSensor/Quaternion",
+                                                                  rclcpp::SensorDataQoS(),
+                                                                  [&](robotiq_tsf::msg::Quaternion::SharedPtr m) {
+                                                                     if(!quaternion)
+                                                                     {
+                                                                        quaternion = m;
+                                                                     }
+                                                                  });
+      auto eSub =
+         probe->create_subscription<robotiq_tsf::msg::EulerAngle>("TactileSensor/EulerAngle",
+                                                                  rclcpp::SensorDataQoS(),
+                                                                  [&](robotiq_tsf::msg::EulerAngle::SharedPtr m) {
+                                                                     if(!euler)
+                                                                     {
+                                                                        euler = m;
+                                                                     }
+                                                                  });
+
+      rclcpp::executors::SingleThreadedExecutor executor;
+      executor.add_node(probe);
+      // Let discovery match the publishers before anything is sent.
+      const auto discoveryDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      while((qSub->get_publisher_count() == 0 || eSub->get_publisher_count() == 0)
+            && std::chrono::steady_clock::now() < discoveryDeadline)
+      {
+         executor.spin_some();
+         std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      }
+
+      for(int i = 0; i < kFramesUntilFirstOrientation; ++i)
+      {
+         for(auto& finger : fingers.finger)
+         {
+            finger.timestamp = kSamplePeriodUs * static_cast<uint64_t>(i + 1);
+         }
+         node->handleFingers(fingers);
+      }
+
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      while((!quaternion || !euler) && std::chrono::steady_clock::now() < deadline)
+      {
+         executor.spin_some();
+         std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      }
+      ASSERT_TRUE(quaternion) << "no Quaternion published";
+      ASSERT_TRUE(euler) << "no EulerAngle published";
+
+      for(int f = 0; f < FINGER_COUNT; ++f)
+      {
+         const auto& q = quaternion->data[f].values; // w, x, y, z
+         EXPECT_NEAR(Eigen::Quaterniond(q[0], q[1], q[2], q[3]).norm(), 1.0, kUnitNormTol) << "finger " << f;
+         const auto& e = euler->data[f].values;
+         EXPECT_NEAR(e[0], kRollDeg, kTolDeg) << "finger " << f;
+         EXPECT_NEAR(e[1], 0.0, kTolDeg) << "finger " << f;
+         EXPECT_NEAR(e[2], 0.0, kTolDeg) << "finger " << f;
+      }
    }
    rclcpp::shutdown();
 }

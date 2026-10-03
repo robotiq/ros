@@ -325,19 +325,6 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
                gyro_bias_[f] = robotiq_tsf::trimBias(gyro_bias_[f], gyro, ahrs_cfg_.bias_learn_rate);
             }
          }
-
-         // One absolute filter quaternion sources both orientation topics;
-         // Euler wraps at ±180°, so continuous-orientation consumers use
-         // Quaternion.
-         const Eigen::Quaternionf q = filter_[f].quaternion();
-         sensors_data_.quaternion.data[f].values[0] = q.w();
-         sensors_data_.quaternion.data[f].values[1] = q.x();
-         sensors_data_.quaternion.data[f].values[2] = q.y();
-         sensors_data_.quaternion.data[f].values[3] = q.z();
-
-         filter_[f].getEulerDeg(sensors_data_.eulerangle.data[f].values[0],
-                                sensors_data_.eulerangle.data[f].values[1],
-                                sensors_data_.eulerangle.data[f].values[2]);
       }
    }
    else if(bias_iter_ == kBiasCalculationIterations)
@@ -368,6 +355,27 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
          accel_bias_[f] += toVector3f(finger.accelerometer) * kAccelRes;
       }
       ++bias_iter_;
+   }
+
+   // After the update above, or after seeding on the calibration-end frame:
+   // either way the frame publishes orientation, so it must carry it.
+   if(bias_iter_ > kBiasCalculationIterations)
+   {
+      for(int f = 0; f < FINGER_COUNT; ++f)
+      {
+         // One absolute filter quaternion sources both orientation topics;
+         // Euler wraps at ±180°, so continuous-orientation consumers use
+         // Quaternion.
+         const Eigen::Quaternionf q = filter_[f].quaternion();
+         sensors_data_.quaternion.data[f].values[0] = q.w();
+         sensors_data_.quaternion.data[f].values[1] = q.x();
+         sensors_data_.quaternion.data[f].values[2] = q.y();
+         sensors_data_.quaternion.data[f].values[3] = q.z();
+
+         filter_[f].getEulerDeg(sensors_data_.eulerangle.data[f].values[0],
+                                sensors_data_.eulerangle.data[f].values[1],
+                                sensors_data_.eulerangle.data[f].values[2]);
+      }
    }
 
    // Decimate publishing to publish_period_ (fusion above already ran at
