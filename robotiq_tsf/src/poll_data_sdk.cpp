@@ -64,6 +64,13 @@ constexpr const char* kDefaultDevice = robotiq_tsf::kDefaultSensorDevice;
 constexpr float kAccelRes = 2.0f / 32768.0f;
 constexpr float kGyroRes = 250.0f / 32768.0f;
 
+// The firmware counts each finger's timestamp in microseconds; the SDK hands
+// it over as a bare integer (unlike its host-side Fingers::timestamp, in ms).
+std::chrono::microseconds fingerTimestamp(const FingerData& finger)
+{
+   return std::chrono::microseconds(static_cast<std::chrono::microseconds::rep>(finger.timestamp));
+}
+
 // Raw IMU triple (int16 counts) -> float vector, before resolution scaling.
 Eigen::Vector3f toVector3f(const int16_t (&v)[3])
 {
@@ -107,7 +114,7 @@ PollDataSdkNode::PollDataSdkNode()
    // every sensor packet, matching the legacy poll_data_node. Set a positive
    // rate to decimate (fusion still runs at the full packet rate).
    const double publish_rate_hz = declare_parameter<double>("publish_rate_hz", 0.0);
-   publish_period_s_ = publish_rate_hz > 0.0 ? 1.0 / publish_rate_hz : 0.0;
+   publish_period_ = std::chrono::duration<double>(publish_rate_hz > 0.0 ? 1.0 / publish_rate_hz : 0.0);
 
    // AHRS tunables (madgwick.*), matching the legacy poll_data_node so existing
    // launch files / configs that set them keep working.
@@ -122,8 +129,11 @@ PollDataSdkNode::PollDataSdkNode()
       static_cast<float>(declare_parameter<double>("madgwick.still_gyro_eps_deg_s", ahrs_cfg_.still_gyro_eps_deg_s));
    ahrs_cfg_.still_accel_eps_g =
       static_cast<float>(declare_parameter<double>("madgwick.still_accel_eps_g", ahrs_cfg_.still_accel_eps_g));
-   ahrs_cfg_.dt_clamp_lo = static_cast<float>(declare_parameter<double>("madgwick.dt_clamp_lo", ahrs_cfg_.dt_clamp_lo));
-   ahrs_cfg_.dt_clamp_hi = static_cast<float>(declare_parameter<double>("madgwick.dt_clamp_hi", ahrs_cfg_.dt_clamp_hi));
+   // In seconds, as the parameters have always been.
+   ahrs_cfg_.dt_clamp_lo = robotiq_tsf::FloatSeconds(
+      static_cast<float>(declare_parameter<double>("madgwick.dt_clamp_lo", ahrs_cfg_.dt_clamp_lo.count())));
+   ahrs_cfg_.dt_clamp_hi = robotiq_tsf::FloatSeconds(
+      static_cast<float>(declare_parameter<double>("madgwick.dt_clamp_hi", ahrs_cfg_.dt_clamp_hi.count())));
 
    for(int f = 0; f < FINGER_COUNT; ++f)
    {
@@ -295,16 +305,17 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
 
          // Integration step from the finger's MCU timestamp (immune to host
          // jitter, and to the stall a stop()->start() cycle would inject).
-         // 0 = not usable (first sample after calibration, or a duplicate/
+         // Zero = not usable (first sample after calibration, or a duplicate/
          // backwards timestamp) -> skip integration for this finger.
-         const float dt =
-            robotiq_tsf::deriveDt(last_ts_ms_[f], finger.timestamp, ahrs_cfg_.dt_clamp_lo, ahrs_cfg_.dt_clamp_hi);
-         last_ts_ms_[f] = finger.timestamp;
+         const std::chrono::microseconds ts = fingerTimestamp(finger);
+         const robotiq_tsf::FloatSeconds dt =
+            robotiq_tsf::deriveDt(last_ts_[f], ts, ahrs_cfg_.dt_clamp_lo, ahrs_cfg_.dt_clamp_hi);
+         last_ts_[f] = ts;
 
-         if(dt > 0.0f)
+         if(dt > robotiq_tsf::FloatSeconds::zero())
          {
             const Eigen::Vector3f gyro_rad = gyro * deg_to_rad;
-            filter_[f].updateIMU(gyro_rad.x(), gyro_rad.y(), gyro_rad.z(), accel.x(), accel.y(), accel.z(), dt);
+            filter_[f].updateIMU(gyro_rad.x(), gyro_rad.y(), gyro_rad.z(), accel.x(), accel.y(), accel.z(), dt.count());
 
             // Online gyro-bias trim while stationary: drift the stored bias
             // slowly toward the residual, so a frozen bias can't leak
@@ -344,7 +355,7 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
 
          // Reseed the per-finger dt so the first post-calibration sample skips
          // integration instead of using a stale delta spanning the calibration.
-         last_ts_ms_[f] = 0;
+         last_ts_[f] = std::chrono::microseconds::zero();
       }
       ++bias_iter_;
    }
@@ -359,19 +370,15 @@ void PollDataSdkNode::handleFingers(const Fingers& fingers)
       ++bias_iter_;
    }
 
-   // Decimate publishing to publish_period_s_ (fusion above already ran at
+   // Decimate publishing to publish_period_ (fusion above already ran at
    // full rate). Skip the very first packet's elapsed check by seeding
    // last_pub_ on first use.
-   if(publish_period_s_ > 0.0)
+   if(publish_period_ > std::chrono::duration<double>::zero())
    {
       const auto now = std::chrono::steady_clock::now();
-      if(last_pub_.time_since_epoch().count() != 0)
+      if(last_pub_.time_since_epoch().count() != 0 && now - last_pub_ < publish_period_)
       {
-         const double elapsed = std::chrono::duration<double>(now - last_pub_).count();
-         if(elapsed < publish_period_s_)
-         {
-            return;
-         }
+         return;
       }
       last_pub_ = now;
    }
