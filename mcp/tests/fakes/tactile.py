@@ -31,6 +31,7 @@ REST_COUNTS = 9
 TOUCH_COUNTS = 20
 TAXEL_MAX_COUNTS = 110
 STIFFNESS_COUNTS_PER_MM = 6.9
+# Arbitrary: it only has to make baseline_s * FRAME_RATE_HZ a whole number.
 FRAME_RATE_HZ = 100
 
 

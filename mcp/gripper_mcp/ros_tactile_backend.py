@@ -16,12 +16,9 @@ and refuses to answer from a frame older than `STALE_FRAME_S`; otherwise a
 driver that stopped publishing would keep reporting its last frame forever,
 and a frozen "no contact" reads as "keep closing" to a tactile-guided close.
 
-`sample` is the exception: the subscription callback keeps every frame that
-arrives during the tare window while the caller sleeps through it, so each
-frame is a distinct sensor update and the two threads never hand off per
-frame. The window is a duration rather than a frame count because the frame
-rate is the driver's to choose. A window that received no frame at all means
-the driver has stopped publishing.
+`sample` is the exception: it keeps every frame of a window, and the window is
+a duration rather than a frame count because the frame rate is the driver's
+to choose.
 """
 
 import time

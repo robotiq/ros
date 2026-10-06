@@ -95,7 +95,7 @@ def test_the_reading_follows_the_live_opening():
     assert all_resting(before) and not all_resting(after)
 
 
-def test_a_sample_is_one_fresh_reading_per_frame_asked():
+def test_a_sample_is_one_fresh_reading_per_frame_in_the_window():
     opening = {"mm": FULLY_OPEN_MM}
     live = MockTactileBackend(
         read_opening_mm=lambda: opening["mm"], object_width_mm=OBJECT_WIDTH_MM

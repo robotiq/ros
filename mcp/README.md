@@ -195,7 +195,7 @@ outcomes, so a stalled close is reported as a grasp, not a failure.
   than a clear "driver down".
 - **About one CPU core at idle on a gripper with pads.** The server reads every
   `joint_states` message (500 Hz) and every pad frame (about 2 kHz) in Python,
-  which costs about 85 % of a core on the bench and about 30 % without pads.
+  which costs about one CPU core, and about 30 % of one without pads.
   Lowering those publish rates on the driver side is the way to bring it down.
 - **The achieved position is taken before the fingers settle.** The controller
   reports a move done once it is within 2.1 mm of the goal, so a full close can
