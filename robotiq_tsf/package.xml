@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>robotiq_tsf</name>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
   <!-- Humble EOL: simplify the distro list below. -->
   <description>ROS 2 tactile sensing package for the Robotiq TSF-85 (Humble, Jazzy, Lyrical).</description>
 
