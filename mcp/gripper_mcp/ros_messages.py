@@ -105,8 +105,12 @@ def advertised_type(names_and_types, action_name: str, known: dict) -> str | Non
 
 def position_of(state, joint: str, fallback: float) -> float:
     names = list(state.name)
-    if not names and len(state.position) == 1:
-        return state.position[0]
     if joint not in names:
         return fallback
     return state.position[names.index(joint)]
+
+
+def result_position_of(state, joint: str, fallback: float) -> float:
+    if not state.name:
+        return state.position[0] if len(state.position) == 1 else fallback
+    return position_of(state, joint, fallback)

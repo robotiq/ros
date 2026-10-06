@@ -237,7 +237,7 @@ TSF_CLOSED_MM = 0.75
         "the controller reached within its own tolerance, wider than ours",
     ],
 )
-def test_classify_decides_from_position_not_the_stall_flag(
+def test_classify_trusts_reached_goal_then_position(
     result, commanded_mm, achieved_mm, outcome
 ):
     assert classify(result, commanded_mm, achieved_mm, STROKE_2F_140) == outcome
