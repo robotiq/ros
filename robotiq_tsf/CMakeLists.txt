@@ -70,15 +70,24 @@ include_directories(
   include/robotiq_tsf
 )
 
+# Fusion (third_party/fusion, MIT) is compiled in rather than built as its own
+# library, so the exported robotiq_tsf_algorithms stays self-contained.
 add_library(${PROJECT_NAME}_algorithms
-  src/MadgwickAHRS.cpp
+  src/euler_angles.cpp
+  src/orientation_filter.cpp
+  third_party/fusion/FusionAhrs.c
 )
 
 target_include_directories(${PROJECT_NAME}_algorithms
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+  PRIVATE
+    third_party/fusion
 )
+
+# Exact 1/sqrt instead of Fusion's default bit-trick approximation.
+target_compile_definitions(${PROJECT_NAME}_algorithms PRIVATE FUSION_USE_NORMAL_SQRT)
 
 target_link_libraries(${PROJECT_NAME}_algorithms
   PUBLIC

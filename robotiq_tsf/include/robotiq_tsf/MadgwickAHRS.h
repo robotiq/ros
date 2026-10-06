@@ -26,54 +26,73 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-// MadgwickAHRS.h
-//
-// Class wrapper around Madgwick's IMU AHRS algorithm, built on Eigen
-// quaternion types.
-//
-// Original algorithm: Sebastian O.H. Madgwick, 2011.
-// Refactored 2026 to: instance state (no globals), measured dt, accelerometer
-// magnitude gating, accel-seeded initialization, and Eigen for the generic
-// quaternion algebra (the gradient-descent step stays as the reference
-// scalar expansion).
-
 #pragma once
+
+// Deprecated: kept for one release so downstream code written against the
+// pre-Fusion MadgwickFilter still builds. Use robotiq_tsf::OrientationFilter
+// (robotiq_tsf/orientation_filter.hpp) and robotiq_tsf/euler_angles.hpp.
 
 #include <Eigen/Geometry>
 
-class MadgwickFilter
+#include "robotiq_tsf/euler_angles.hpp"
+#include "robotiq_tsf/orientation_filter.hpp"
+
+class [[deprecated("use robotiq_tsf::OrientationFilter")]] MadgwickFilter
 {
 public:
-   explicit MadgwickFilter(float beta = 0.041f);
+   explicit MadgwickFilter(float beta = robotiq_tsf::OrientationFilter::kDefaultBeta)
+      : filter_(beta)
+   {
+   }
 
-   void reset();
-   void setBeta(float beta);
-   void setAccelGate(float lo, float hi);
+   void reset() { filter_.reset(); }
+   void setBeta(float beta) { filter_.setBeta(beta); }
+   void setAccelGate(float lo, float hi) { filter_.setAccelGate(lo, hi); }
+   void initFromAccel(float ax, float ay, float az) { filter_.initFromAccel({ax, ay, az}); }
+   void updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt)
+   {
+      filter_.updateIMU({gx, gy, gz}, {ax, ay, az}, dt);
+   }
 
-   // Seed the quaternion so the gravity vector in the body frame matches the
-   // supplied accelerometer reading (any units; only the direction is used).
-   // Yaw is set to zero. Use the calibration-time accel mean.
-   void initFromAccel(float ax, float ay, float az);
-
-   // gyro in rad/s, accel in any consistent unit (normalised internally),
-   // dt in seconds (use the measured interval between samples).
-   void updateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt);
-
-   Eigen::Quaternionf quaternion() const { return q_; }
-   void getQuaternion(float& q0, float& q1, float& q2, float& q3) const;
-   void getEulerDeg(float& roll, float& pitch, float& yaw) const;
+   Eigen::Quaternionf quaternion() const { return filter_.quaternion(); }
+   void getQuaternion(float& q0, float& q1, float& q2, float& q3) const
+   {
+      const Eigen::Quaternionf q = filter_.quaternion();
+      q0 = q.w();
+      q1 = q.x();
+      q2 = q.y();
+      q3 = q.z();
+   }
+   void getEulerDeg(float& roll, float& pitch, float& yaw) const
+   {
+      const Eigen::Vector3f rpy = filter_.eulerDeg();
+      roll = rpy.x();
+      pitch = rpy.y();
+      yaw = rpy.z();
+   }
 
 private:
-   Eigen::Quaternionf q_;
-   float beta_;
-   float accel_gate_lo_; // expected |a| ≈ 1.0 g when stationary
-   float accel_gate_hi_;
+   robotiq_tsf::OrientationFilter filter_;
 };
 
-// ZYX Tait-Bryan extraction (yaw around Z, pitch around Y, roll around X),
-// each angle in ±180°/±90° aerospace ranges. Kept hand-written on purpose:
-// Eigen's eulerAngles(2, 1, 0) constrains its first angle to [0, π], which
-// does not match the convention the driver publishes (and matches the legacy
-// PollData.cpp extraction).
-void quatToEulerRad(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw);
-void quatToEulerDeg(const Eigen::Quaternionf& q, float& roll, float& pitch, float& yaw);
+[[deprecated("use robotiq_tsf::quatToEulerRad")]] inline void quatToEulerRad(const Eigen::Quaternionf& q,
+                                                                             float& roll,
+                                                                             float& pitch,
+                                                                             float& yaw)
+{
+   const Eigen::Vector3f rpy = robotiq_tsf::quatToEulerRad(q);
+   roll = rpy.x();
+   pitch = rpy.y();
+   yaw = rpy.z();
+}
+
+[[deprecated("use robotiq_tsf::quatToEulerDeg")]] inline void quatToEulerDeg(const Eigen::Quaternionf& q,
+                                                                             float& roll,
+                                                                             float& pitch,
+                                                                             float& yaw)
+{
+   const Eigen::Vector3f rpy = robotiq_tsf::quatToEulerDeg(q);
+   roll = rpy.x();
+   pitch = rpy.y();
+   yaw = rpy.z();
+}

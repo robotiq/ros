@@ -119,6 +119,8 @@ The node publishes on the following topics:
 
 > Note: `EulerAngle` and `Quaternion` are only published after the IMU bias calibration period completes at startup.
 
+Orientation is fused per finger from its gyroscope and accelerometer by x-io Technologies' [Fusion](https://github.com/xioTechnologies/Fusion) AHRS (MIT, vendored in `robotiq_tsf/third_party/fusion`). There is no magnetometer, so yaw is relative to the start-up pose and drifts slowly with residual gyro bias. The `madgwick.*` parameters tune it: a tilt error closes at 2 × `madgwick.beta` rad/s (default `0.041`; twice that past 90°), and accelerometer readings whose magnitude falls outside [`madgwick.accel_gate_lo`, `madgwick.accel_gate_hi`] g (default 0.85–1.15) are not trusted as gravity.
+
 ### Tactile visualization (RViz)
 
 `tactile_viz_node` renders `TactileSensor/StaticData` as per-taxel 3D markers and per-finger 2D heatmap images, with the pad TFs to place them. Two launches:

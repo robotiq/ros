@@ -27,7 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 // Regression test pinning the ROS surface of poll_data_sdk_node: the set of
-// advertised topics and the service. This is exactly what silently regressed
+// advertised topics, the service, and the AHRS parameters. This is exactly what silently regressed
 // once (the TactileSensor/Quaternion topic was dropped in the SDK-node port),
 // and the sdk_bridge/device_autodetect gtests don't cover the node's own graph.
 //
@@ -43,6 +43,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
@@ -201,6 +202,34 @@ TEST(PollDataSdkNodeOrientation, FirstOrientationAfterCalibrationIsTheSeededAtti
          EXPECT_NEAR(e[0], kRollDeg, kTolDeg) << "finger " << f;
          EXPECT_NEAR(e[1], 0.0, kTolDeg) << "finger " << f;
          EXPECT_NEAR(e[2], 0.0, kTolDeg) << "finger " << f;
+      }
+   }
+   rclcpp::shutdown();
+}
+
+TEST(PollDataSdkNodeSurface, DeclaresAhrsParametersWithDefaults)
+{
+   // Launch files and YAML configs set these by name; renaming one, or moving
+   // a default, silently changes a user's orientation output.
+   const std::vector<std::pair<std::string, double>> expected = {
+      {"madgwick.beta", 0.041},
+      {"madgwick.accel_gate_lo", 0.85},
+      {"madgwick.accel_gate_hi", 1.15},
+      {"madgwick.bias_learn_rate", 0.0005},
+      {"madgwick.still_gyro_eps_deg_s", 0.8},
+      {"madgwick.still_accel_eps_g", 0.05},
+      {"madgwick.dt_clamp_lo", 1e-4},
+      {"madgwick.dt_clamp_hi", 0.1},
+   };
+
+   rclcpp::init(0, nullptr);
+   {
+      auto node = std::make_shared<PollDataSdkNode>();
+      for(const auto& [name, value] : expected)
+      {
+         ASSERT_TRUE(node->has_parameter(name)) << "missing parameter: " << name;
+         // Defaults are float tunables widened to double.
+         EXPECT_FLOAT_EQ(static_cast<float>(node->get_parameter(name).as_double()), static_cast<float>(value)) << name;
       }
    }
    rclcpp::shutdown();
