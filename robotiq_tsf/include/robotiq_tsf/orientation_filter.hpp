@@ -37,8 +37,9 @@ namespace robotiq_tsf {
 // Attitude of one finger from its 6-axis IMU (gyro + accel; no magnetometer,
 // so yaw is gyro-only and drifts with residual bias). Runs on x-io's Fusion
 // AHRS (third_party/fusion), with the interface and tuning the driver exposed
-// before: beta is the tilt-correction rate (2 * beta rad/s), and accelerometer
-// readings outside [accel_gate_lo, accel_gate_hi] g are not trusted as gravity.
+// before: beta is the tilt-correction rate (2 * beta rad/s, twice that past a
+// 90 deg error), and accelerometer readings outside
+// [accel_gate_lo, accel_gate_hi] g are not trusted as gravity.
 class OrientationFilter
 {
 public:

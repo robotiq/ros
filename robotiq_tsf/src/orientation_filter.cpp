@@ -138,7 +138,10 @@ void OrientationFilter::updateIMU(const Eigen::Vector3f& gyro, const Eigen::Vect
       const Eigen::Vector3f measuredGravity = accel / accelNorm;
       const FusionVector fg = FusionAhrsGetGravity(&ahrs_->state);
       const Eigen::Vector3f predictedGravity(fg.axis.x, fg.axis.y, fg.axis.z);
-      // Past 90 deg Fusion's feedback saturates at its sin = 1 value.
+      // Past 90 deg Fusion's feedback becomes a unit vector, twice its value
+      // at 90 deg, so with sinError = 1 an error that large closes at
+      // 4 * beta rad/s: deliberately faster recovery, e.g. after calibrating
+      // upside down. beta caps the rate only below 90 deg.
       const float sinError =
          measuredGravity.dot(predictedGravity) > 0.0f ? measuredGravity.cross(predictedGravity).norm() : 1.0f;
       ahrs_->settings.gain = 2.0f * beta_ / std::max(sinError, kSinProportionalBelow);
