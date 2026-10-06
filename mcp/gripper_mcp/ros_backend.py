@@ -66,6 +66,7 @@ from gripper_mcp.ros_messages import (
     no_state_message,
     position_of,
     refused,
+    result_position_of,
     timed_out,
 )
 
@@ -341,5 +342,5 @@ class RosGripperBackend:
 
     def _result_position(self, result, fallback: float) -> float:
         if self._action_type is ParallelGripperCommand:
-            return position_of(result.state, self._joint.name, fallback)
+            return result_position_of(result.state, self._joint.name, fallback)
         return result.position

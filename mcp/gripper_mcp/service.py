@@ -12,13 +12,17 @@ achieved openings. The gripper's own firmware answers the same question with
 one enum (moving, detected while opening, detected while closing, at the
 requested position), which is what this vocabulary mirrors.
 
-The verdict is read from where the fingers ended up against where they were
-sent, never from the controller's `stalled` flag. On the real driver that flag
-is set on every goal (robotiq/ros#29: no velocity is ever computed, so stall
-detection trips at once), so it is reported to the caller as-is but does not
-steer the outcome. This is a stopgap in its own right: the gripper's firmware
-reports object detection outright (gOBJ, the `object_status` state interface)
-and once a broadcaster carries it the position comparison goes too.
+The controller's `reached_goal` decides first: when it is set, the controller
+reached within its own tolerance, wider than ours (`goal_tolerance` 0.02 rad,
+about 2.1 mm on a 2F-85, against the datasheet's 1.5 mm `closed_tolerance_mm`),
+and the position comparison would otherwise call a finished move an object.
+When it is not set, the verdict is read from where the fingers ended up against
+where they were sent. The `stalled` flag is passed to the caller as-is and does
+not steer the outcome: a driver that computes no joint velocity sets it on
+every goal (robotiq/ros#29). This is a stopgap in its own right: the gripper's
+firmware reports object detection outright (gOBJ, the `object_status` state
+interface), and once the verdict is read from it the position comparison goes
+too.
 """
 
 from datetime import datetime, timezone
