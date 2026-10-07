@@ -70,10 +70,7 @@ bool moveTo(Robotiq::Gripper& gripper, uint8_t position, uint8_t speed, uint8_t 
    // The gripper needs a cycle or two to acknowledge the request before
    // gOBJ leaves Moving; wait for the echo first so this does not read the
    // previous move's "stopped" and return immediately.
-   if(!Robotiq::waitFor(
-         gripper,
-         [&](const Robotiq::StampedExchange& exchange) { return exchange.status.positionRequestEcho == position; },
-         kMotionTimeout))
+   if(!Robotiq::waitForPositionEcho(gripper, position, kMotionTimeout))
    {
       std::cout << "  the gripper never echoed the position request" << std::endl;
       return false;

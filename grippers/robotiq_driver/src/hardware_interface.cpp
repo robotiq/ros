@@ -366,12 +366,7 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_activate(
    command_.action.set(Robotiq::ActionRequestBit::GoTo);
    gripper_->setCommand(command_);
 
-   if(!Robotiq::waitFor(
-         *gripper_,
-         [](const Robotiq::StampedExchange& exchange) {
-            return exchange.status.positionRequestEcho == kPostActivationPosition;
-         },
-         kCommandEchoTimeout))
+   if(!Robotiq::waitForPositionEcho(*gripper_, kPostActivationPosition, kCommandEchoTimeout))
    {
       RCLCPP_WARN(kLogger, "The gripper never echoed the post-activation position request.");
    }
