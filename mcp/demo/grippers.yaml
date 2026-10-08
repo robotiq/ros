@@ -2,7 +2,7 @@
 # ros2_control's fake hardware at the root of the graph (hence namespace: /).
 # Fake hardware reports exactly the angle it was commanded, so a close reaches
 # 0 mm and reports `reached`, no object. A real gripper stops short on an object
-# (and reports stalled on every goal, see #29); the tactile tools need real pads.
+# and reports it; the tactile tools need real pads.
 
 - name: driver
   model: robotiq_2f_85

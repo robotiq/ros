@@ -80,9 +80,11 @@ from `grippers.yaml`. Source your ROS 2 install before starting the server so
 `rclpy` and `control_msgs` import. The action type is whatever the running
 controller advertises (`ParallelGripperCommand` from Jazzy's controller,
 `GripperCommand` from Humble's), read off the graph rather than guessed from
-the distro. The controller's `stalled` flag is passed through in the result but
-the outcome is read from where the fingers ended up (see `service.py`), because
-the driver sets that flag on every goal (robotiq/ros#29).
+the distro. The outcome is the controller's verdict: `reached_goal` is
+`reached`, `stalled` is `stopped_on_object`, and a goal it decided neither way
+is `incomplete` (see `service.py`). On a real gripper the controller reads both
+flags from the gripper's own object detection, so the server needs a driver
+with robotiq/ros#100.
 
 ### Connecting an agent
 
