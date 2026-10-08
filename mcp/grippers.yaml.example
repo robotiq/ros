@@ -9,6 +9,10 @@
 #                topics. Only for models whose datasheet names a tactile_model.
 # tactile_namespace: /left_tsf   optional; where the robotiq_tsf driver runs
 #                when it is not under the gripper's own namespace.
+#
+# Two entries need two drivers in separate namespaces, which the shipped
+# robotiq_control.launch.py cannot start yet; see Known limitations in
+# README.md.
 
 - name: left
   model: robotiq_2f_85
