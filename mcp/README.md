@@ -135,8 +135,9 @@ could not declare them. It runs on Python 3.10 and up, Humble's interpreter
 and Jazzy's, and CI tests both.
 
 It talks to the driver over ROS 2 topics and actions at runtime, so it needs a
-sourced ROS 2 install with `rclpy` on the machine that runs it, but nothing in
-`grippers/` or `robotiq_tsf/` depends on it.
+sourced ROS 2 install with `rclpy` and `control_msgs` on the machine that runs
+it (`sudo apt install ros-$ROS_DISTRO-control-msgs` if your install lacks the
+second), but nothing in `grippers/` or `robotiq_tsf/` depends on it.
 
 ## Docker
 
@@ -201,6 +202,19 @@ outcomes, so a stalled close is reported as a grasp, not a failure.
   reports a move done once it is within 2.1 mm of the goal, so a full close can
   report 1.87 mm while the fingers end at 0.75 mm. Read the position again
   after a short pause if you need the settled value.
+- **A dropped serial link shows up as a 10 s wait.** The driver keeps its last
+  reading when the USB link faults, so a move waits out the controller's 10 s
+  object-status timeout and returns `incomplete`; nothing in the result says
+  the link is down (robotiq/ros#87).
+- **Only one gripper can run per ROS graph with the shipped launch file.** The
+  server is ready for two grippers: with the `left` and `right` entries from
+  `grippers.yaml.example`, it sends `left` commands to the driver under `/left`
+  and `right` commands to the driver under `/right`. Starting those two
+  drivers is the problem. `robotiq_control.launch.py` has no option to put a
+  driver under `/left` or `/right`, so a second driver started next to the
+  first can't get its own name, and its controllers never start. Until the
+  launch file takes a namespace, keep one entry in `grippers.yaml`, or write
+  your own launch file that starts each driver under its namespace.
 
 ## Development
 
