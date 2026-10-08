@@ -12,17 +12,11 @@ achieved openings. The gripper's own firmware answers the same question with
 one enum (moving, detected while opening, detected while closing, at the
 requested position), which is what this vocabulary mirrors.
 
-The controller's `reached_goal` decides first: when it is set, the controller
-reached within its own tolerance, wider than ours (`goal_tolerance` 0.02 rad,
-about 2.1 mm on a 2F-85, against the datasheet's 1.5 mm `closed_tolerance_mm`),
-and the position comparison would otherwise call a finished move an object.
-When it is not set, the verdict is read from where the fingers ended up against
-where they were sent. The `stalled` flag is passed to the caller as-is and does
-not steer the outcome: a driver that computes no joint velocity sets it on
-every goal (robotiq/ros#29). This is a stopgap in its own right: the gripper's
-firmware reports object detection outright (gOBJ, the `object_status` state
-interface), and once the verdict is read from it the position comparison goes
-too.
+The outcome is the controller's verdict, never inferred here: `reached_goal`
+means `reached`, `stalled` means `stopped_on_object`, and a goal it decided
+neither way is `incomplete`. On a real gripper the controller takes both flags
+from the firmware's own object detection (gOBJ, the `object_status` state
+interface); the simulators' configs decide them from position and velocity.
 """
 
 from datetime import datetime, timezone
@@ -133,7 +127,7 @@ class GripperService:
             timeout_s=spec.defaults.motion_timeout_s,
         )
         achieved_mm = knuckle_rad_to_opening_mm(motion.final_position_rad, geometry)
-        outcome = classify(motion, target_mm, achieved_mm, spec.stroke)
+        outcome = classify(motion)
 
         return GripperMotionResult(
             gripper_name=gripper_name,
@@ -207,24 +201,13 @@ def effort_note(requested: float | None, applied: float) -> str:
     return f"Requested effort {requested:g}, clamped to {applied:g}. "
 
 
-def stopped_on_something(
-    commanded_mm: float, achieved_mm: float, stroke: Stroke
-) -> bool:
-    return abs(achieved_mm - commanded_mm) > stroke.closed_tolerance_mm
-
-
-def classify(
-    motion: BackendMotion,
-    commanded_mm: float,
-    achieved_mm: float,
-    stroke: Stroke,
-) -> Outcome:
+def classify(motion: BackendMotion) -> Outcome:
     if motion.refused:
         return "refused"
     if motion.timed_out:
         return "incomplete"
     if motion.reached_goal:
         return "reached"
-    if stopped_on_something(commanded_mm, achieved_mm, stroke):
+    if motion.stalled:
         return "stopped_on_object"
-    return "reached"
+    return "incomplete"

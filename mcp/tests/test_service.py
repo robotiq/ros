@@ -7,9 +7,7 @@ from gripper_mcp.service import (
     GripperService,
     UnknownGripperError,
     classify,
-    stopped_on_something,
 )
-from gripper_mcp.units import Stroke
 
 NARROW = "robotiq_2f_85"
 WIDE = "robotiq_2f_140"
@@ -207,62 +205,27 @@ def test_each_gripper_opens_to_its_own_model_width():
     assert service.open_fully("wide").commanded_opening_mm == pytest.approx(140.0)
 
 
-STROKE_2F_140 = Stroke(max_opening_mm=140.0, closed_tolerance_mm=1.5)
-ONE_COUNT_2F_140_MM = 140.0 / 227
-TSF_CLOSED_MM = 0.75
-
-
 @pytest.mark.parametrize(
-    ("result", "commanded_mm", "achieved_mm", "outcome"),
+    ("result", "outcome"),
     [
-        (motion(refused=True), 0.0, 85.0, "refused"),
-        (motion(reached_goal=False, timed_out=True), 0.0, 60.0, "incomplete"),
-        (motion(reached_goal=False, stalled=True), 0.0, 40.0, "stopped_on_object"),
-        (motion(reached_goal=False, stalled=True), 0.0, 0.0, "reached"),
-        (motion(reached_goal=True), 0.0, 0.0, "reached"),
-        (motion(reached_goal=False, stalled=True), 85.0, 49.0, "stopped_on_object"),
-        (motion(reached_goal=True), 30.0, 30.0, "reached"),
-        (motion(reached_goal=False, stalled=True), 30.0, 30.0, "reached"),
-        (motion(reached_goal=True), 85.0, 83.1, "reached"),
+        (motion(refused=True), "refused"),
+        (motion(reached_goal=False, timed_out=True), "incomplete"),
+        (motion(reached_goal=True), "reached"),
+        (motion(reached_goal=False, stalled=True), "stopped_on_object"),
+        (motion(reached_goal=False, stalled=False), "incomplete"),
+        (motion(reached_goal=True, stalled=True), "reached"),
     ],
     ids=[
         "refused",
         "timed out",
-        "close stopped on something",
-        "close met the stop, stalled",
-        "close met the stop, reached",
-        "open blocked part-way",
-        "move landed",
-        "move landed but the driver says stalled (#29)",
-        "the controller reached within its own tolerance, wider than ours",
+        "the controller reached the goal",
+        "the controller stopped on something",
+        "the controller decided neither",
+        "a reached goal wins over a stall",
     ],
 )
-def test_classify_trusts_reached_goal_then_position(
-    result, commanded_mm, achieved_mm, outcome
-):
-    assert classify(result, commanded_mm, achieved_mm, STROKE_2F_140) == outcome
-
-
-@pytest.mark.parametrize(
-    ("achieved_mm", "stopped"),
-    [
-        (ONE_COUNT_2F_140_MM, False),
-        (TSF_CLOSED_MM, False),
-        (40.0, True),
-    ],
-    ids=[
-        "a count short of the stop is an empty close",
-        "thicker fingers meeting early is an empty close",
-        "stopping well before the stop is an object",
-    ],
-)
-def test_the_closed_tolerance_decides_an_empty_close(achieved_mm, stopped):
-    assert stopped_on_something(0.0, achieved_mm, STROKE_2F_140) is stopped
-
-
-def test_a_move_within_the_tolerance_reached_its_target():
-    assert not stopped_on_something(30.0, 30.0 + ONE_COUNT_2F_140_MM, STROKE_2F_140)
-    assert stopped_on_something(30.0, 32.0, STROKE_2F_140)
+def test_classify_trusts_the_controller_flags(result, outcome):
+    assert classify(result) == outcome
 
 
 def test_an_out_of_range_request_says_so_in_the_detail():
