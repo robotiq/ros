@@ -1,6 +1,6 @@
 [project]
 name = "robotiq-gripper-mcp"
-version = "1.1.0"
+version = "1.2.0"
 description = "MCP server exposing Robotiq 2F grippers to LLM agents through the ROS 2 driver"
 readme = "README.md"
 license = "BSD-3-Clause"
