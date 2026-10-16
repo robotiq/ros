@@ -425,11 +425,45 @@ A malformed value is reported and the default stands; only `gripper_closed_posit
 
 > `use_dummy` selects the SDK's fake gripper: no port is opened, activation is instant, and the fingers report wherever they were last commanded. It keeps the real plugin loaded, so the gripper and activation controllers still bind. That is what distinguishes it from the `use_fake_hardware:=true` launch argument, which swaps the plugin out for `ros2_control`'s `mock_components/GenericSystem`.
 
+### Several grippers in one description
+
+Instantiate the gripper macro once per gripper, each with its own `name` (the `ros2_control`
+component) and `prefix`. The prefix lands on every link, joint and on the reactivation GPIO, so no
+interface name repeats:
+
+```xml
+<xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_85_macro.urdf.xacro" />
+
+<xacro:robotiq_gripper name="LeftGripper" prefix="left_" parent="left_tool0" com_port="/dev/ttyUSB0">
+  <origin xyz="0 0 0" rpy="0 0 0" />
+</xacro:robotiq_gripper>
+<xacro:robotiq_gripper name="RightGripper" prefix="right_" parent="right_tool0" com_port="/dev/ttyUSB1">
+  <origin xyz="0 0 0" rpy="0 0 0" />
+</xacro:robotiq_gripper>
+```
+
+Each gripper then gets its own controllers, pointed at its prefixed joint and GPIO; for the
+activation controller that is `reactivate_gpio`:
+
+```yaml
+left_activation_controller:
+  ros__parameters:
+    reactivate_gpio: left_reactivate_gripper
+right_activation_controller:
+  ros__parameters:
+    reactivate_gpio: right_reactivate_gripper
+```
+
+A description without a prefix keeps the GPIO name `reactivate_gripper`, which is also the
+parameter's default, so a single-gripper setup needs no change. Two limits remain: each gripper
+needs a serial port of its own, as two grippers on one port are not supported yet, and
+`robotiq_gripper_status_broadcaster` reports only the first gripper in the description.
+
 ### Activation, faults and recovery
 
 Activating the hardware component runs the gripper's reset handshake: it clears any latched fault and runs the calibration sweep. **It therefore releases any grip and moves the fingers through their full range** — activate with the workspace clear. Deactivating clears the command block including rACT, which resets the gripper and likewise releases any grip. This is what the driver has always done; the SDK exposes a conservative alternative (leave a healthy gripper alone, refuse to reset a faulted one) that is not wired up here yet.
 
-A fault can also be cleared without cycling the lifecycle state, by writing to the `reactivate_gripper/reactivate_gripper_cmd` command interface (exposed as a GPIO on the description, and driven by `robotiq_activation_controller`) — same handshake, same consequences. `reactivate_gripper_response` reads `1.0` once the recovery succeeds; a failure is logged but leaves the interface as it was, as it did before. A deactivation arriving while a recovery is in flight waits for it to finish before resetting.
+A fault can also be cleared without cycling the lifecycle state, by writing to the `<prefix>reactivate_gripper/reactivate_gripper_cmd` command interface (exposed as a GPIO on the description, and driven by `robotiq_activation_controller`, whose `reactivate_gpio` parameter names that GPIO and defaults to the unprefixed `reactivate_gripper`) — same handshake, same consequences. `reactivate_gripper_response` reads `1.0` once the recovery succeeds; a failure is logged but leaves the interface as it was, as it did before. A deactivation arriving while a recovery is in flight waits for it to finish before resetting.
 
 `activation_timeout` bounds both. The old driver had no timeout and could block the transition indefinitely.
 

@@ -249,6 +249,9 @@ protected:
    // another's in a multi-gripper cell.
    rclcpp::Clock diagnostic_clock_{RCL_STEADY_TIME};
 
+   // The reactivation GPIO's name, set in on_init.
+   std::string reactivate_gpio_;
+
    double reactivate_gripper_cmd_ = 0.0;
    double reactivate_gripper_response_ = 0.0;
    double gripper_force_ = 0.0;

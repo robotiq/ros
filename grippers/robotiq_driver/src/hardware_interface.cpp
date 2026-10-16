@@ -178,6 +178,19 @@ hardware_interface::CallbackReturn RobotiqGripperHardwareInterface::on_init(cons
    gripper_position_command_ = std::numeric_limits<double>::quiet_NaN();
    reactivate_gripper_cmd_ = NO_NEW_CMD_;
 
+   // The one GPIO is the reactivation handshake, under whatever name the
+   // description gives it: a prefixed one keeps two grippers in one description
+   // apart. Without one the driver exports it as kReactivateGripperGpio.
+   if(info_.gpios.size() > 1)
+   {
+      RCLCPP_FATAL(kLogger,
+                   "Component '%s' declares %zu GPIOs. At most 1 expected: the reactivation handshake.",
+                   info_.name.c_str(),
+                   info_.gpios.size());
+      return CallbackReturn::ERROR;
+   }
+   reactivate_gpio_ = info_.gpios.empty() ? kReactivateGripperGpio : info_.gpios.front().name;
+
    const hardware_interface::ComponentInfo& joint = info_.joints.at(0);
 
    // There is one command interface: position.
@@ -309,9 +322,9 @@ std::vector<hardware_interface::InterfaceDescription> RobotiqGripperHardwareInte
                                                                   describe(joint, kMaxEffortInterface)};
    for(const char* name : {kReactivateCmdInterface, kReactivateResponseInterface})
    {
-      if(gpio_command_interfaces_.count(fullName(kReactivateGripperGpio, name)) == 0)
+      if(gpio_command_interfaces_.count(fullName(reactivate_gpio_, name)) == 0)
       {
-         unlisted.push_back(describe(kReactivateGripperGpio, name));
+         unlisted.push_back(describe(reactivate_gpio_, name));
       }
    }
    return unlisted;
@@ -366,8 +379,8 @@ std::vector<hardware_interface::CommandInterface::SharedPtr> RobotiqGripperHardw
                                                       &gripper_position_command_},
         {joint, kMaxVelocityInterface, &gripper_speed_},
         {joint, kMaxEffortInterface, &gripper_force_},
-        {kReactivateGripperGpio, kReactivateCmdInterface, &reactivate_gripper_cmd_},
-        {kReactivateGripperGpio, kReactivateResponseInterface, &reactivate_gripper_response_}})
+        {reactivate_gpio_, kReactivateCmdInterface, &reactivate_gripper_cmd_},
+        {reactivate_gpio_, kReactivateResponseInterface, &reactivate_gripper_response_}})
    {
       exported_commands_.emplace_back(get_command_interface_handle(fullName(prefix, name)), value);
       pushCommand(*value);
@@ -461,8 +474,8 @@ std::vector<hardware_interface::CommandInterface> RobotiqGripperHardwareInterfac
    gripper_force_ = kMaxForceDefault * parameters_.force_multiplier;
 
    command_interfaces.emplace_back(
-      hardware_interface::CommandInterface(kReactivateGripperGpio, kReactivateCmdInterface, &reactivate_gripper_cmd_));
-   command_interfaces.emplace_back(hardware_interface::CommandInterface(kReactivateGripperGpio,
+      hardware_interface::CommandInterface(reactivate_gpio_, kReactivateCmdInterface, &reactivate_gripper_cmd_));
+   command_interfaces.emplace_back(hardware_interface::CommandInterface(reactivate_gpio_,
                                                                         kReactivateResponseInterface,
                                                                         &reactivate_gripper_response_));
 

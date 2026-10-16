@@ -229,6 +229,58 @@ def test_sim_plugin_declares_no_reactivate_gpio(model, joint):
     assert expand(model, True).find("gpio[@name='reactivate_gripper']") is not None
 
 
+TWO_GRIPPERS = """<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="two_grippers">
+    <xacro:include filename="{macro}" />
+    <link name="world" />
+    <xacro:robotiq_gripper name="LeftGripper" prefix="left_" parent="world" {args}>
+        <origin xyz="0 0.5 0" rpy="0 0 0" />
+    </xacro:robotiq_gripper>
+    <xacro:robotiq_gripper name="RightGripper" prefix="right_" parent="world" {args}>
+        <origin xyz="0 -0.5 0" rpy="0 0 0" />
+    </xacro:robotiq_gripper>
+</robot>
+"""
+
+
+def interface_names(ros2_control):
+    """Every `<component>/<interface>` the block declares, as ros2_control keys
+    them, paired with its kind: a joint's position is both a command and a state."""
+    return [
+        (interface.tag, f"{component.get('name')}/{interface.get('name')}")
+        for component in ros2_control
+        if component.tag in ("joint", "gpio")
+        for interface in component
+        if interface.tag in ("command_interface", "state_interface")
+    ]
+
+
+@requires_xacro
+@pytest.mark.parametrize("model", MODELS)
+@pytest.mark.parametrize("use_fake_hardware", [False, True])
+def test_two_prefixed_grippers_declare_distinct_interfaces(
+    tmp_path, model, use_fake_hardware
+):
+    # Issue #131: the reactivate_gripper GPIO used to ignore the prefix, so a
+    # second gripper redeclared the first one's interfaces and the resource
+    # manager refused the description.
+    macro = URDF_DIR / model.replace("_gripper.urdf.xacro", "_macro.urdf.xacro")
+    args = f'use_fake_hardware="{str(use_fake_hardware).lower()}"'
+    description = tmp_path / "two_grippers.urdf.xacro"
+    description.write_text(TWO_GRIPPERS.format(macro=macro, args=args))
+
+    result = subprocess.run(
+        ["xacro", str(description)], capture_output=True, text=True, check=True
+    )
+    blocks = ET.fromstring(result.stdout).findall("ros2_control")
+    assert [block.get("name") for block in blocks] == ["LeftGripper", "RightGripper"]
+
+    names = [name for block in blocks for name in interface_names(block)]
+    assert len(names) == len(set(names))
+    for block, prefix in zip(blocks, ["left_", "right_"]):
+        assert block.find(f"gpio[@name='{prefix}reactivate_gripper']") is not None
+
+
 @requires_xacro
 @pytest.mark.parametrize("model,joint", MODELS.items())
 def test_sim_topic_based_declares_the_mimic_joints_as_state_only(model, joint):

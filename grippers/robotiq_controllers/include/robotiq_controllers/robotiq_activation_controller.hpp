@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "controller_interface/controller_interface.hpp"
 #include "std_srvs/srv/trigger.hpp"
 
@@ -57,6 +59,12 @@ private:
       REACTIVATE_GRIPPER_CMD,
       REACTIVATE_GRIPPER_RESPONSE
    };
+
+   // The hardware's reactivate_gripper GPIO. A description holding several
+   // grippers prefixes it, e.g. left_reactivate_gripper, and each gripper's
+   // controller names its own here. Read from the reactivate_gpio parameter in
+   // on_init.
+   std::string reactivate_gpio_;
 
    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reactivate_gripper_srv_;
 };

@@ -36,6 +36,17 @@ target_link_libraries(test_gripper_status_broadcaster
   ${robotiq_msgs_TARGETS}
 )
 
+ament_add_gtest(test_robotiq_activation_controller test_robotiq_activation_controller.cpp)
+target_include_directories(test_robotiq_activation_controller
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+target_link_libraries(test_robotiq_activation_controller
+  ${PROJECT_NAME}
+  controller_interface::controller_interface
+  hardware_interface::hardware_interface
+  rclcpp::rclcpp
+)
+
 ament_add_gtest(test_object_status_goal test_object_status_goal.cpp)
 target_include_directories(test_object_status_goal
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../include

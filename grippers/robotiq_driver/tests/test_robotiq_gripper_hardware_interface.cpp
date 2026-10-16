@@ -63,33 +63,40 @@ namespace robotiq_driver::test {
 namespace {
 constexpr const char* kComponentName = "robotiq_driver_ros2_control";
 
-//! \p extra_hardware_params is spliced into the <hardware> block, so a test
-//! can select a backend without restating the whole description.
-std::string minimalRobotUrdf(const std::string& extra_hardware_params = "")
+//! One gripper's links, joint and ros2_control block, with \p prefix on the
+//! links, the joint, the GPIO and the component name, as robotiq_description's
+//! macro prefixes them. \p extra_hardware_params is spliced into the <hardware>
+//! block, so a test can select a backend without restating the whole description.
+std::string gripperElements(const std::string& extra_hardware_params, const std::string& prefix)
 {
-   return std::string(R"(
-        <?xml version="1.0" encoding="utf-8"?>
-        <robot name="test_robot">
-          <link name="robotiq_85_base_link"/>
-          <link name="robotiq_85_left_knuckle_link"/>
-          <joint name="robotiq_85_left_knuckle_joint" type="revolute">
-            <parent link="robotiq_85_base_link" />
-            <child link="robotiq_85_left_knuckle_link" />
+   return R"(
+          <link name=")"
+          + prefix + R"(robotiq_85_base_link"/>
+          <link name=")"
+          + prefix + R"(robotiq_85_left_knuckle_link"/>
+          <joint name=")"
+          + prefix + R"(robotiq_85_left_knuckle_joint" type="revolute">
+            <parent link=")"
+          + prefix + R"(robotiq_85_base_link" />
+            <child link=")"
+          + prefix + R"(robotiq_85_left_knuckle_link" />
             <axis xyz="0 -1 0" />
             <origin xyz="0.03060114 0.0 0.05490452" rpy="0 0 0" />
             <limit lower="0.0" upper="0.8" velocity="0.5" effort="50" />
           </joint>
-          <ros2_control name="robotiq_driver_ros2_control" type="system">
+          <ros2_control name=")"
+          + prefix + kComponentName + R"(" type="system">
             <hardware>
               <plugin>robotiq_driver/RobotiqGripperHardwareInterface</plugin>
               <param name="gripper_speed_multiplier">1.0</param>
               <param name="gripper_force_multiplier">0.5</param>
               <param name="COM_port">/dev/ttyUSB0</param>
               <param name="gripper_closed_position">0.7929</param>
-              )")
-        + extra_hardware_params + R"(
+              )"
+          + extra_hardware_params + R"(
             </hardware>
-            <joint name="robotiq_85_left_knuckle_joint">
+            <joint name=")"
+          + prefix + R"(robotiq_85_left_knuckle_joint">
               <command_interface name="position" />
               <state_interface name="position">
                 <param name="initial_value">0.7929</param>
@@ -100,11 +107,42 @@ std::string minimalRobotUrdf(const std::string& extra_hardware_params = "")
               <state_interface name="gripper_fault"/>
               <state_interface name="gripper_fault_severity"/>
             </joint>
-            <gpio name="reactivate_gripper">
+            <gpio name=")"
+          + prefix + R"(reactivate_gripper">
               <command_interface name="reactivate_gripper_cmd" />
               <command_interface name="reactivate_gripper_response" />
             </gpio>
           </ros2_control>
+)";
+}
+
+std::string minimalRobotUrdf(const std::string& extra_hardware_params = "", const std::string& prefix = "")
+{
+   return R"(
+        <?xml version="1.0" encoding="utf-8"?>
+        <robot name="test_robot">)"
+          + gripperElements(extra_hardware_params, prefix) + R"(
+        </robot>
+        )";
+}
+
+//! Two prefixed grippers in one description, each with its own component.
+//! urdf::Model accepts a single root only, so both bases hang off a world link.
+std::string twoGripperUrdf(const std::string& extra_hardware_params = "")
+{
+   std::string urdf = R"(
+        <?xml version="1.0" encoding="utf-8"?>
+        <robot name="test_robot">
+          <link name="world"/>)";
+   for(const std::string prefix : {"left_", "right_"})
+   {
+      urdf += R"(
+          <joint name=")" + prefix + R"(base_joint" type="fixed">
+            <parent link="world" />
+            <child link=")" + prefix + R"(robotiq_85_base_link" />
+          </joint>)" + gripperElements(extra_hardware_params, prefix);
+   }
+   return urdf + R"(
         </robot>
         )";
 }
@@ -349,6 +387,66 @@ TEST(TestRobotiqGripperHardwareInterface, ReactivationRoundTripsThroughTheComman
    EXPECT_TRUE(recovered) << "the recovery result never reached the response interface";
 }
 
+/**
+ * The GPIO takes its name from the description, so a prefixed one exports its
+ * handshake under that prefix and not under the bare name.
+ */
+TEST(TestRobotiqGripperHardwareInterface, ExportsTheReactivateGpioUnderTheDeclaredName)
+{
+   const std::string urdf = minimalRobotUrdf("", "left_");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   const auto keys = rm.command_interface_keys();
+   EXPECT_THAT(keys,
+               testing::IsSupersetOf({"left_reactivate_gripper/reactivate_gripper_cmd",
+                                      "left_reactivate_gripper/reactivate_gripper_response"}));
+   EXPECT_THAT(keys, testing::Not(testing::Contains("reactivate_gripper/reactivate_gripper_cmd")));
+}
+
+/**
+ * Two grippers in one description (issue #131): every interface name is unique,
+ * and each gripper's handshake is bound to its own GPIO.
+ */
+TEST(TestRobotiqGripperHardwareInterface, TwoPrefixedGrippersShareOneDescription)
+{
+   const std::string urdf = twoGripperUrdf(R"(<param name="use_dummy">true</param>)");
+
+   rclcpp::Node node{"test_robotiq_gripper_hardware_interface"};
+
+#if HARDWARE_INTERFACE_VERSION_GTE(4, 13, 0)
+   hardware_interface::ResourceManager rm(urdf, node.get_node_clock_interface(), node.get_node_logging_interface());
+#else
+   hardware_interface::ResourceManager rm(urdf);
+#endif
+
+   ASSERT_EQ(2u, rm.system_components_size());
+   EXPECT_THAT(rm.command_interface_keys(),
+               testing::IsSupersetOf({"left_robotiq_85_left_knuckle_joint/position",
+                                      "right_robotiq_85_left_knuckle_joint/position",
+                                      "left_reactivate_gripper/reactivate_gripper_cmd",
+                                      "left_reactivate_gripper/reactivate_gripper_response",
+                                      "right_reactivate_gripper/reactivate_gripper_cmd",
+                                      "right_reactivate_gripper/reactivate_gripper_response"}));
+
+   rclcpp_lifecycle::State active{lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE,
+                                  hardware_interface::lifecycle_state_names::ACTIVE};
+   ASSERT_EQ(hardware_interface::return_type::OK,
+             rm.set_component_state(std::string("right_") + kComponentName, active));
+
+   auto request = rm.claim_command_interface("right_reactivate_gripper/reactivate_gripper_cmd");
+   ASSERT_TRUE(compat::setValue(request, 1.0));
+   ASSERT_TRUE(compat::readWriteOk(rm.read(rclcpp::Time{0}, rclcpp::Duration::from_seconds(0.01))));
+
+   EXPECT_TRUE(std::isnan(compat::getValue(request).value_or(0.0))) << "the right gripper missed its request";
+}
+
 namespace {
 //! The component's own ros2_control block, as on_init receives it.
 hardware_interface::HardwareInfo hardwareInfo(const std::string& urdf)
@@ -400,6 +498,25 @@ TEST(TestRobotiqGripperHardwareInterface, AcceptsEveryStateInterfaceItExports)
 
    EXPECT_EQ(hardware_interface::CallbackReturn::SUCCESS,
              driver.on_init(compat::onInitParams(hardwareInfo(urdfDeclaring("gripper_fault_severity")))));
+}
+
+/**
+ * The driver has one GPIO, the reactivation handshake, and takes its name from
+ * the description. A second one is refused rather than silently ignored.
+ */
+TEST(TestRobotiqGripperHardwareInterface, RejectsMoreThanOneGpio)
+{
+   std::string urdf = minimalRobotUrdf();
+   const std::string anchor = "          </ros2_control>";
+   urdf.insert(urdf.find(anchor), R"(            <gpio name="another_gpio">
+              <command_interface name="another_cmd" />
+            </gpio>
+)");
+
+   RobotiqGripperHardwareInterface driver;
+
+   EXPECT_EQ(hardware_interface::CallbackReturn::ERROR, driver.on_init(compat::onInitParams(hardwareInfo(urdf))))
+      << "on_init accepted a second GPIO";
 }
 
 /**

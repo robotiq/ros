@@ -75,7 +75,7 @@
 
             <!-- Only add this with fake hardware mode -->
             <xacro:unless value="${sim_gazebo or sim_topic_based}">
-                <gpio name="reactivate_gripper">
+                <gpio name="${prefix}reactivate_gripper">
                     <command_interface name="reactivate_gripper_cmd" />
                     <command_interface name="reactivate_gripper_response" />
                 </gpio>
