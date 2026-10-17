@@ -63,6 +63,7 @@ JOINT_PLACEHOLDER = "$(var gripper_joint)"
 # Humble EOL: delete.
 CLOSED_POSITION_PLACEHOLDER = "$(var gripper_closed_position)"
 PROFILE_PLACEHOLDER = "$(var gripper_profile)"  # Humble EOL: delete.
+GOAL_TOLERANCE_PLACEHOLDER = "$(var gripper_goal_tolerance)"
 
 # The topic_based plugin exports neither the set_gripper_max_* command
 # interfaces nor the reactivate_gripper GPIO, so it gets a config of its own per
@@ -146,6 +147,9 @@ def load_launch_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+GRIPPER_MODELS = sorted(load_launch_module().GRIPPER_JOINTS)
 
 
 def load(config):
@@ -238,14 +242,42 @@ def test_launch_description_builds():
     load_launch_module().generate_launch_description()
 
 
-@pytest.mark.parametrize(
-    "gripper_model,expected",
-    [("2f_85", JOINT), ("2f_140", "finger_joint"), ("hand_e", "hande_left_finger_joint")],
-)
-def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model, expected):
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model):
     launch_module = load_launch_module()
-    joint = launch_module.DefaultGripperJoint(LaunchConfiguration("gripper_model"))
-    assert perform(joint, gripper_model=gripper_model) == expected
+    joint = launch_module.PerGripperModel(
+        launch_module.GRIPPER_JOINTS, LaunchConfiguration("gripper_model")
+    )
+    assert (
+        perform(joint, gripper_model=gripper_model)
+        == launch_module.GRIPPER_JOINTS[gripper_model]
+    )
+
+
+@pytest.mark.parametrize("config", ALL_CONFIGS + MOCK_CONFIGS + TOPIC_BASED_CONFIGS)
+def test_goal_tolerance_is_left_to_the_launch(config):
+    raw = load(config)["robotiq_gripper_controller"]["ros__parameters"]
+    assert raw["goal_tolerance"] == GOAL_TOLERANCE_PLACEHOLDER
+
+
+@pytest.mark.parametrize("gripper_model", GRIPPER_MODELS)
+def test_launch_defaults_the_goal_tolerance_from_the_gripper_model(gripper_model):
+    launch_module = load_launch_module()
+    tolerance = launch_module.PerGripperModel(
+        launch_module.GRIPPER_GOAL_TOLERANCES, LaunchConfiguration("gripper_model")
+    )
+    assert (
+        perform(tolerance, gripper_model=gripper_model)
+        == launch_module.GRIPPER_GOAL_TOLERANCES[gripper_model]
+    )
+
+
+def test_every_gripper_model_has_a_goal_tolerance():
+    launch_module = load_launch_module()
+    assert (
+        launch_module.GRIPPER_GOAL_TOLERANCES.keys()
+        == launch_module.GRIPPER_JOINTS.keys()
+    )
 
 
 def test_launch_restricts_gripper_model_to_the_known_joints():
@@ -461,11 +493,16 @@ def macro_closed_position(gripper_model):
 
 def resolved(config, joint=JOINT, gripper_model="2f_85"):
     return (
-        config.read_text().replace(JOINT_PLACEHOLDER, joint)
+        config.read_text()
+        .replace(JOINT_PLACEHOLDER, joint)
         # Humble EOL: delete.
         .replace(CLOSED_POSITION_PLACEHOLDER, macro_closed_position(gripper_model))
         # Humble EOL: delete.
         .replace(PROFILE_PLACEHOLDER, MODEL_PROFILES[gripper_model])
+        .replace(
+            GOAL_TOLERANCE_PLACEHOLDER,
+            load_launch_module().GRIPPER_GOAL_TOLERANCES[gripper_model],
+        )
     )
 
 
