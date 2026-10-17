@@ -42,18 +42,37 @@ namespace robotiq_driver::test {
 namespace {
 // The 2F-85's fully-closed joint angle, as the shipped description sets it.
 constexpr double kClosedPosition = 0.7929;
+constexpr const Robotiq::DeviceProfile& k2F85 = Robotiq::profiles::k2F85;
+// A user's own profile for a 2F-85 whose stops measure at other counts.
+constexpr Robotiq::DeviceProfile kRemeasured2F85 = [] {
+   Robotiq::DeviceProfile profile = Robotiq::profiles::k2F85;
+   profile.openPosition = 5;
+   profile.closedPosition = 226;
+   return profile;
+}();
+constexpr uint8_t kOpenCount = k2F85.openPosition;
+constexpr uint8_t kClosedCount = k2F85.closedPosition;
 } // namespace
 
 TEST(GripperScaling, TravelEndpointsMapToTheJointLimits)
 {
-   EXPECT_DOUBLE_EQ(0.0, jointPositionFromRegister(kGripperMinPos, kClosedPosition));
-   EXPECT_DOUBLE_EQ(kClosedPosition, jointPositionFromRegister(kGripperMaxPos, kClosedPosition));
+   EXPECT_DOUBLE_EQ(0.0, jointPositionFromRegister(kOpenCount, kClosedPosition, k2F85));
+   EXPECT_DOUBLE_EQ(kClosedPosition, jointPositionFromRegister(kClosedCount, kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, JointLimitsMapBackToTheTravelEndpoints)
 {
-   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, kClosedPosition));
-   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(kClosedPosition, kClosedPosition));
+   EXPECT_EQ(kOpenCount, registerFromJointPosition(0.0, kClosedPosition, k2F85));
+   EXPECT_EQ(kClosedCount, registerFromJointPosition(kClosedPosition, kClosedPosition, k2F85));
+}
+
+TEST(GripperScaling, TheProfileSetsTheTravelBand)
+{
+   EXPECT_DOUBLE_EQ(kClosedPosition,
+                    jointPositionFromRegister(kRemeasured2F85.closedPosition, kClosedPosition, kRemeasured2F85));
+   EXPECT_EQ(kRemeasured2F85.closedPosition,
+             registerFromJointPosition(kClosedPosition, kClosedPosition, kRemeasured2F85));
+   EXPECT_EQ(kRemeasured2F85.openPosition, registerFromJointPosition(0.0, kClosedPosition, kRemeasured2F85));
 }
 
 TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
@@ -63,10 +82,10 @@ TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
    // commanded straight back can come out one low. That is the behaviour the
    // driver has always had, pinned here rather than fixed, so that changing it
    // is a visible decision rather than a side effect of some later edit.
-   for(uint8_t counts = kGripperMinPos; counts <= kGripperMaxPos; ++counts)
+   for(uint8_t counts = kOpenCount; counts <= kClosedCount; ++counts)
    {
       const std::optional<uint8_t> round_tripped =
-         registerFromJointPosition(jointPositionFromRegister(counts, kClosedPosition), kClosedPosition);
+         registerFromJointPosition(jointPositionFromRegister(counts, kClosedPosition, k2F85), kClosedPosition, k2F85);
       ASSERT_TRUE(round_tripped.has_value());
       EXPECT_THAT(*round_tripped, testing::AnyOf(counts, counts - 1))
          << "round trip drifted more than a count at " << static_cast<int>(counts) << " counts";
@@ -75,33 +94,34 @@ TEST(GripperScaling, RegisterRoundTripLosesAtMostOneCount)
 
 TEST(GripperScaling, PositionsOutsideTheJointRangeClampIntoTheByte)
 {
-   EXPECT_EQ(0, registerFromJointPosition(-1.0, kClosedPosition));
-   EXPECT_EQ(255, registerFromJointPosition(10.0 * kClosedPosition, kClosedPosition));
+   EXPECT_EQ(0, registerFromJointPosition(-1.0, kClosedPosition, k2F85));
+   EXPECT_EQ(255, registerFromJointPosition(10.0 * kClosedPosition, kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, PositionsBelowTheTravelBandStayReachable)
 {
    // The band starts at 3 counts, but 0..2 are still commandable: clamping is
    // to the byte, not to the band.
-   EXPECT_LT(registerFromJointPosition(-0.005, kClosedPosition), kGripperMinPos);
+   EXPECT_LT(registerFromJointPosition(-0.005, kClosedPosition, k2F85), kOpenCount);
 }
 
 TEST(GripperScaling, AnUnusableClosedPositionCommandsNothing)
 {
    // 0/0 and x/0 have no register to land on. Answering "nothing" keeps the
    // caller from moving the fingers on a made-up count.
-   EXPECT_FALSE(registerFromJointPosition(0.0, 0.0).has_value());
-   EXPECT_FALSE(registerFromJointPosition(0.5, 0.0).has_value());
-   EXPECT_FALSE(registerFromJointPosition(std::numeric_limits<double>::quiet_NaN(), kClosedPosition).has_value());
-   EXPECT_FALSE(registerFromJointPosition(0.5, std::numeric_limits<double>::quiet_NaN()).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.0, 0.0, k2F85).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.5, 0.0, k2F85).has_value());
+   EXPECT_FALSE(
+      registerFromJointPosition(std::numeric_limits<double>::quiet_NaN(), kClosedPosition, k2F85).has_value());
+   EXPECT_FALSE(registerFromJointPosition(0.5, std::numeric_limits<double>::quiet_NaN(), k2F85).has_value());
 }
 
 TEST(GripperScaling, AClosedPositionThatClosesNegativeStillMaps)
 {
    // A joint whose closed direction is negative is a supported description:
    // the ratio inverts and the mapping still lands in the travel band.
-   EXPECT_EQ(kGripperMinPos, registerFromJointPosition(0.0, -kClosedPosition));
-   EXPECT_EQ(kGripperMaxPos, registerFromJointPosition(-kClosedPosition, -kClosedPosition));
+   EXPECT_EQ(kOpenCount, registerFromJointPosition(0.0, -kClosedPosition, k2F85));
+   EXPECT_EQ(kClosedCount, registerFromJointPosition(-kClosedPosition, -kClosedPosition, k2F85));
 }
 
 TEST(GripperScaling, AFractionOutsideTheRangeCommandsNothing)
@@ -137,6 +157,19 @@ TEST(GripperScaling, whenTheMaximumIsNearZero_theRegisterIsTheMaxAllowedValue)
 {
    EXPECT_EQ(255, registerFromFractionOf(0.15, std::numeric_limits<double>::denorm_min()));
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+TEST(GripperScaling, TheDeprecatedNamesKeepThe2F85Band)
+{
+   EXPECT_EQ(kOpenCount, kGripperMinPos);
+   EXPECT_EQ(kClosedCount, kGripperMaxPos);
+   EXPECT_EQ(k2F85.registerPositionRange(), kGripperRange);
+   EXPECT_DOUBLE_EQ(jointPositionFromRegister(128, kClosedPosition, k2F85),
+                    jointPositionFromRegister(128, kClosedPosition));
+   EXPECT_EQ(registerFromJointPosition(0.4, kClosedPosition, k2F85), registerFromJointPosition(0.4, kClosedPosition));
+}
+#pragma GCC diagnostic pop
 
 TEST(GripperScaling, MotorCurrentIsTenMilliampsPerCount)
 {

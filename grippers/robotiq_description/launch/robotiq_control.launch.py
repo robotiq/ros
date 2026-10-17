@@ -173,6 +173,16 @@ def hardware_component_names(context):
 GRIPPER_JOINTS = {
     "2f_85": "robotiq_85_left_knuckle_joint",
     "2f_140": "finger_joint",
+    "hand_e": "hande_left_finger_joint",
+}
+
+# goal_tolerance, in the driven joint's unit: radians on the 2F models, metres
+# on the Hand-E. The stock check ends a goal once inside it even when the
+# object status decides, so it has to be small against the stroke.
+GRIPPER_GOAL_TOLERANCES = {
+    "2f_85": "0.02",
+    "2f_140": "0.02",
+    "hand_e": "0.0005",
 }
 
 
@@ -182,18 +192,24 @@ class UsesRealGripper(Substitution):
         return str(not any(evaluate_condition_expression(context, [f]) for f in flags))
 
 
-# The driver's gripper_closed_position for the joint, read from the description
-# the launch loads, for the Humble gripper controller, which cannot read it
-# itself. Humble EOL: delete closed_position_from_description and
-# ClosedPosition, with the gripper_closed_position launch configuration below.
-def closed_position_from_description(urdf, joint):
-    """The text of the gripper_closed_position driving `joint`, or None."""
+# The driver's gripper_closed_position and gripper_profile for the joint, read
+# from the description the launch loads, for the Humble gripper controller,
+# which cannot read them itself. Humble EOL: delete driver_param_from_description,
+# closed_position_from_description, ClosedPosition and GripperProfile, with the
+# two launch configurations below.
+def driver_param_from_description(urdf, joint, name):
+    """The text of the driver parameter `name` driving `joint`, or None."""
     for control in ElementTree.fromstring(urdf).iterfind("ros2_control"):
         if control.find(f"joint[@name='{joint}']") is not None:
-            param = control.find("hardware/param[@name='gripper_closed_position']")
+            param = control.find(f"hardware/param[@name='{name}']")
             if param is not None and param.text and param.text.strip():
                 return param.text.strip()
     return None
+
+
+def closed_position_from_description(urdf, joint):
+    """The text of the gripper_closed_position driving `joint`, or None."""
+    return driver_param_from_description(urdf, joint, "gripper_closed_position")
 
 
 class ClosedPosition(Substitution):
@@ -213,13 +229,29 @@ class ClosedPosition(Substitution):
         return closed_position
 
 
-class DefaultGripperJoint(Substitution):
-    def __init__(self, gripper_model):
+class GripperProfile(Substitution):
+    """The joint's gripper_profile, or the 2F-85's the driver defaults to."""
+
+    def __init__(self, joint):
         super().__init__()
+        self.joint = joint
+
+    def perform(self, context):
+        urdf = perform_substitutions(context, [xacro_command()])
+        profile = driver_param_from_description(
+            urdf, self.joint.perform(context), "gripper_profile"
+        )
+        return profile or "2f_85"
+
+
+class PerGripperModel(Substitution):
+    def __init__(self, table, gripper_model):
+        super().__init__()
+        self.table = table
         self.gripper_model = gripper_model
 
     def perform(self, context):
-        return GRIPPER_JOINTS[self.gripper_model.perform(context)]
+        return self.table[self.gripper_model.perform(context)]
 
 
 def xacro_command():
@@ -258,7 +290,7 @@ def generate_launch_description():
         package="robotiq_description"
     ).find("robotiq_description")
     default_model_path = os.path.join(
-        description_pkg_share, "urdf", "robotiq_2f_85_gripper.urdf.xacro"
+        description_pkg_share, "urdf", "robotiq_gripper.urdf.xacro"
     )
     default_rviz_config_path = os.path.join(
         description_pkg_share, "rviz", "view_urdf.rviz"
@@ -295,8 +327,20 @@ def generate_launch_description():
     args.append(
         launch.actions.DeclareLaunchArgument(
             name="gripper_joint",
-            default_value=DefaultGripperJoint(LaunchConfiguration("gripper_model")),
+            default_value=PerGripperModel(
+                GRIPPER_JOINTS, LaunchConfiguration("gripper_model")
+            ),
             description="Joint the gripper controller drives; defaults from gripper_model",
+        )
+    )
+    args.append(
+        launch.actions.DeclareLaunchArgument(
+            name="gripper_goal_tolerance",
+            default_value=PerGripperModel(
+                GRIPPER_GOAL_TOLERANCES, LaunchConfiguration("gripper_model")
+            ),
+            description="goal_tolerance of the gripper controller, in the joint's unit; "
+            "defaults from gripper_model",
         )
     )
     args.append(
@@ -538,6 +582,13 @@ def generate_launch_description():
             launch.actions.SetLaunchConfiguration(
                 "gripper_closed_position",
                 ClosedPosition(LaunchConfiguration("gripper_joint")),
+                condition=IfCondition(UsesRealGripper()),
+            )
+        )
+        args.append(
+            launch.actions.SetLaunchConfiguration(
+                "gripper_profile",
+                GripperProfile(LaunchConfiguration("gripper_joint")),
                 condition=IfCondition(UsesRealGripper()),
             )
         )

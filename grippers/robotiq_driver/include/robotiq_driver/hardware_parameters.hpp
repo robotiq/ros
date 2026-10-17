@@ -39,6 +39,7 @@
 #include <cstdint>
 
 #include <Robotiq/gripper/connection_config.hpp>
+#include <Robotiq/gripper/device_profile.hpp>
 
 #include <hardware_interface/hardware_info.hpp>
 
@@ -71,6 +72,9 @@ struct GripperParameters
    //! here: the URDF must supply it.
    double closed_position = 0.0;
 
+   //! The SDK profile whose register band the joint mapping spans.
+   Robotiq::DeviceProfile profile = Robotiq::profiles::k2F85;
+
    //! Full-scale speed and force, used to turn the SI values written to the
    //! set_gripper_max_velocity / set_gripper_max_effort command interfaces
    //! into rSP / rFR register fractions.
@@ -94,8 +98,8 @@ struct GripperParameters
 //! above; malformed ones are reported through \p logger and also keep the
 //! default, so one bad string cannot take the gripper down at startup.
 //! \throw std::out_of_range when gripper_closed_position is absent,
-//!        std::invalid_argument when it does not parse — the one parameter
-//!        with no sane default.
+//!        std::invalid_argument when it or gripper_profile does not parse —
+//!        the parameters a fallback would silently mis-scale.
 [[nodiscard]] GripperParameters parseParameters(const hardware_interface::HardwareInfo& info,
                                                 const rclcpp::Logger& logger);
 } // namespace robotiq_driver

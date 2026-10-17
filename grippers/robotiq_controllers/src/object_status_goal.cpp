@@ -69,11 +69,38 @@ const tinyxml2::XMLElement* hardwareParameter(const tinyxml2::XMLElement& contro
    return nullptr;
 }
 
-std::optional<double> closedPosition(const char* text)
+// The text of the driver parameter \p name in the hardware block of \p urdf that
+// drives \p joint; nothing when there is no such block or parameter.
+std::optional<std::string> jointHardwareParameter(const std::string& urdf, const std::string& joint, const char* name)
+{
+   // A walk of the two tags needed rather than hardware_interface's parser,
+   // which validates the whole description again, with rules that differ per
+   // distro, to answer the same question.
+   tinyxml2::XMLDocument document;
+   if(document.Parse(urdf.c_str()) != tinyxml2::XML_SUCCESS || !document.RootElement())
+   {
+      return std::nullopt;
+   }
+   for(const tinyxml2::XMLElement* control = document.RootElement()->FirstChildElement("ros2_control"); control;
+       control = control->NextSiblingElement("ros2_control"))
+   {
+      if(drivesJoint(*control, joint))
+      {
+         if(const tinyxml2::XMLElement* param = hardwareParameter(*control, name))
+         {
+            const char* text = param->GetText();
+            return std::string(text ? text : "");
+         }
+      }
+   }
+   return std::nullopt;
+}
+
+std::optional<double> closedPosition(const std::string& text)
 {
    try
    {
-      const double closed_position = std::stod(text ? text : "");
+      const double closed_position = std::stod(text);
       return robotiq_driver::isValidClosedPosition(closed_position) ? std::optional(closed_position) : std::nullopt;
    }
    catch(const std::exception&)
@@ -90,26 +117,14 @@ std::string interfaceName(const std::string& joint)
 
 std::optional<double> closedPositionFromUrdf(const std::string& urdf, const std::string& joint)
 {
-   // A walk of the two tags needed rather than hardware_interface's parser,
-   // which validates the whole description again, with rules that differ per
-   // distro, to answer the same question.
-   tinyxml2::XMLDocument document;
-   if(document.Parse(urdf.c_str()) != tinyxml2::XML_SUCCESS || !document.RootElement())
-   {
-      return std::nullopt;
-   }
-   for(const tinyxml2::XMLElement* control = document.RootElement()->FirstChildElement("ros2_control"); control;
-       control = control->NextSiblingElement("ros2_control"))
-   {
-      if(drivesJoint(*control, joint))
-      {
-         if(const tinyxml2::XMLElement* param = hardwareParameter(*control, robotiq_driver::kClosedPositionParam))
-         {
-            return closedPosition(param->GetText());
-         }
-      }
-   }
-   return std::nullopt;
+   const std::optional<std::string> text = jointHardwareParameter(urdf, joint, robotiq_driver::kClosedPositionParam);
+   return text ? closedPosition(*text) : std::nullopt;
+}
+
+std::optional<Robotiq::DeviceProfile> profileFromUrdf(const std::string& urdf, const std::string& joint)
+{
+   const std::optional<std::string> name = jointHardwareParameter(urdf, joint, robotiq_driver::kProfileParam);
+   return name ? robotiq_driver::profileNamed(*name) : Robotiq::profiles::k2F85;
 }
 
 std::optional<std::reference_wrapper<hardware_interface::LoanedStateInterface>> findInterface(

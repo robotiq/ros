@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="robotiq_gripper">
+    <xacro:arg name="gripper_model" default="hand_e" />
+    <xacro:include filename="$(find robotiq_description)/urdf/robotiq_gripper.urdf.xacro" />
+</robot>

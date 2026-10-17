@@ -1,0 +1,140 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="robotiq_gripper">
+    <xacro:macro name="robotiq_gripper" params="
+        name
+        prefix
+        parent
+        *origin
+        sim_gazebo:=false
+        sim_topic_based:=false
+        sim_joint_commands_topic:=/sim/joint_commands
+        sim_joint_states_topic:=/sim/joint_states
+        sim_isaac:=false
+        isaac_joint_commands:=''
+        isaac_joint_states:=''
+        use_fake_hardware:=false
+        mock_sensor_commands:=false
+        include_ros2_control:=true
+        com_port:=/dev/ttyUSB0
+        baudrate:=115200
+        gripper_speed_multiplier:=1.0
+        gripper_force_multiplier:=0.5
+        gripper_max_speed:=0.150
+        gripper_max_force:=185.0
+        gripper_closed_position:=0.025
+        tcp_z_offset:=0.1325">
+
+        <!-- PickNik's names for the topic-based path, released in 1.1.0 and
+             deprecated since 1.2.0. sim_isaac keeps its old /isaac_joint_* topic
+             defaults; an explicit new-style argument wins over both. -->
+        <xacro:if value="${sim_isaac or isaac_joint_commands != '' or isaac_joint_states != ''}">
+            ${xacro.warning('sim_isaac, isaac_joint_commands and isaac_joint_states are deprecated since 1.2.0 and removed in the next major release; use sim_topic_based, sim_joint_commands_topic and sim_joint_states_topic')}
+        </xacro:if>
+        <xacro:property name="topic_based" value="${sim_topic_based or sim_isaac}"/>
+        <xacro:property name="commands_topic" value="${isaac_joint_commands or ('/isaac_joint_commands' if sim_isaac else sim_joint_commands_topic)}"/>
+        <xacro:property name="states_topic" value="${isaac_joint_states or ('/isaac_joint_states' if sim_isaac else sim_joint_states_topic)}"/>
+
+        <xacro:property name="stroke" value="0.050"/>
+
+        <xacro:include filename="$(find robotiq_description)/urdf/hand_e.ros2_control.xacro" />
+        <xacro:if value="${include_ros2_control}">
+            <xacro:robotiq_gripper_ros2_control
+                name="${name}" prefix="${prefix}"
+                sim_gazebo="${sim_gazebo}"
+                sim_topic_based="${topic_based}"
+                sim_joint_commands_topic="${commands_topic}"
+                sim_joint_states_topic="${states_topic}"
+                use_fake_hardware="${use_fake_hardware}"
+                mock_sensor_commands="${mock_sensor_commands}"
+                com_port="${com_port}"
+                baudrate="${baudrate}"
+                gripper_speed_multiplier="${gripper_speed_multiplier}"
+                gripper_force_multiplier="${gripper_force_multiplier}"
+                gripper_max_speed="${gripper_max_speed}"
+                gripper_max_force="${gripper_max_force}"
+                gripper_closed_position="${gripper_closed_position}"/>
+        </xacro:if>
+
+        <link name="${prefix}hand_e_base_link">
+            <inertial>
+                <origin xyz="0 0 0.04607" rpy="0 0 0" />
+                <mass value="0.86387" />
+                <inertia ixx="1017560E-9" ixy="0" ixz="2235E-9" iyy="1028041E-9" iyz="0" izz="489810E-9" />
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/hand-e.dae" />
+                </geometry>
+                <material name="">
+                    <color rgba="0.1 0.1 0.1 1" />
+                </material>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/collision/hand_e/hand-e.stl" />
+                </geometry>
+            </collision>
+        </link>
+        <joint name="${prefix}robotiq_hande_base_joint" type="fixed">
+            <parent link="${parent}" />
+            <child link="${prefix}hand_e_base_link" />
+            <xacro:insert_block name="origin" />
+        </joint>
+
+        <link name="${prefix}hande_left_finger">
+            <visual>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/left_finger.dae" />
+                </geometry>
+                <material name="">
+                    <color rgba="0.7 0.7 0.7 1" />
+                </material>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/collision/hand_e/left_finger.stl" />
+                </geometry>
+            </collision>
+        </link>
+        <link name="${prefix}hande_right_finger">
+            <visual>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/visual/hand_e/right_finger.dae" />
+                </geometry>
+                <material name="">
+                    <color rgba="0.7 0.7 0.7 1" />
+                </material>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="package://robotiq_description/meshes/collision/hand_e/right_finger.stl" />
+                </geometry>
+            </collision>
+        </link>
+
+        <!-- Each finger joint is that finger's travel, 0 open to half the
+             stroke closed, like the 2F knuckle; the left one is driven. -->
+        <joint name="${prefix}hande_left_finger_joint" type="prismatic">
+            <parent link="${prefix}hand_e_base_link" />
+            <child link="${prefix}hande_left_finger" />
+            <axis xyz="1 0 0" />
+            <origin xyz="${-stroke/2} 0 0.099" rpy="0 0 0" />
+            <limit lower="0.0" upper="${stroke/2}" velocity="0.15" effort="180" />
+        </joint>
+        <joint name="${prefix}hande_right_finger_joint" type="prismatic">
+            <parent link="${prefix}hand_e_base_link" />
+            <child link="${prefix}hande_right_finger" />
+            <axis xyz="-1 0 0" />
+            <origin xyz="${stroke/2} 0 0.099" rpy="0 0 0" />
+            <limit lower="0.0" upper="${stroke/2}" velocity="0.15" effort="180" />
+            <mimic joint="${prefix}hande_left_finger_joint" />
+        </joint>
+
+        <link name="${prefix}tcp_link" />
+        <joint name="${prefix}tcp_link_joint" type="fixed">
+            <parent link="${prefix}hand_e_base_link" />
+            <child link="${prefix}tcp_link" />
+            <origin xyz="0 0 ${tcp_z_offset}" rpy="0 0 ${-pi/2}" />
+        </joint>
+    </xacro:macro>
+</robot>

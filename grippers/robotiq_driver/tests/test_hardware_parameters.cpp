@@ -195,6 +195,26 @@ TEST(HardwareParameters, AMissingClosedPositionIsFatal)
    EXPECT_THROW(GripperParameters parameters = parseParameters(info, logger()), std::out_of_range);
 }
 
+TEST(HardwareParameters, TheProfileDefaultsToThe2F85)
+{
+   EXPECT_EQ(Robotiq::profiles::k2F85.closedPosition, parseParameters(info_with(), logger()).profile.closedPosition);
+}
+
+TEST(HardwareParameters, ReadsTheProfile)
+{
+   const GripperParameters hand_e = parseParameters(info_with({{"gripper_profile", "hand_e"}}), logger());
+   EXPECT_EQ(Robotiq::profiles::kHandE.openPosition, hand_e.profile.openPosition);
+   EXPECT_EQ(Robotiq::profiles::kHandE.closedPosition, hand_e.profile.closedPosition);
+   const GripperParameters two_finger = parseParameters(info_with({{"gripper_profile", "2f_85"}}), logger());
+   EXPECT_EQ(Robotiq::profiles::k2F85.closedPosition, two_finger.profile.closedPosition);
+}
+
+TEST(HardwareParameters, AnUnknownProfileIsFatal)
+{
+   EXPECT_THROW(parseParameters(info_with({{"gripper_profile", "hand-e"}}), logger()), std::invalid_argument);
+   EXPECT_THROW(parseParameters(info_with({{"gripper_profile", ""}}), logger()), std::invalid_argument);
+}
+
 TEST(HardwareParameters, UseDummyDefaultsOff)
 {
    EXPECT_FALSE(parseParameters(info_with(), logger()).use_dummy);
