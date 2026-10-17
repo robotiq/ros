@@ -90,7 +90,7 @@ MOCK_OF = {
 # given. Kept in sync by robotiq_driver's test_robotiq_gripper_hardware_interface,
 # which asserts the hardware exports exactly these.
 JOINT = "robotiq_85_left_knuckle_joint"
-GRIPPER_JOINTS = (JOINT, "finger_joint")
+GRIPPER_JOINTS = (JOINT, "finger_joint", "hande_left_finger_joint")
 UPDATE_RATE_HZ = 500
 
 # Every key a controller_manager block may carry besides the controllers, per
@@ -240,7 +240,7 @@ def test_launch_description_builds():
 
 @pytest.mark.parametrize(
     "gripper_model,expected",
-    [("2f_85", JOINT), ("2f_140", "finger_joint")],
+    [("2f_85", JOINT), ("2f_140", "finger_joint"), ("hand_e", "hande_left_finger_joint")],
 )
 def test_launch_defaults_the_joint_from_the_gripper_model(gripper_model, expected):
     launch_module = load_launch_module()
@@ -447,7 +447,7 @@ def spawned_controllers(distro, monkeypatch, **launch_arguments):
 
 # The gripper_profile each model's description hands the driver, the 2F-85's
 # when it sets none. Humble EOL: delete.
-MODEL_PROFILES = {"2f_85": "2f_85", "2f_140": "2f_85"}
+MODEL_PROFILES = {"2f_85": "2f_85", "2f_140": "2f_85", "hand_e": "hand_e"}
 
 
 # Humble EOL: delete.
@@ -519,6 +519,22 @@ def test_launch_hands_the_humble_controller_the_description_s_closed_position(
     assert spawned["robotiq_gripper_controller"] == resolved(
         HUMBLE_CONFIG, joint="finger_joint", gripper_model="2f_140"
     )
+
+
+# Humble EOL: delete this test.
+@requires_launch
+def test_launch_hands_the_humble_controller_the_description_s_profile(monkeypatch):
+    spawned = spawned_controllers(
+        "humble",
+        monkeypatch,
+        gripper_model="hand_e",
+        gripper_joint="hande_left_finger_joint",
+    )
+    params = yaml.safe_load(spawned["robotiq_gripper_controller"])[
+        "robotiq_gripper_controller"
+    ]["ros__parameters"]
+    assert params["gripper_profile"] == "hand_e"
+    assert params["gripper_closed_position"] == 0.025
 
 
 # Humble EOL: delete this test.

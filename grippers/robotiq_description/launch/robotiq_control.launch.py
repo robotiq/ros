@@ -173,6 +173,7 @@ def hardware_component_names(context):
 GRIPPER_JOINTS = {
     "2f_85": "robotiq_85_left_knuckle_joint",
     "2f_140": "finger_joint",
+    "hand_e": "hande_left_finger_joint",
 }
 
 
@@ -279,7 +280,7 @@ def generate_launch_description():
         package="robotiq_description"
     ).find("robotiq_description")
     default_model_path = os.path.join(
-        description_pkg_share, "urdf", "robotiq_2f_85_gripper.urdf.xacro"
+        description_pkg_share, "urdf", "robotiq_gripper.urdf.xacro"
     )
     default_rviz_config_path = os.path.join(
         description_pkg_share, "rviz", "view_urdf.rviz"
